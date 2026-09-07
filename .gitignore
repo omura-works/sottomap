@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+.env
+.env.local
+*.tsbuildinfo
+next-env.d.ts
+.superpowers/
+test-results/
+playwright-report/
+# 15MBのデザイン原本はローカル参照のみ
+docs/design-reference/original-canvas.html
