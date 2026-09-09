@@ -247,3 +247,106 @@ Divider: {}
 
 **他タスクの所有領域を書き換えない。** 必要なら報告に「T2 の `listSpots` に引数追加が必要」と書く。
 `package.json` は T1 が全依存を先に入れるので、以降のタスクは触らない。
+
+---
+
+# 追補（2026-09-09・SPEC §9 に対応。既存定義に優先する）
+
+## 型の追加・変更 — `src/lib/db/types.ts`
+
+```ts
+export type RequestStatus = 'open' | 'answered' | 'missed';
+
+export interface VerificationRequest {
+  id: string;
+  spotId: string;
+  userId: string;          // 依頼先＝投稿者
+  dueAt: string;           // ISO8601
+  status: RequestStatus;
+  answeredVerificationId: string | null;
+  createdAt: string;
+}
+
+/** Spot に追加するフィールド */
+// distanceMeters: number | null;   // 原点が与えられたときの距離
+// walkMinutes:    number | null;   // 「徒歩7分」表示用（距離から算出、80m/分）
+// openRequestId:  string | null;   // open の確認依頼ID（あれば）
+```
+
+## `src/lib/domain/lifecycle.ts` — 定数と関数の改訂
+
+```ts
+export const ENDORSEMENTS_REQUIRED = 2;
+export const VERIFICATION_INTERVAL_DAYS = 90;
+export const DORMANT_AFTER_DUE_DAYS = 90;   // due_at を90日超過したら missed→dormant
+export const PENDING_EXPIRY_DAYS = 30;
+// DORMANT_AFTER_DAYS は廃止
+
+/** 日時ベースの遷移のみを判定する（回答イベントは扱わない） */
+export function nextStatus(
+  spot: Pick<Spot, 'status' | 'createdAt'>,
+  openRequest: Pick<VerificationRequest, 'dueAt' | 'status'> | null,
+  endorsementCount: number,
+  now: Date,
+): SpotStatus;
+
+/** 確認に答えたときの遷移。dormant からの復帰はここが担う。 */
+export function statusAfterAnswer(current: SpotStatus): SpotStatus;
+
+/** 依頼が missed 扱いになるか */
+export function isMissed(dueAt: string | Date, now: Date): boolean;
+```
+
+## `src/lib/domain/ordering.ts` — 比較キーの明確化
+
+```ts
+/** SPEC §9.5: 静けさ順位 → 距離 → 最終確認日時(降順) → id(昇順) */
+export function compareSpots(a: Spot, b: Spot, distances?: Record<string, number>): number;
+```
+
+## `src/lib/domain/lantern.ts` — 冪等性
+
+```ts
+/** 確認+5 は requestId につき一度、公開+10 は spotId につき一度。
+ *  付与済みを判定できるよう、加算は必ずこの関数を通す。 */
+export function pointsForAnswer(alreadyAwardedRequestIds: string[], requestId: string): number;
+export function pointsForPublish(publishedAtWasNull: boolean): number;
+```
+
+## `src/lib/db/` — 追加が必要な取得関数
+
+```ts
+// 確認依頼
+export function getVerificationRequest(id: string): Promise<VerificationRequest | null>;
+export function listOpenRequests(userId: string): Promise<VerificationRequest[]>;
+
+// プロフィール
+export function getUserProfile(userId: string): Promise<UserProfile | null>;
+export function getProfileStats(userId: string): Promise<{
+  spotsCreated: number; verificationsAnswered: number; spotsKeptQuiet: number;
+  pendingRequestCount: number; winterVerificationCount: number; publishedPortSpotCount: number;
+}>;
+export function listSpotsByAuthor(userId: string): Promise<Spot[]>;
+```
+
+## `src/lib/db/mutations.ts` — 書き込み系（新規・T4の暫定実装をここへ集約）
+
+```ts
+export function createSpot(input: {
+  cityId: string; name: string; reason: string; lat: number; lng: number;
+  visitFrequency: VisitFrequency; authorId: string;
+}): Promise<Spot>;
+
+export function endorseSpot(spotId: string, userId: string): Promise<{ published: boolean }>;
+
+export function answerVerification(
+  requestId: string, userId: string, answer: Quietness, note?: string,
+): Promise<{ pointsAwarded: number; status: SpotStatus }>;
+
+export function addBookmark(userId: string, spotId: string, plannedAt?: string): Promise<Bookmark>;
+export function removeBookmark(userId: string, spotId: string): Promise<void>;
+```
+
+## ファイル所有権（修正波では無効）
+
+修正波は単一のエージェントが全域を担当する。所有権表は並行実行時のみ有効。
