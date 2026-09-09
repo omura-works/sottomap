@@ -10,8 +10,16 @@
  *
  * Task 6 が認証を結線する際、`DEMO_USER_ID` を実ユーザーIDに、
  * `DEMO_PROFILE` 以下をプロフィール取得関数の実データに差し替える想定。
+ *
+ * `DEMO_USER_ID` は `supabase/seed.sql` / `src/lib/db/fixtures.ts` に実在する
+ * ユーザーの UUID を指す（`users`/`bookmarks` 等のFK制約を満たし、seed/フィクスチャで
+ * そのまま動作確認できるようにするため）。栞（bookmarks）のフィクスチャは
+ * 「Aさん」（`b...004`、札幌・大通・9年）にのみ紐づいているため、S8 `/bookmarks` が
+ * 空にならないようこちらを採用している。S7 `/me` のプロフィール表示（「Kさん」）は
+ * `DEMO_PROFILE` の固定値を使うのみで `DEMO_USER_ID` には連動しない
+ * （CONTRACT にユーザーIDから取得するプロフィール関数が無いため）。
  */
-export const DEMO_USER_ID = "demo-user";
+export const DEMO_USER_ID = "b0000000-0000-4000-8000-000000000004";
 
 export const DEMO_PROFILE = {
   displayName: "Kさん",

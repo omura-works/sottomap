@@ -1,12 +1,8 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "./cn";
+import type { TagKind } from "@/lib/db/types";
 
-/**
- * docs/CONTRACT.md `src/lib/db/types.ts` で定義される TagKind と同一の型。
- * T1 は T2 所有の `src/lib/**` を書けないため、ここに構造的に同一の型として
- * 複製している（文字列リテラルユニオンなので T2 実装後も型互換）。
- */
-export type TagKind = "accent" | "accent2" | "neutral" | "outline";
+export type { TagKind };
 
 const KIND_CLASS: Record<TagKind, string> = {
   accent: "tag-accent",

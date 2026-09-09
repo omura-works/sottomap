@@ -101,19 +101,22 @@ create policy spot_tags_select_via_spot on spot_tags
 
 -- =========================================================
 -- endorsements
---   挿入: 自分の行のみ、かつ自分が投稿したスポットには挿入不可
+--   挿入: 自分の行のみ、かつ自分が投稿したスポットには挿入不可、
+--         かつ Spec §2.2「承認者の条件: 同じ街に紐づくユーザーであること」を満たす場合のみ
 --   閲覧: 誰でも（承認人数の表示に使うため）
 -- =========================================================
 create policy endorsements_select_all on endorsements
   for select using (true);
 
-create policy endorsements_insert_self_not_own_spot on endorsements
+create policy endorsements_insert_self_same_city_not_own_spot on endorsements
   for insert with check (
     user_id = auth.uid()
-    and not exists (
+    and exists (
       select 1 from spots s
+      join users u on u.id = auth.uid()
       where s.id = endorsements.spot_id
-        and s.author_id = auth.uid()
+        and s.author_id <> auth.uid()
+        and u.home_city_id = s.city_id
     )
   );
 
