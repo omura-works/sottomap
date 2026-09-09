@@ -1,0 +1,327 @@
+-- ウラスポ シードデータ
+-- Spec: docs/SPEC.md §7（実データ方針）
+--
+-- 実データ方針:
+--   - 街8件・実在店6件の「店名・住所・エリア・カテゴリ」は公開情報（各店の公式サイト /
+--     グルメサイト掲載情報）にある事実のみを記載している。座標は住所から見た
+--     おおまかな地区中心の近似値であり、正確なジオコーディング結果ではない（デモ用途）。
+--   - 一方で「確認人数・承認・確認履歴・静けさステータス・灯りポイント」は
+--     このアプリのゲームメカニクス上の状態であり、実店舗の事実の主張ではない。
+--     ただし §7 の指示どおり、これらが UI 上の architecture-demo（架空）データである旨を
+--     アプリ側（フッター/About）に明記すること。ここでは「架空」として扱ってよい
+--     デモ用の確認履歴・承認・ユーザーを作成する。
+--   - デモユーザーは実在の人物ではない、シード専用の仮名アカウント。
+--
+-- auth.users への直接 INSERT について:
+--   Supabase Auth（GoTrue）管理下の auth.users に対し、ローカル開発の種データとして
+--   直接 INSERT する（サインアップ経由ではない）。これは Supabase コミュニティで
+--   広く使われるローカルシード手法だが、本番の認証結線は Task6 が Supabase Auth
+--   経由の正規サインアップで行う。psql の無い環境ではこのファイルの構文レビューのみ
+--   行っており、実行検証はできていない旨を報告に明記する。
+
+-- =========================================================
+-- 1. cities（街8件）
+-- =========================================================
+insert into cities (id, slug, name, name_kana, is_port, center_lat, center_lng, default_zoom) values
+  ('a0000000-0000-4000-8000-000000000001', 'sapporo',   '札幌', 'さっぽろ', false, 43.0621, 141.3544, 12.5),
+  ('a0000000-0000-4000-8000-000000000002', 'otaru',     '小樽', 'おたる',   true,  43.1907, 140.9947, 13.5),
+  ('a0000000-0000-4000-8000-000000000003', 'hakodate',  '函館', 'はこだて', true,  41.7687, 140.7288, 13.5),
+  ('a0000000-0000-4000-8000-000000000004', 'asahikawa', '旭川', 'あさひかわ', false, 43.7706, 142.3649, 13),
+  ('a0000000-0000-4000-8000-000000000005', 'furano',    '富良野', 'ふらの', false, 43.3416, 142.3831, 13),
+  ('a0000000-0000-4000-8000-000000000006', 'kushiro',   '釧路', 'くしろ', true,  42.9849, 144.3820, 13),
+  ('a0000000-0000-4000-8000-000000000007', 'obihiro',   '帯広', 'おびひろ', false, 42.9238, 143.1968, 13),
+  ('a0000000-0000-4000-8000-000000000008', 'wakkanai',  '稚内', 'わっかない', true, 45.4155, 141.6733, 13.5)
+on conflict (id) do nothing;
+
+-- =========================================================
+-- 2. tags
+--   §3「昼が本番／現金のみ／ひとりで入れる／魚屋直営」等の例に加え、
+--   S3 検索チップの3種（day-only / cash-only / solo-ok）のタグ行も用意する
+--   （このタグ自体は実店舗6件のどれにも今回は事実として付与していない = 未使用でも可）。
+-- =========================================================
+insert into tags (id, slug, label, kind) values
+  ('e0000000-0000-4000-8000-000000000001', 'fish-shop-direct', '魚屋直営', 'accent'),
+  ('e0000000-0000-4000-8000-000000000002', 'takeout-ok', '持ち帰りもできる', 'neutral'),
+  ('e0000000-0000-4000-8000-000000000003', 'night-only', '夜が本番', 'accent2'),
+  ('e0000000-0000-4000-8000-000000000004', 'locals-market', '地元が買いに行く市場', 'accent2'),
+  ('e0000000-0000-4000-8000-000000000005', 'morning-only', '朝のうちに', 'accent2'),
+  ('e0000000-0000-4000-8000-000000000006', 'day-only', '昼だけ', 'accent2'),
+  ('e0000000-0000-4000-8000-000000000007', 'cash-only', '現金のみ', 'neutral'),
+  ('e0000000-0000-4000-8000-000000000008', 'solo-ok', 'ひとりで入れる', 'neutral')
+on conflict (id) do nothing;
+
+-- =========================================================
+-- 3. badges
+-- =========================================================
+insert into badges (id, slug, glyph, label) values
+  ('f0000000-0000-4000-8000-000000000001', 'keeper', '灯', '番人'),
+  ('f0000000-0000-4000-8000-000000000002', 'winter', '雪', '冬も歩いた'),
+  ('f0000000-0000-4000-8000-000000000003', 'port',   '港', '港')
+on conflict (id) do nothing;
+
+-- =========================================================
+-- 4. auth.users + public.users（架空デモアカウント10件）
+-- =========================================================
+insert into auth.users (
+  id, instance_id, aud, role, email, encrypted_password,
+  email_confirmed_at, created_at, updated_at,
+  raw_app_meta_data, raw_user_meta_data, is_sso_user
+) values
+  ('b0000000-0000-4000-8000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-k@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
+  ('b0000000-0000-4000-8000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-m@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
+  ('b0000000-0000-4000-8000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-t@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
+  ('b0000000-0000-4000-8000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-sapporo-e1@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
+  ('b0000000-0000-4000-8000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-sapporo-e2@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
+  ('b0000000-0000-4000-8000-000000000006', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-s@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
+  ('b0000000-0000-4000-8000-000000000007', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-h@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
+  ('b0000000-0000-4000-8000-000000000008', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-r@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
+  ('b0000000-0000-4000-8000-000000000009', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-otaru-e1@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
+  ('b0000000-0000-4000-8000-00000000000a', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-otaru-e2@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false)
+on conflict (id) do nothing;
+
+insert into users (id, display_name, home_city_id, area_name, resident_years, avatar_url, lantern_points, created_at) values
+  ('b0000000-0000-4000-8000-000000000001', 'Kさん', (select id from cities where slug = 'sapporo'), '北24条', 14, null, 65, now() - interval '220 days'),
+  ('b0000000-0000-4000-8000-000000000002', 'Mさん', (select id from cities where slug = 'sapporo'), 'すすきの', 8,  null, 40, now() - interval '300 days'),
+  ('b0000000-0000-4000-8000-000000000003', 'Tさん', (select id from cities where slug = 'sapporo'), 'すすきの', 5,  null, 25, now() - interval '180 days'),
+  ('b0000000-0000-4000-8000-000000000004', 'Aさん', (select id from cities where slug = 'sapporo'), '大通',   9,  null, 30, now() - interval '400 days'),
+  ('b0000000-0000-4000-8000-000000000005', 'Nさん', (select id from cities where slug = 'sapporo'), '円山',   11, null, 20, now() - interval '400 days'),
+  ('b0000000-0000-4000-8000-000000000006', 'Sさん', (select id from cities where slug = 'otaru'),   '花園',   20, null, 55, now() - interval '400 days'),
+  ('b0000000-0000-4000-8000-000000000007', 'Hさん', (select id from cities where slug = 'otaru'),   '新富町', 30, null, 70, now() - interval '500 days'),
+  ('b0000000-0000-4000-8000-000000000008', 'Rさん', (select id from cities where slug = 'otaru'),   '色内',   10, null, 45, now() - interval '600 days'),
+  ('b0000000-0000-4000-8000-000000000009', 'Fさん', (select id from cities where slug = 'otaru'),   '手宮',   6,  null, 15, now() - interval '600 days'),
+  ('b0000000-0000-4000-8000-00000000000a', 'Yさん', (select id from cities where slug = 'otaru'),   '塩谷',   4,  null, 10, now() - interval '600 days')
+on conflict (id) do nothing;
+
+-- =========================================================
+-- 5. spots（実在6店）
+--   店名・住所・エリア・カテゴリ・引用文は公開情報 / docs/design-reference の
+--   採用コピーに基づく事実。座標は住所から見た近似値。
+--   ステータス・静けさ・確認履歴・承認は §7 の方針どおり架空のデモデータ。
+-- =========================================================
+
+-- 5-1. シハチ鮮魚店 北24条店（札幌・北24条・海鮮丼）
+insert into spots (
+  id, city_id, name, address, area_name, category, location,
+  status, quietness, reason, visit_frequency, author_id, photo_url,
+  published_at, next_verification_at, last_verified_at, created_at
+) values (
+  'd0000000-0000-4000-8000-000000000001',
+  (select id from cities where slug = 'sapporo'),
+  'シハチ鮮魚店 北24条店',
+  '北海道札幌市北区北24条西2丁目1-13 ベアーズ24',
+  '北24条',
+  '海鮮丼',
+  ST_SetSRID(ST_MakePoint(141.3486, 43.0847), 4326)::geography,
+  'published', 'quiet',
+  '魚屋が営む丼屋。地元の値段のまま出てくるから、観光の店より一枚が厚い。',
+  'monthly',
+  'b0000000-0000-4000-8000-000000000001',
+  null,
+  now() - interval '213 days',
+  now() + interval '87 days',
+  now() - interval '3 days',
+  now() - interval '220 days'
+) on conflict (id) do nothing;
+
+-- 5-2. 札幌ザンギ本舗（札幌・すすきの・ザンギ）
+insert into spots (
+  id, city_id, name, address, area_name, category, location,
+  status, quietness, reason, visit_frequency, author_id, photo_url,
+  published_at, next_verification_at, last_verified_at, created_at
+) values (
+  'd0000000-0000-4000-8000-000000000002',
+  (select id from cities where slug = 'sapporo'),
+  '札幌ザンギ本舗',
+  '北海道札幌市中央区南六条西4丁目 G4ビル1F',
+  'すすきの',
+  'ザンギ',
+  ST_SetSRID(ST_MakePoint(141.3540, 43.0552), 4326)::geography,
+  'published', 'quiet',
+  'ザンギは唐揚げではない、と地元は言う。持ち帰りもできるから、宿に戻ってからも食べられる。',
+  'weekly',
+  'b0000000-0000-4000-8000-000000000002',
+  null,
+  now() - interval '293 days',
+  now() + interval '85 days',
+  now() - interval '5 days',
+  now() - interval '300 days'
+) on conflict (id) do nothing;
+
+-- 5-3. 札幌らーめん輝風 すすきの店（札幌・すすきの・味噌ラーメン）
+insert into spots (
+  id, city_id, name, address, area_name, category, location,
+  status, quietness, reason, visit_frequency, author_id, photo_url,
+  published_at, next_verification_at, last_verified_at, created_at
+) values (
+  'd0000000-0000-4000-8000-000000000003',
+  (select id from cities where slug = 'sapporo'),
+  '札幌らーめん輝風 すすきの店',
+  '北海道札幌市中央区南5条西3-1 大松ビル1F',
+  'すすきの',
+  '味噌ラーメン',
+  ST_SetSRID(ST_MakePoint(141.3534, 43.0562), 4326)::geography,
+  'published', 'crowding',
+  '夜のすすきので、地元が最後に寄る一杯。行列ができはじめたのはここ最近。',
+  'monthly',
+  'b0000000-0000-4000-8000-000000000003',
+  null,
+  now() - interval '175 days',
+  now() + interval '84 days',
+  now() - interval '6 days',
+  now() - interval '180 days'
+) on conflict (id) do nothing;
+
+-- 5-4. 聖徳太子 飛鳥店（小樽・花園・日替わり定食）
+insert into spots (
+  id, city_id, name, address, area_name, category, location,
+  status, quietness, reason, visit_frequency, author_id, photo_url,
+  published_at, next_verification_at, last_verified_at, created_at
+) values (
+  'd0000000-0000-4000-8000-000000000004',
+  (select id from cities where slug = 'otaru'),
+  '聖徳太子 飛鳥店',
+  '北海道小樽市花園1-12-21',
+  '花園',
+  '日替わり定食',
+  ST_SetSRID(ST_MakePoint(140.9989, 43.1937), 4326)::geography,
+  'published', 'quiet',
+  '小樽駅から徒歩10分。観光通りから少し外れているぶん、地元の昼どきが静か。',
+  'weekly',
+  'b0000000-0000-4000-8000-000000000006',
+  null,
+  now() - interval '395 days',
+  now() + interval '50 days',
+  now() - interval '40 days',
+  now() - interval '400 days'
+) on conflict (id) do nothing;
+
+-- 5-5. 南樽市場（小樽・新富町・市場）
+insert into spots (
+  id, city_id, name, address, area_name, category, location,
+  status, quietness, reason, visit_frequency, author_id, photo_url,
+  published_at, next_verification_at, last_verified_at, created_at
+) values (
+  'd0000000-0000-4000-8000-000000000005',
+  (select id from cities where slug = 'otaru'),
+  '南樽市場',
+  '北海道小樽市新富町12番1号',
+  '新富町',
+  '市場',
+  ST_SetSRID(ST_MakePoint(140.9925, 43.1875), 4326)::geography,
+  'published', 'quiet',
+  '観光客は三角市場へ行く。地元は南樽で買う。',
+  'weekly',
+  'b0000000-0000-4000-8000-000000000007',
+  null,
+  now() - interval '495 days',
+  now() + interval '75 days',
+  now() - interval '15 days',
+  now() - interval '500 days'
+) on conflict (id) do nothing;
+
+-- 5-6. 鱗友朝市（小樽・色内・朝市）
+insert into spots (
+  id, city_id, name, address, area_name, category, location,
+  status, quietness, reason, visit_frequency, author_id, photo_url,
+  published_at, next_verification_at, last_verified_at, created_at
+) values (
+  'd0000000-0000-4000-8000-000000000006',
+  (select id from cities where slug = 'otaru'),
+  '鱗友朝市',
+  '北海道小樽市色内3-10-15',
+  '色内',
+  '朝市',
+  ST_SetSRID(ST_MakePoint(140.9944, 43.2004), 4326)::geography,
+  'published', 'touristy',
+  '朝のうちに行くのが地元の流儀。昼が近づくほど観光バスが増える。',
+  'monthly',
+  'b0000000-0000-4000-8000-000000000008',
+  null,
+  now() - interval '590 days',
+  now() - interval '5 days',
+  now() - interval '95 days',
+  now() - interval '600 days'
+) on conflict (id) do nothing;
+
+-- =========================================================
+-- 6. spot_tags
+-- =========================================================
+insert into spot_tags (spot_id, tag_id) values
+  ('d0000000-0000-4000-8000-000000000001', 'e0000000-0000-4000-8000-000000000001'), -- シハチ: 魚屋直営
+  ('d0000000-0000-4000-8000-000000000002', 'e0000000-0000-4000-8000-000000000002'), -- ザンギ: 持ち帰りもできる
+  ('d0000000-0000-4000-8000-000000000003', 'e0000000-0000-4000-8000-000000000003'), -- 輝風: 夜が本番
+  ('d0000000-0000-4000-8000-000000000005', 'e0000000-0000-4000-8000-000000000004'), -- 南樽市場: 地元が買いに行く市場
+  ('d0000000-0000-4000-8000-000000000006', 'e0000000-0000-4000-8000-000000000005')  -- 鱗友朝市: 朝のうちに
+on conflict do nothing;
+
+-- =========================================================
+-- 7. endorsements（架空：pending→published の同じ街2人承認）
+-- =========================================================
+insert into endorsements (spot_id, user_id, created_at) values
+  ('d0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000004', now() - interval '215 days'),
+  ('d0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000005', now() - interval '213 days'),
+
+  ('d0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000001', now() - interval '295 days'),
+  ('d0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000004', now() - interval '293 days'),
+
+  ('d0000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000004', now() - interval '178 days'),
+  ('d0000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000005', now() - interval '175 days'),
+
+  ('d0000000-0000-4000-8000-000000000004', 'b0000000-0000-4000-8000-000000000009', now() - interval '398 days'),
+  ('d0000000-0000-4000-8000-000000000004', 'b0000000-0000-4000-8000-00000000000a', now() - interval '395 days'),
+
+  ('d0000000-0000-4000-8000-000000000005', 'b0000000-0000-4000-8000-000000000009', now() - interval '498 days'),
+  ('d0000000-0000-4000-8000-000000000005', 'b0000000-0000-4000-8000-000000000006', now() - interval '495 days'),
+
+  ('d0000000-0000-4000-8000-000000000006', 'b0000000-0000-4000-8000-00000000000a', now() - interval '593 days'),
+  ('d0000000-0000-4000-8000-000000000006', 'b0000000-0000-4000-8000-000000000007', now() - interval '590 days')
+on conflict do nothing;
+
+-- =========================================================
+-- 8. verifications（架空：90日ごとの確認。§3 RLS のとおり本来は
+--    スポットの author_id のみが回答できるため、user_id は各スポットの
+--    author_id と一致させている。resolveQuietness の「多数決・同数なら
+--    新しい方」が検証できるよう、鱗友朝市は quiet→quiet→touristy→touristy
+--    という同数タイの履歴にしてある。）
+-- =========================================================
+insert into verifications (spot_id, user_id, answer, note, created_at) values
+  -- シハチ鮮魚店（quiet が継続）
+  ('d0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'quiet', null, now() - interval '120 days'),
+  ('d0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'quiet', null, now() - interval '30 days'),
+  ('d0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'quiet', '変わっていない', now() - interval '3 days'),
+
+  -- 札幌ザンギ本舗（quiet が継続）
+  ('d0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000002', 'quiet', null, now() - interval '200 days'),
+  ('d0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000002', 'quiet', null, now() - interval '110 days'),
+  ('d0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000002', 'quiet', null, now() - interval '5 days'),
+
+  -- 札幌らーめん輝風（直近で crowding に転じた）
+  ('d0000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000003', 'quiet', null, now() - interval '90 days'),
+  ('d0000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000003', 'crowding', '行列ができはじめた', now() - interval '6 days'),
+
+  -- 聖徳太子 飛鳥店（quiet が継続）
+  ('d0000000-0000-4000-8000-000000000004', 'b0000000-0000-4000-8000-000000000006', 'quiet', null, now() - interval '300 days'),
+  ('d0000000-0000-4000-8000-000000000004', 'b0000000-0000-4000-8000-000000000006', 'quiet', null, now() - interval '210 days'),
+  ('d0000000-0000-4000-8000-000000000004', 'b0000000-0000-4000-8000-000000000006', 'quiet', null, now() - interval '40 days'),
+
+  -- 南樽市場（quiet が継続）
+  ('d0000000-0000-4000-8000-000000000005', 'b0000000-0000-4000-8000-000000000007', 'quiet', null, now() - interval '400 days'),
+  ('d0000000-0000-4000-8000-000000000005', 'b0000000-0000-4000-8000-000000000007', 'quiet', null, now() - interval '300 days'),
+  ('d0000000-0000-4000-8000-000000000005', 'b0000000-0000-4000-8000-000000000007', 'quiet', null, now() - interval '200 days'),
+  ('d0000000-0000-4000-8000-000000000005', 'b0000000-0000-4000-8000-000000000007', 'quiet', null, now() - interval '15 days'),
+
+  -- 鱗友朝市（quiet 2件・touristy 2件の同数タイ。新しい方の touristy を採用する例）
+  ('d0000000-0000-4000-8000-000000000006', 'b0000000-0000-4000-8000-000000000008', 'quiet', null, now() - interval '500 days'),
+  ('d0000000-0000-4000-8000-000000000006', 'b0000000-0000-4000-8000-000000000008', 'quiet', null, now() - interval '350 days'),
+  ('d0000000-0000-4000-8000-000000000006', 'b0000000-0000-4000-8000-000000000008', 'touristy', '観光バスを見かけるようになった', now() - interval '100 days'),
+  ('d0000000-0000-4000-8000-000000000006', 'b0000000-0000-4000-8000-000000000008', 'touristy', '昼はもう観光地', now() - interval '95 days')
+on conflict do nothing;
+
+-- =========================================================
+-- 9. bookmarks（架空：栞のデモ。u_sapporo_e1 がいくつか挟んでいる）
+-- =========================================================
+insert into bookmarks (user_id, spot_id, planned_at, created_at) values
+  ('b0000000-0000-4000-8000-000000000004', 'd0000000-0000-4000-8000-000000000001', now() + interval '1 day' + interval '12 hours 30 minutes', now() - interval '2 days'),
+  ('b0000000-0000-4000-8000-000000000004', 'd0000000-0000-4000-8000-000000000002', null, now() - interval '10 days'),
+  ('b0000000-0000-4000-8000-000000000004', 'd0000000-0000-4000-8000-000000000004', null, now() - interval '5 days')
+on conflict do nothing;
