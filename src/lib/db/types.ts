@@ -8,6 +8,9 @@ export type VisitFrequency = "weekly" | "monthly" | "yearly";
 export type TagKind = "accent" | "accent2" | "neutral" | "outline";
 export type TimeOfDay = "morning" | "day" | "night"; // 朝 / 昼 / 夜
 
+/** 確認依頼（verification_request）の状態。Spec §9.1。 */
+export type RequestStatus = "open" | "answered" | "missed";
+
 export interface City {
   id: string;
   slug: string; // 'sapporo' | 'otaru' | 'hakodate' | 'asahikawa' | 'furano' | 'kushiro' | 'obihiro' | 'wakkanai'
@@ -17,6 +20,12 @@ export interface City {
   centerLat: number;
   centerLng: number;
   defaultZoom: number;
+  /**
+   * 街の代表エリア名（S2/D1見出し「札幌・北24条」の後半部分）。CONTRACT追補（2026-09-09）。
+   * §9.12-7: 表示スポットの最頻エリアから推定すると実データ次第で意図しないエリアになる
+   * （例: 「札幌・すすきの」）ため、街ごとに固定値を持たせる。無ければ市区町村名のみ表示。
+   */
+  featuredArea: string | null;
 }
 
 export interface Tag {
@@ -61,6 +70,23 @@ export interface Spot {
   lastVerifiedAt: string | null;
   nextVerificationAt: string | null;
   publishedAt: string | null;
+  createdAt: string;
+  /** origin（無ければ街の中心）からの距離。CONTRACT追補。 */
+  distanceMeters: number | null;
+  /** 「徒歩7分」表示用（distanceMeters から80m/分換算、切り上げ・最低1分）。CONTRACT追補。 */
+  walkMinutes: number | null;
+  /** open状態の確認依頼ID（あれば）。CONTRACT追補・Spec §9.1。 */
+  openRequestId: string | null;
+}
+
+/** 90日ごとの確認依頼。Spec §9.1。`/verify/[requestId]` の requestId はこの id。 */
+export interface VerificationRequest {
+  id: string;
+  spotId: string;
+  userId: string; // 依頼先＝投稿者
+  dueAt: string; // ISO8601
+  status: RequestStatus;
+  answeredVerificationId: string | null;
   createdAt: string;
 }
 

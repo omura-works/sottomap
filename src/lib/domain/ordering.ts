@@ -1,8 +1,8 @@
-// 並び順（Spec §2.4）
-// 1. quiet のスポット（新しい確認があるものほど上）
-// 2. crowding
-// 3. touristy
-// 同一ステータス内は「距離が近い順」。距離が取れない場合は「最終確認が新しい順」。
+// 並び順（Spec §9.5。§2.4を置き換える完全な比較キー）
+// 1. 静けさ順位   quiet(0) < crowding(1) < touristy(2)
+// 2. 距離         近い順（不明は Infinity）
+// 3. 最終確認日時 新しい順（未確認は最も古い扱い）
+// 4. id           昇順（同値時の決定性を保証）
 // この優先順を一覧を返すすべての経路（src/lib/db/spots.ts）で必ず適用する。
 
 import type { Quietness, Spot } from "../db/types";
@@ -33,7 +33,13 @@ export function compareSpots(
   // 最終確認が新しい順（未確認は最も古い扱い）。
   const lastA = a.lastVerifiedAt ? new Date(a.lastVerifiedAt).getTime() : -Infinity;
   const lastB = b.lastVerifiedAt ? new Date(b.lastVerifiedAt).getTime() : -Infinity;
-  return lastB - lastA;
+  if (lastA !== lastB) {
+    return lastB - lastA;
+  }
+
+  // id 昇順（同値時の決定性を保証）。
+  if (a.id === b.id) return 0;
+  return a.id < b.id ? -1 : 1;
 }
 
 export function sortSpots(

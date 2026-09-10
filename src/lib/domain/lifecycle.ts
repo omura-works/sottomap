@@ -1,18 +1,21 @@
-// ピンのライフサイクル（Spec §2.2, §2.3）
+// ピンのライフサイクル（Spec §2.2 / §9.3・9.4・9.7、docs/CONTRACT.md 追補 2026-09-09）
 //
 // draft ──投稿──> pending ──同じ街の2人が「行ったことがある」──> published
 //                    │                                              │
 //                    └──30日間承認が集まらない──> expired            │
 //                                                                   │
-//                         published ──90日ごとに投稿者へ確認依頼──────┤
+//                         published ──90日ごとに投稿者へ確認依頼(verification_request)──┤
 //                                                                   │
-//                      確認に答えない まま 90日経過 ──> dormant（地図から外れる）
+//                      due_at からさらに90日無回答(missed) ──> dormant（地図から外れる）
+//
+// dormant ──投稿者が確認に答える──> published（statusAfterAnswer が担う。日時だけでは判定できない）
 
-import type { Spot, SpotStatus } from "../db/types";
+import type { Spot, SpotStatus, VerificationRequest } from "../db/types";
 
 export const ENDORSEMENTS_REQUIRED = 2;
 export const VERIFICATION_INTERVAL_DAYS = 90;
-export const DORMANT_AFTER_DAYS = 180; // 期限からさらに90日（= 90 + 90）
+/** due_at を90日超過したら missed → dormant（Spec §9.4）。旧 DORMANT_AFTER_DAYS(180) は廃止。 */
+export const DORMANT_AFTER_DUE_DAYS = 90;
 export const PENDING_EXPIRY_DAYS = 30;
 
 /** pending のスポットが公開条件を満たしたか（投稿者自身の承認は除外済みの数を渡す） */
@@ -27,20 +30,32 @@ export function daysSince(from: string | Date, now: Date): number {
   return Math.floor(diffMs / (1000 * 60 * 60 * 24));
 }
 
-/** 確認に答えた/公開された時点からの次回確認日 */
+/** 確認に答えた/公開された時点からの次回確認日（= 次の verification_request.due_at） */
 export function nextVerificationDate(from: Date): Date {
   const next = new Date(from);
   next.setDate(next.getDate() + VERIFICATION_INTERVAL_DAYS);
   return next;
 }
 
-/** 次に取るべき状態。変化不要なら現在の status をそのまま返す。 */
-export function nextStatus(
-  spot: Pick<Spot, "status" | "createdAt" | "nextVerificationAt">,
+/** 依頼が missed 扱いになるか（due_at から DORMANT_AFTER_DUE_DAYS 日以上経過）。Spec §9.4。 */
+export function isMissed(dueAt: string | Date, now: Date): boolean {
+  return daysSince(dueAt, now) >= DORMANT_AFTER_DUE_DAYS;
+}
+
+type SpotInput = Pick<Spot, "status" | "createdAt">;
+/** @deprecated 旧シグネチャ用。nextVerificationAt から合成の openRequest を組み立てるためだけに使う。 */
+type LegacySpotInput = Pick<Spot, "status" | "createdAt" | "nextVerificationAt">;
+type OpenRequestInput = Pick<VerificationRequest, "dueAt" | "status"> | null;
+
+function computeNextStatus(
+  spot: SpotInput,
+  openRequest: OpenRequestInput,
   endorsementCount: number,
   now: Date,
 ): SpotStatus {
   if (spot.status === "pending") {
+    // Spec §9.7: 2人目の承認が期限（created_at+30日）前に成立すれば公開が勝つ（同時刻も公開優先）。
+    // canPublish を expired 判定より先に評価することでこれを満たす。
     if (canPublish(endorsementCount)) {
       return "published";
     }
@@ -51,15 +66,67 @@ export function nextStatus(
   }
 
   if (spot.status === "published") {
-    if (
-      spot.nextVerificationAt &&
-      daysSince(spot.nextVerificationAt, now) >= VERIFICATION_INTERVAL_DAYS
-    ) {
+    // open の確認依頼が due_at から90日超過していれば missed → dormant。
+    if (openRequest && openRequest.status === "open" && isMissed(openRequest.dueAt, now)) {
       return "dormant";
     }
     return "published";
   }
 
-  // dormant / expired は確認回答など別経路の操作でのみ状態が変わる。
+  // dormant / expired は日時ベースでは変化しない。
+  // dormant → published の復帰は statusAfterAnswer（回答イベント）が担う。
+  // expired は終端状態（Spec §9.7）。以後の承認は受け付けない。
   return spot.status;
+}
+
+/**
+ * 次に取るべき状態。日時ベースの遷移のみを判定する（回答イベントは statusAfterAnswer が扱う）。
+ * CONTRACT追補（2026-09-09）のシグネチャ。openRequest は対象スポットの open な確認依頼（無ければ null）。
+ */
+export function nextStatus(
+  spot: SpotInput,
+  openRequest: OpenRequestInput,
+  endorsementCount: number,
+  now: Date,
+): SpotStatus;
+/**
+ * @deprecated 旧シグネチャ（openRequest引数が無い3引数版）。T6 が呼び出し側
+ * （`src/app/actions/spot-endorse.ts`・`src/app/api/cron/verification/logic.ts`）を
+ * 新シグネチャへ移行するまでの後方互換用。`nextVerificationAt` を due_at とみなした
+ * 合成の openRequest（status: 'open'）を組み立てて新ロジックへ委譲するため、
+ * 挙動は旧実装（nextVerificationAt から90日超過でdormant）と完全に一致する。
+ */
+export function nextStatus(spot: LegacySpotInput, endorsementCount: number, now: Date): SpotStatus;
+export function nextStatus(
+  spot: SpotInput | LegacySpotInput,
+  openRequestOrCount: OpenRequestInput | number,
+  endorsementCountOrNow: number | Date,
+  maybeNow?: Date,
+): SpotStatus {
+  if (typeof openRequestOrCount === "number") {
+    // 旧シグネチャ: (spot, endorsementCount, now)
+    const endorsementCount = openRequestOrCount;
+    const now = endorsementCountOrNow as Date;
+    const legacySpot = spot as LegacySpotInput;
+    const openRequest: OpenRequestInput = legacySpot.nextVerificationAt
+      ? { dueAt: legacySpot.nextVerificationAt, status: "open" }
+      : null;
+    return computeNextStatus(spot, openRequest, endorsementCount, now);
+  }
+
+  const openRequest = openRequestOrCount;
+  const endorsementCount = endorsementCountOrNow as number;
+  const now = maybeNow as Date;
+  return computeNextStatus(spot, openRequest, endorsementCount, now);
+}
+
+/**
+ * 確認に答えたときの遷移。dormant からの復帰はここが担う（Spec §9.3）。
+ * 日時ベースの nextStatus では判定できない回答イベント専用の遷移関数。
+ */
+export function statusAfterAnswer(current: SpotStatus): SpotStatus {
+  if (current === "dormant") {
+    return "published";
+  }
+  return current;
 }

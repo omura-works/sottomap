@@ -26,6 +26,9 @@ function spot(overrides: Partial<Spot> & Pick<Spot, "id" | "quietness">): Spot {
     nextVerificationAt: null,
     publishedAt: null,
     createdAt: "2026-01-01T00:00:00.000Z",
+    distanceMeters: null,
+    walkMinutes: null,
+    openRequestId: null,
     ...overrides,
   };
 }
@@ -66,10 +69,11 @@ describe("compareSpots / sortSpots", () => {
     expect(sortSpots(spots).map((s) => s.id)).toEqual(["new", "old"]);
   });
 
-  it("compareSpots は sortSpots と整合する（0 は同順）", () => {
+  it("compareSpots は id まで一致してはじめて0（Spec §9.5でidを4番目のキーに追加したため）", () => {
     const a = spot({ id: "a", quietness: "quiet", lastVerifiedAt: "2026-01-01T00:00:00.000Z" });
     const b = spot({ id: "b", quietness: "quiet", lastVerifiedAt: "2026-01-01T00:00:00.000Z" });
-    expect(compareSpots(a, b)).toBe(0);
+    expect(compareSpots(a, b)).toBeLessThan(0); // id "a" < "b" で決着する（もう0にはならない）
+    expect(compareSpots(a, { ...a })).toBe(0); // id含め全キーが同じなら0
   });
 
   it("元の配列を変更しない", () => {
@@ -77,5 +81,31 @@ describe("compareSpots / sortSpots", () => {
     const original = [...spots];
     sortSpots(spots);
     expect(spots).toEqual(original);
+  });
+
+  describe("Spec §9.5: 完全な比較キーの4番目 = id昇順（同着の決定性）", () => {
+    it("静けさ・距離・最終確認日時が全て同じなら id 昇順", () => {
+      const spots = [
+        spot({ id: "z", quietness: "quiet", lastVerifiedAt: "2026-01-01T00:00:00.000Z" }),
+        spot({ id: "a", quietness: "quiet", lastVerifiedAt: "2026-01-01T00:00:00.000Z" }),
+        spot({ id: "m", quietness: "quiet", lastVerifiedAt: "2026-01-01T00:00:00.000Z" }),
+      ];
+      expect(sortSpots(spots).map((s) => s.id)).toEqual(["a", "m", "z"]);
+    });
+
+    it("距離まで同着なら最終確認日時ではなく id で決まる場合がある（距離同値の同着）", () => {
+      const spots = [
+        spot({ id: "b", quietness: "quiet", lastVerifiedAt: null }),
+        spot({ id: "a", quietness: "quiet", lastVerifiedAt: null }),
+      ];
+      const distances = { a: 500, b: 500 };
+      expect(sortSpots(spots, distances).map((s) => s.id)).toEqual(["a", "b"]);
+    });
+
+    it("compareSpots は同一idで0を返す", () => {
+      const a = spot({ id: "same", quietness: "quiet" });
+      const b = spot({ id: "same", quietness: "quiet" });
+      expect(compareSpots(a, b)).toBe(0);
+    });
   });
 });

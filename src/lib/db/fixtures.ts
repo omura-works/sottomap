@@ -1,14 +1,36 @@
 // Supabase 実インスタンス未接続時のフォールバック・フィクスチャ。
 //
-// supabase/seed.sql と同じ内容（街8件・タグ8件・実在6店・確認履歴・承認・栞）を
+// supabase/seed.sql と同じ内容（街8件・タグ10件・実在6店・確認履歴・承認・確認依頼・栞4件）を
 // インメモリの TypeScript オブジェクトとして持つ。他タスク（T3〜T5）が画面を作れるよう、
 // src/lib/db/spots.ts の各関数は Supabase 環境変数が無いときに自動でここへフォールバックする。
+// src/lib/db/mutations.ts の書き込み系関数も、同じ未接続条件下ではここの配列を直接
+// mutate（push/splice）することでインメモリに反映する（プロセス起動中のみ有効）。
 //
 // 実在店データの出典は supabase/seed.sql のコメントと同じ（docs/SPEC.md §7）。
 // 確認人数・承認・灯りポイント等はゲームメカニクス上の架空デモ値。
+//
+// 【重要・架空データの注記】シハチ鮮魚店/ザンギ本舗/輝風の3店には、Spec §9.8・§1 が
+// 指定する「地元3人/5人/4人が確認」という文言を満たすため、実際のRLS（verifications は
+// 対象スポットの投稿者のみ挿入可・Spec §9.2）では起こり得ない「投稿者以外のユーザーによる
+// 確認」を意図的にシード投入している。これは本番運用では発生しない、デモ表示専用の
+// 架空データである（§7「確認人数…はUI上の架空データ」の一部）。
 
+import { isMissed } from "../domain/lifecycle";
 import { resolveQuietness } from "../domain/quietness";
-import type { Badge, Bookmark, City, Quietness, Spot, SpotStatus, Tag, VisitFrequency, Verification } from "./types";
+import type {
+  Badge,
+  Bookmark,
+  City,
+  Quietness,
+  RequestStatus,
+  Spot,
+  SpotStatus,
+  Tag,
+  UserProfile,
+  VerificationRequest,
+  VisitFrequency,
+  Verification,
+} from "./types";
 
 /** now() ± n日 の ISO8601 文字列。n>0 で未来、n<0 で過去（seed.sql の interval 表記に対応）。 */
 function offsetDaysISO(days: number): string {
@@ -19,21 +41,24 @@ function offsetDaysISO(days: number): string {
 // 1. cities
 // =========================================================
 export const FIXTURE_CITIES: City[] = [
-  { id: "a0000000-0000-4000-8000-000000000001", slug: "sapporo", name: "札幌", nameKana: "さっぽろ", isPort: false, centerLat: 43.0621, centerLng: 141.3544, defaultZoom: 12.5 },
-  { id: "a0000000-0000-4000-8000-000000000002", slug: "otaru", name: "小樽", nameKana: "おたる", isPort: true, centerLat: 43.1907, centerLng: 140.9947, defaultZoom: 13.5 },
-  { id: "a0000000-0000-4000-8000-000000000003", slug: "hakodate", name: "函館", nameKana: "はこだて", isPort: true, centerLat: 41.7687, centerLng: 140.7288, defaultZoom: 13.5 },
-  { id: "a0000000-0000-4000-8000-000000000004", slug: "asahikawa", name: "旭川", nameKana: "あさひかわ", isPort: false, centerLat: 43.7706, centerLng: 142.3649, defaultZoom: 13 },
-  { id: "a0000000-0000-4000-8000-000000000005", slug: "furano", name: "富良野", nameKana: "ふらの", isPort: false, centerLat: 43.3416, centerLng: 142.3831, defaultZoom: 13 },
-  { id: "a0000000-0000-4000-8000-000000000006", slug: "kushiro", name: "釧路", nameKana: "くしろ", isPort: true, centerLat: 42.9849, centerLng: 144.382, defaultZoom: 13 },
-  { id: "a0000000-0000-4000-8000-000000000007", slug: "obihiro", name: "帯広", nameKana: "おびひろ", isPort: false, centerLat: 42.9238, centerLng: 143.1968, defaultZoom: 13 },
-  { id: "a0000000-0000-4000-8000-000000000008", slug: "wakkanai", name: "稚内", nameKana: "わっかない", isPort: true, centerLat: 45.4155, centerLng: 141.6733, defaultZoom: 13.5 },
+  { id: "a0000000-0000-4000-8000-000000000001", slug: "sapporo", name: "札幌", nameKana: "さっぽろ", isPort: false, centerLat: 43.0621, centerLng: 141.3544, defaultZoom: 12.5, featuredArea: "北24条" },
+  { id: "a0000000-0000-4000-8000-000000000002", slug: "otaru", name: "小樽", nameKana: "おたる", isPort: true, centerLat: 43.1907, centerLng: 140.9947, defaultZoom: 13.5, featuredArea: "色内" },
+  { id: "a0000000-0000-4000-8000-000000000003", slug: "hakodate", name: "函館", nameKana: "はこだて", isPort: true, centerLat: 41.7687, centerLng: 140.7288, defaultZoom: 13.5, featuredArea: null },
+  { id: "a0000000-0000-4000-8000-000000000004", slug: "asahikawa", name: "旭川", nameKana: "あさひかわ", isPort: false, centerLat: 43.7706, centerLng: 142.3649, defaultZoom: 13, featuredArea: null },
+  { id: "a0000000-0000-4000-8000-000000000005", slug: "furano", name: "富良野", nameKana: "ふらの", isPort: false, centerLat: 43.3416, centerLng: 142.3831, defaultZoom: 13, featuredArea: null },
+  { id: "a0000000-0000-4000-8000-000000000006", slug: "kushiro", name: "釧路", nameKana: "くしろ", isPort: true, centerLat: 42.9849, centerLng: 144.382, defaultZoom: 13, featuredArea: null },
+  { id: "a0000000-0000-4000-8000-000000000007", slug: "obihiro", name: "帯広", nameKana: "おびひろ", isPort: false, centerLat: 42.9238, centerLng: 143.1968, defaultZoom: 13, featuredArea: null },
+  { id: "a0000000-0000-4000-8000-000000000008", slug: "wakkanai", name: "稚内", nameKana: "わっかない", isPort: true, centerLat: 45.4155, centerLng: 141.6733, defaultZoom: 13.5, featuredArea: null },
 ];
 
 // =========================================================
 // 2. tags
+//    9・10（day-time-main / two-locations-in-city）は Spec §9.8 の S4 タグ3種
+//    （魚屋直営=accent2／昼が本番=neutral／市内2店舗=outline）を満たすための追加。
+//    fish-shop-direct は §9.8 に合わせ kind を accent → accent2 に変更した。
 // =========================================================
 export const FIXTURE_TAGS: Tag[] = [
-  { id: "e0000000-0000-4000-8000-000000000001", slug: "fish-shop-direct", label: "魚屋直営", kind: "accent" },
+  { id: "e0000000-0000-4000-8000-000000000001", slug: "fish-shop-direct", label: "魚屋直営", kind: "accent2" },
   { id: "e0000000-0000-4000-8000-000000000002", slug: "takeout-ok", label: "持ち帰りもできる", kind: "neutral" },
   { id: "e0000000-0000-4000-8000-000000000003", slug: "night-only", label: "夜が本番", kind: "accent2" },
   { id: "e0000000-0000-4000-8000-000000000004", slug: "locals-market", label: "地元が買いに行く市場", kind: "accent2" },
@@ -41,6 +66,8 @@ export const FIXTURE_TAGS: Tag[] = [
   { id: "e0000000-0000-4000-8000-000000000006", slug: "day-only", label: "昼だけ", kind: "accent2" },
   { id: "e0000000-0000-4000-8000-000000000007", slug: "cash-only", label: "現金のみ", kind: "neutral" },
   { id: "e0000000-0000-4000-8000-000000000008", slug: "solo-ok", label: "ひとりで入れる", kind: "neutral" },
+  { id: "e0000000-0000-4000-8000-000000000009", slug: "day-time-main", label: "昼が本番", kind: "neutral" },
+  { id: "e0000000-0000-4000-8000-00000000000a", slug: "two-locations-in-city", label: "市内2店舗", kind: "outline" },
 ];
 
 // =========================================================
@@ -90,8 +117,13 @@ function findCitySlug(slug: string): City {
   return city;
 }
 
+function findCityById(id: string): City | null {
+  return FIXTURE_CITIES.find((c) => c.id === id) ?? null;
+}
+
 // =========================================================
 // 5. spots（実在6店。座標・住所・カテゴリは supabase/seed.sql と同じ実データ）
+//    reason（引用・説明文）は Spec §9.8「D1 の店3件の説明」の文言に一字一句合わせてある。
 // =========================================================
 interface RawSpot {
   id: string;
@@ -127,7 +159,8 @@ const RAW_SPOTS: RawSpot[] = [
     lng: 141.3486,
     status: "published",
     initialQuietness: "quiet",
-    reason: "魚屋が営む丼屋。地元の値段のまま出てくるから、観光の店より一枚が厚い。",
+    // Spec §9.8 D1「店3件の説明」1件目（一字一句）。
+    reason: "魚屋の直営。地元の値段のまま、海鮮丼になって出てくる。",
     visitFrequency: "monthly",
     authorId: "b0000000-0000-4000-8000-000000000001",
     photoUrl: null,
@@ -135,7 +168,7 @@ const RAW_SPOTS: RawSpot[] = [
     nextVerificationAtDaysAgo: -87,
     lastVerifiedAtDaysAgo: 3,
     createdAtDaysAgo: 220,
-    tagSlugs: ["fish-shop-direct"],
+    tagSlugs: ["fish-shop-direct", "day-time-main", "two-locations-in-city"],
   },
   {
     id: "d0000000-0000-4000-8000-000000000002",
@@ -148,7 +181,8 @@ const RAW_SPOTS: RawSpot[] = [
     lng: 141.354,
     status: "published",
     initialQuietness: "quiet",
-    reason: "ザンギは唐揚げではない、と地元は言う。持ち帰りもできるから、宿に戻ってからも食べられる。",
+    // Spec §9.8 D1「店3件の説明」2件目（一字一句）。
+    reason: "ザンギは唐揚げではない、と地元は言う。持ち帰りもできる。",
     visitFrequency: "weekly",
     authorId: "b0000000-0000-4000-8000-000000000002",
     photoUrl: null,
@@ -169,7 +203,8 @@ const RAW_SPOTS: RawSpot[] = [
     lng: 141.3534,
     status: "published",
     initialQuietness: "quiet",
-    reason: "夜のすすきので、地元が最後に寄る一杯。行列ができはじめたのはここ最近。",
+    // Spec §9.8 D1「店3件の説明」3件目（一字一句）。
+    reason: "味噌。夜のすすきので、地元が最後に寄る一杯。",
     visitFrequency: "monthly",
     authorId: "b0000000-0000-4000-8000-000000000003",
     photoUrl: null,
@@ -237,7 +272,7 @@ const RAW_SPOTS: RawSpot[] = [
     authorId: "b0000000-0000-4000-8000-000000000008",
     photoUrl: null,
     publishedAtDaysAgo: 590,
-    nextVerificationAtDaysAgo: 5, // 既に期限超過（今から5日「前」に期限が来ていた）
+    nextVerificationAtDaysAgo: 5, // 既に期限超過（今から5日「前」に期限が来ていた。90日未満なのでまだ open）
     lastVerifiedAtDaysAgo: 95,
     createdAtDaysAgo: 600,
     tagSlugs: ["morning-only"],
@@ -245,15 +280,50 @@ const RAW_SPOTS: RawSpot[] = [
 ];
 
 // =========================================================
-// 6. endorsements（架空：pending→published の同じ街2人承認）
+// 6. verification_requests（Spec §9.1）
+//    published 到達時に1件作られる、という規則どおり、各 published スポットに
+//    due_at = nextVerificationAtDaysAgo で1件だけ open（または既に missed）の依頼を用意する。
+//    「同一スポットに open は高々1件」は生成ロジック自体が満たす（1スポット1件のみ生成）。
 // =========================================================
-interface RawEndorsement {
-  spotId: string;
-  userId: string;
-  daysAgo: number;
+export const FIXTURE_VERIFICATION_REQUESTS: VerificationRequest[] = RAW_SPOTS.filter(
+  (raw) => raw.status === "published",
+).map((raw, index) => {
+  const dueAt = offsetDaysISO(-raw.nextVerificationAtDaysAgo);
+  const status: RequestStatus = isMissed(dueAt, new Date()) ? "missed" : "open";
+  return {
+    id: `80000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+    spotId: raw.id,
+    userId: raw.authorId,
+    dueAt,
+    status,
+    answeredVerificationId: null,
+    createdAt: offsetDaysISO(-raw.publishedAtDaysAgo),
+  };
+});
+
+/** id で確認依頼を1件引く（mutations.ts / spots.ts が使う）。 */
+export function findFixtureVerificationRequest(id: string): VerificationRequest | null {
+  return FIXTURE_VERIFICATION_REQUESTS.find((r) => r.id === id) ?? null;
 }
 
-const RAW_ENDORSEMENTS: RawEndorsement[] = [
+/** 対象スポットの open な確認依頼ID（無ければ null）。Spot.openRequestId の算出に使う。 */
+function openRequestIdForSpot(spotId: string): string | null {
+  const req = FIXTURE_VERIFICATION_REQUESTS.find((r) => r.spotId === spotId && r.status === "open");
+  return req ? req.id : null;
+}
+
+// =========================================================
+// 7. endorsements（架空：pending→published の同じ街2人承認）
+//    FIXTURE_ENDORSEMENT_LOG は mutations.ts の endorseSpot が push する先でもある
+//    （書き込みもインメモリに反映されるようにするため、配列参照ごと export する）。
+// =========================================================
+interface EndorsementLogEntry {
+  spotId: string;
+  userId: string;
+  createdAt: string;
+}
+
+const RAW_ENDORSEMENTS: Array<{ spotId: string; userId: string; daysAgo: number }> = [
   { spotId: "d0000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000004", daysAgo: 215 },
   { spotId: "d0000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000005", daysAgo: 213 },
   { spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000001", daysAgo: 295 },
@@ -268,9 +338,29 @@ const RAW_ENDORSEMENTS: RawEndorsement[] = [
   { spotId: "d0000000-0000-4000-8000-000000000006", userId: "b0000000-0000-4000-8000-000000000007", daysAgo: 590 },
 ];
 
+/** mutable: mutations.ts の endorseSpot がここへ push する。読み取りは endorsementCountForSpot 経由。 */
+export const FIXTURE_ENDORSEMENT_LOG: EndorsementLogEntry[] = RAW_ENDORSEMENTS.map((e) => ({
+  spotId: e.spotId,
+  userId: e.userId,
+  createdAt: offsetDaysISO(-e.daysAgo),
+}));
+
+export function hasFixtureEndorsement(spotId: string, userId: string): boolean {
+  return FIXTURE_ENDORSEMENT_LOG.some((e) => e.spotId === spotId && e.userId === userId);
+}
+
+function endorsementCountForSpot(spotId: string): number {
+  return FIXTURE_ENDORSEMENT_LOG.filter((e) => e.spotId === spotId).length;
+}
+
 // =========================================================
-// 7. verifications（架空：90日ごとの確認履歴）
-//    鱗友朝市は quiet×2・touristy×2 の同数タイ（新しい方の touristy を採用する例）。
+// 8. verifications（確認履歴）
+//    鱗友朝市は quiet×2・touristy×2 の「時系列で新しい方が touristy」という例
+//    （resolveQuietness は多数決をしないため、この店の現在値は単純に最新の touristy）。
+//
+//    シハチ鮮魚店/ザンギ本舗/輝風の各「直近バッチ」には、Spec §9.8/§1 が指定する
+//    地元3人/5人/4人という人数に合わせて、投稿者以外の架空の確認者を追加している
+//    （ファイル冒頭の注記のとおり、これは本番のRLSでは起こらないデモ専用データ）。
 // =========================================================
 interface RawVerification {
   id: string;
@@ -285,13 +375,25 @@ const RAW_VERIFICATIONS: RawVerification[] = [
   { id: "c0000000-0000-4000-8000-000000000001", spotId: "d0000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000001", answer: "quiet", note: null, daysAgo: 120 },
   { id: "c0000000-0000-4000-8000-000000000002", spotId: "d0000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000001", answer: "quiet", note: null, daysAgo: 30 },
   { id: "c0000000-0000-4000-8000-000000000003", spotId: "d0000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000001", answer: "quiet", note: "変わっていない", daysAgo: 3 },
+  // シハチ鮮魚店: 架空の追加確認者2名（Aさん・Nさん）で直近バッチを計3人にする（Spec §1「3人」）。
+  { id: "c0000000-0000-4000-8000-000000000014", spotId: "d0000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000004", answer: "quiet", note: null, daysAgo: 3 },
+  { id: "c0000000-0000-4000-8000-000000000015", spotId: "d0000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000005", answer: "quiet", note: null, daysAgo: 3 },
 
   { id: "c0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000002", answer: "quiet", note: null, daysAgo: 200 },
   { id: "c0000000-0000-4000-8000-000000000005", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000002", answer: "quiet", note: null, daysAgo: 110 },
   { id: "c0000000-0000-4000-8000-000000000006", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000002", answer: "quiet", note: null, daysAgo: 5 },
+  // 札幌ザンギ本舗: 架空の追加確認者4名で直近バッチを計5人にする（Spec §1「5人」）。
+  { id: "c0000000-0000-4000-8000-000000000016", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000001", answer: "quiet", note: null, daysAgo: 5 },
+  { id: "c0000000-0000-4000-8000-000000000017", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000003", answer: "quiet", note: null, daysAgo: 5 },
+  { id: "c0000000-0000-4000-8000-000000000018", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000004", answer: "quiet", note: null, daysAgo: 5 },
+  { id: "c0000000-0000-4000-8000-000000000019", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000005", answer: "quiet", note: null, daysAgo: 5 },
 
   { id: "c0000000-0000-4000-8000-000000000007", spotId: "d0000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000003", answer: "quiet", note: null, daysAgo: 90 },
   { id: "c0000000-0000-4000-8000-000000000008", spotId: "d0000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000003", answer: "crowding", note: "行列ができはじめた", daysAgo: 6 },
+  // 札幌らーめん輝風: 架空の追加確認者3名で直近バッチを計4人にする（Spec §1「4人」）。
+  { id: "c0000000-0000-4000-8000-00000000001a", spotId: "d0000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000001", answer: "crowding", note: null, daysAgo: 6 },
+  { id: "c0000000-0000-4000-8000-00000000001b", spotId: "d0000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000002", answer: "crowding", note: null, daysAgo: 6 },
+  { id: "c0000000-0000-4000-8000-00000000001c", spotId: "d0000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000004", answer: "crowding", note: null, daysAgo: 6 },
 
   { id: "c0000000-0000-4000-8000-000000000009", spotId: "d0000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000006", answer: "quiet", note: null, daysAgo: 300 },
   { id: "c0000000-0000-4000-8000-00000000000a", spotId: "d0000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000006", answer: "quiet", note: null, daysAgo: 210 },
@@ -309,7 +411,8 @@ const RAW_VERIFICATIONS: RawVerification[] = [
 ];
 
 // =========================================================
-// 8. bookmarks（架空：Aさんがいくつか栞している）
+// 9. bookmarks（Spec §9.8 S8: シハチ鮮魚店／聖徳太子 飛鳥店／南樽市場／鱗友朝市の4件）
+//    利用者は Task5 が採用した DEMO_USER_ID（Aさん＝b...0004）に合わせてある。
 // =========================================================
 interface RawBookmark {
   id: string;
@@ -321,9 +424,10 @@ interface RawBookmark {
 }
 
 const RAW_BOOKMARKS: RawBookmark[] = [
-  { id: "9000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000001", plannedAtDaysFromNow: 1, plannedAtHoursOffset: 12.5, createdAtDaysAgo: 2 },
-  { id: "9000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000002", plannedAtDaysFromNow: null, createdAtDaysAgo: 10 },
-  { id: "9000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000004", plannedAtDaysFromNow: null, createdAtDaysAgo: 5 },
+  { id: "90000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000001", plannedAtDaysFromNow: 1, plannedAtHoursOffset: 12.5, createdAtDaysAgo: 2 },
+  { id: "90000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000004", plannedAtDaysFromNow: null, createdAtDaysAgo: 5 },
+  { id: "90000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000005", plannedAtDaysFromNow: null, createdAtDaysAgo: 8 },
+  { id: "90000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000006", plannedAtDaysFromNow: null, createdAtDaysAgo: 12 },
 ];
 
 // =========================================================
@@ -334,6 +438,7 @@ function buildAuthorLabel(user: FixtureUser): string {
   return `${user.areaName}に${user.residentYears}年、${user.displayName}`;
 }
 
+/** mutable: mutations.ts の answerVerification がここへ push する。 */
 export const FIXTURE_VERIFICATIONS: Verification[] = RAW_VERIFICATIONS.map((v) => ({
   id: v.id,
   spotId: v.spotId,
@@ -347,11 +452,7 @@ function verificationsForSpot(spotId: string): Verification[] {
   return FIXTURE_VERIFICATIONS.filter((v) => v.spotId === spotId);
 }
 
-function endorsementCountForSpot(spotId: string): number {
-  return RAW_ENDORSEMENTS.filter((e) => e.spotId === spotId).length;
-}
-
-/** 直近の確認「回」に参加した人数（同じ最新日時に記録された確認の人数）。 */
+/** 直近の確認「回」に参加した人数（同じ最新日時から24時間以内に記録された確認の人数）。 */
 function verifierCountForSpot(spotId: string): number {
   const list = verificationsForSpot(spotId);
   if (list.length === 0) return 0;
@@ -398,17 +499,28 @@ function toSpot(raw: RawSpot): Spot {
     nextVerificationAt: offsetDaysISO(-raw.nextVerificationAtDaysAgo),
     publishedAt: offsetDaysISO(-raw.publishedAtDaysAgo),
     createdAt: offsetDaysISO(-raw.createdAtDaysAgo),
+    // distanceMeters/walkMinutes はクエリ時（origin または街の中心）に spots.ts が埋める。
+    // ここでは未装飾の状態として null を持つ。
+    distanceMeters: null,
+    walkMinutes: null,
+    openRequestId: openRequestIdForSpot(raw.id),
   };
 }
 
+/** mutable: mutations.ts の createSpot / endorseSpot / answerVerification がここへ push・mutate する。 */
 export const FIXTURE_SPOTS: Spot[] = RAW_SPOTS.map(toSpot);
 
+export function findFixtureSpot(id: string): Spot | undefined {
+  return FIXTURE_SPOTS.find((s) => s.id === id);
+}
+
 function findSpot(id: string): Spot {
-  const spot = FIXTURE_SPOTS.find((s) => s.id === id);
+  const spot = findFixtureSpot(id);
   if (!spot) throw new Error(`fixture spot not found: ${id}`);
   return spot;
 }
 
+/** mutable: mutations.ts の addBookmark / removeBookmark がここへ push・splice する。 */
 export const FIXTURE_BOOKMARKS: Bookmark[] = RAW_BOOKMARKS.map((b) => {
   const plannedAt =
     b.plannedAtDaysFromNow === null
@@ -428,3 +540,60 @@ export function fixtureUserHomeCitySlug(userId: string): string | null {
   const user = FIXTURE_USERS.find((u) => u.id === userId);
   return user ? user.homeCitySlug : null;
 }
+
+/** ユーザーの居住街ID（endorseSpot の「同じ街のユーザーのみ承認可」判定に使う）。 */
+export function fixtureUserHomeCityId(userId: string): string | null {
+  const user = FIXTURE_USERS.find((u) => u.id === userId);
+  if (!user) return null;
+  return findCitySlug(user.homeCitySlug).id;
+}
+
+/** CONTRACT追補 getUserProfile のフィクスチャ実装が使う。 */
+export function fixtureUserProfile(userId: string): UserProfile | null {
+  const user = FIXTURE_USERS.find((u) => u.id === userId);
+  if (!user) return null;
+  const city = findCitySlug(user.homeCitySlug);
+  return {
+    id: user.id,
+    displayName: user.displayName,
+    homeCityId: city.id,
+    areaName: user.areaName,
+    residentYears: user.residentYears,
+    avatarUrl: null,
+    lanternPoints: user.lanternPoints,
+    createdAt: offsetDaysISO(-user.createdAtDaysAgo),
+  };
+}
+
+/** CONTRACT追補 getProfileStats のフィクスチャ実装が使う集計値。 */
+export function fixtureProfileStats(userId: string): {
+  spotsCreated: number;
+  verificationsAnswered: number;
+  spotsKeptQuiet: number;
+  pendingRequestCount: number;
+  winterVerificationCount: number;
+  publishedPortSpotCount: number;
+} {
+  const authored = FIXTURE_SPOTS.filter((s) => s.authorId === userId);
+  const verifications = FIXTURE_VERIFICATIONS.filter((v) => v.userId === userId);
+  const openRequests = FIXTURE_VERIFICATION_REQUESTS.filter((r) => r.userId === userId && r.status === "open");
+  return {
+    spotsCreated: authored.length,
+    verificationsAnswered: verifications.length,
+    spotsKeptQuiet: authored.filter((s) => s.status === "published" && s.quietness === "quiet").length,
+    pendingRequestCount: openRequests.length,
+    // isWinterMonth は lantern.ts 側の定義を使いたいが循環 import を避けるため、
+    // ここでは月だけを見る単純な再実装をしておく（UTC基準、12/1〜2/末）。
+    winterVerificationCount: verifications.filter((v) => {
+      const month = new Date(v.createdAt).getUTCMonth() + 1;
+      return month === 12 || month === 1 || month === 2;
+    }).length,
+    publishedPortSpotCount: authored.filter((s) => s.status === "published" && findCityById(s.cityId)?.isPort).length,
+  };
+}
+
+export function fixtureSpotsByAuthor(userId: string): Spot[] {
+  return FIXTURE_SPOTS.filter((s) => s.authorId === userId);
+}
+
+export { findCityById as fixtureCityById };

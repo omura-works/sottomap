@@ -1,4 +1,4 @@
-// データアクセス層（docs/CONTRACT.md `src/lib/db/spots.ts`）
+// データアクセス層（docs/CONTRACT.md `src/lib/db/spots.ts` + 追補 2026-09-09）
 //
 // Supabase の実インスタンスが未接続の環境（NEXT_PUBLIC_SUPABASE_URL /
 // NEXT_PUBLIC_SUPABASE_ANON_KEY が無い）では、supabase/seed.sql 相当の
@@ -6,6 +6,8 @@
 // 呼び出し側（T3〜T5）は分岐を意識する必要はなく、常に同じシグネチャで使える。
 //
 // 一覧を返す経路は必ず sortSpots（domain/ordering.ts）を通す。
+// distanceMeters/walkMinutes は、呼び出し元が origin を渡せない経路も含め、
+// 「origin があればそこから、無ければ街の中心から」常に埋める（CONTRACT追補）。
 
 import { sortSpots } from "../domain/ordering";
 import { resolveQuietness } from "../domain/quietness";
@@ -16,9 +18,28 @@ import {
   FIXTURE_CITIES,
   FIXTURE_SPOTS,
   FIXTURE_VERIFICATIONS,
+  FIXTURE_VERIFICATION_REQUESTS,
+  findFixtureSpot,
+  findFixtureVerificationRequest,
+  fixtureCityById,
+  fixtureProfileStats,
+  fixtureSpotsByAuthor,
   fixtureUserHomeCitySlug,
+  fixtureUserProfile,
 } from "./fixtures";
-import type { Bookmark, City, Quietness, Spot, Tag, TagKind, Verification, VisitFrequency } from "./types";
+import type {
+  Bookmark,
+  City,
+  Quietness,
+  RequestStatus,
+  Spot,
+  Tag,
+  TagKind,
+  UserProfile,
+  VerificationRequest,
+  Verification,
+  VisitFrequency,
+} from "./types";
 
 export interface SpotQuery {
   citySlug: string;
@@ -34,7 +55,7 @@ function fallbackLog(fnName: string): void {
 }
 
 // =========================================================
-// 検索語・タグフィルタ・距離ソートの共通ロジック
+// 検索語・タグフィルタ・距離ソート・距離/徒歩分の共通ロジック
 // （Supabase 経路・フィクスチャ経路の両方から使う）
 // =========================================================
 
@@ -53,6 +74,26 @@ function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng:
 
 /** 徒歩10分の目安距離（分速80m換算）。'within-10min' フィルタに使う。 */
 const WITHIN_10MIN_METERS = 800;
+/** 「徒歩7分」表示用の換算（CONTRACT追補: 80m/分）。 */
+const WALK_METERS_PER_MINUTE = 80;
+
+function computeWalkMinutes(meters: number): number {
+  return Math.max(1, Math.ceil(meters / WALK_METERS_PER_MINUTE));
+}
+
+/**
+ * origin（無ければ街の中心）からの distanceMeters/walkMinutes を1件の Spot に埋める。
+ * CONTRACT追補: 「listSpots に origin があれば距離と徒歩分を埋める。無ければ街の中心から算出。」
+ * を listSpots に限らず、Spot を返す全経路で一貫して適用する。
+ */
+function withDistance(spot: Spot, origin: { lat: number; lng: number }): Spot {
+  const meters = haversineMeters(origin, { lat: spot.lat, lng: spot.lng });
+  return { ...spot, distanceMeters: meters, walkMinutes: computeWalkMinutes(meters) };
+}
+
+function withDistances(spots: Spot[], origin: { lat: number; lng: number }): Spot[] {
+  return spots.map((s) => withDistance(s, origin));
+}
 
 function matchesFilter(spot: Spot, filter: string, origin?: { lat: number; lng: number }): boolean {
   switch (filter) {
@@ -76,7 +117,8 @@ function matchesQuery(spot: Spot, q: string): boolean {
   return haystack.includes(needle);
 }
 
-function applySpotQuery(spots: Spot[], query: SpotQuery): Spot[] {
+/** listSpots の絞り込み・並び替え・距離/徒歩分の付与・件数上限をまとめて適用する。 */
+function applySpotQuery(spots: Spot[], query: SpotQuery, cityCenter: { lat: number; lng: number }): Spot[] {
   let result = spots;
 
   if (query.q) {
@@ -86,14 +128,14 @@ function applySpotQuery(spots: Spot[], query: SpotQuery): Spot[] {
     result = result.filter((spot) => query.filters!.every((f) => matchesFilter(spot, f, query.origin)));
   }
 
-  const distances = query.origin
-    ? Object.fromEntries(
-        result.map((spot) => [spot.id, haversineMeters(query.origin as { lat: number; lng: number }, { lat: spot.lat, lng: spot.lng })]),
-      )
-    : undefined;
+  const origin = query.origin ?? cityCenter;
+  const distances = Object.fromEntries(
+    result.map((spot) => [spot.id, haversineMeters(origin, { lat: spot.lat, lng: spot.lng })]),
+  );
 
   const sorted = sortSpots(result, distances);
-  return query.limit ? sorted.slice(0, query.limit) : sorted;
+  const limited = query.limit ? sorted.slice(0, query.limit) : sorted;
+  return withDistances(limited, origin);
 }
 
 /** 直近の確認「回」に参加した人数（同じ最新日から24時間以内に記録された確認の人数）。 */
@@ -120,6 +162,7 @@ interface CityRow {
   center_lat: number;
   center_lng: number;
   default_zoom: number;
+  featured_area: string | null;
 }
 
 function mapCityRow(row: CityRow): City {
@@ -132,6 +175,7 @@ function mapCityRow(row: CityRow): City {
     centerLat: row.center_lat,
     centerLng: row.center_lng,
     defaultZoom: row.default_zoom,
+    featuredArea: row.featured_area,
   };
 }
 
@@ -166,6 +210,28 @@ function mapVerificationRow(row: VerificationRow): Verification {
   };
 }
 
+interface VerificationRequestRow {
+  id: string;
+  spot_id: string;
+  user_id: string;
+  due_at: string;
+  status: RequestStatus;
+  answered_verification_id: string | null;
+  created_at: string;
+}
+
+function mapVerificationRequestRow(row: VerificationRequestRow): VerificationRequest {
+  return {
+    id: row.id,
+    spotId: row.spot_id,
+    userId: row.user_id,
+    dueAt: row.due_at,
+    status: row.status,
+    answeredVerificationId: row.answered_verification_id,
+    createdAt: row.created_at,
+  };
+}
+
 interface SpotRow {
   id: string;
   city_id: string;
@@ -187,7 +253,7 @@ interface SpotRow {
   created_at: string;
 }
 
-/** spots 行 + 関連データ（city / author / tags / verifications / endorsement数）からドメインの Spot を組み立てる。 */
+/** spots 行 + 関連データ（city / author / tags / verifications / endorsement数 / open依頼）からドメインの Spot を組み立てる。 */
 function mapSpotRow(
   row: SpotRow,
   ctx: {
@@ -196,8 +262,11 @@ function mapSpotRow(
     tags: Tag[];
     verifications: Verification[];
     endorsementCount: number;
+    openRequestId: string | null;
+    origin: { lat: number; lng: number };
   },
 ): Spot {
+  const distanceMeters = haversineMeters(ctx.origin, { lat: row.lat, lng: row.lng });
   return {
     id: row.id,
     cityId: row.city_id,
@@ -225,25 +294,31 @@ function mapSpotRow(
     nextVerificationAt: row.next_verification_at,
     publishedAt: row.published_at,
     createdAt: row.created_at,
+    distanceMeters,
+    walkMinutes: computeWalkMinutes(distanceMeters),
+    openRequestId: ctx.openRequestId,
   };
 }
 
 /**
- * 複数の spots 行を、関連する tags / verifications / endorsements / author をまとめて取得したうえで
- * ドメインの Spot[] に組み立てる。listSpots / getSpot / listPendingSpots / listRecentlyVerified が使う。
+ * 複数の spots 行を、関連する tags / verifications / endorsements / author / open な確認依頼を
+ * まとめて取得したうえでドメインの Spot[] に組み立てる。
+ * origin を渡さない場合は city の中心座標を使う（CONTRACT追補）。
  */
-async function hydrateSpotRows(rows: SpotRow[], city: City): Promise<Spot[]> {
+async function hydrateSpotRows(rows: SpotRow[], city: City, origin?: { lat: number; lng: number }): Promise<Spot[]> {
   if (rows.length === 0) return [];
   const supabase = await createClient();
   const spotIds = rows.map((r) => r.id);
   const authorIds = [...new Set(rows.map((r) => r.author_id))];
+  const effectiveOrigin = origin ?? { lat: city.centerLat, lng: city.centerLng };
 
-  const [{ data: tagLinks }, { data: verificationRows }, { data: endorsementRows }, { data: authorRows }] =
+  const [{ data: tagLinks }, { data: verificationRows }, { data: endorsementRows }, { data: authorRows }, { data: openRequestRows }] =
     await Promise.all([
       supabase.from("spot_tags").select("spot_id, tags(id, slug, label, kind)").in("spot_id", spotIds),
       supabase.from("verifications").select("*").in("spot_id", spotIds),
       supabase.from("endorsements").select("spot_id").in("spot_id", spotIds),
       supabase.from("users").select("id, display_name, area_name, resident_years").in("id", authorIds),
+      supabase.from("verification_requests").select("id, spot_id").in("spot_id", spotIds).eq("status", "open"),
     ]);
 
   const tagsBySpot = new Map<string, Tag[]>();
@@ -273,6 +348,12 @@ async function hydrateSpotRows(rows: SpotRow[], city: City): Promise<Spot[]> {
     authorsById.set(row.id, { displayName: row.display_name, areaName: row.area_name, residentYears: row.resident_years });
   }
 
+  const openRequestIdBySpot = new Map<string, string>();
+  for (const row of (openRequestRows ?? []) as Array<{ id: string; spot_id: string }>) {
+    // 「同一スポットに open は高々1件」（部分ユニークインデックス）が保証されているため上書きで問題ない。
+    openRequestIdBySpot.set(row.spot_id, row.id);
+  }
+
   return rows.map((row) =>
     mapSpotRow(row, {
       city,
@@ -280,8 +361,35 @@ async function hydrateSpotRows(rows: SpotRow[], city: City): Promise<Spot[]> {
       tags: tagsBySpot.get(row.id) ?? [],
       verifications: verificationsBySpot.get(row.id) ?? [],
       endorsementCount: endorsementCountBySpot.get(row.id) ?? 0,
+      openRequestId: openRequestIdBySpot.get(row.id) ?? null,
+      origin: effectiveOrigin,
     }),
   );
+}
+
+/** listSpotsByAuthor 用: 複数の街にまたがる可能性がある spots 行を、街ごとにまとめて hydrate する。 */
+async function hydrateSpotRowsAcrossCities(rows: SpotRow[]): Promise<Spot[]> {
+  if (rows.length === 0) return [];
+  const supabase = await createClient();
+  const cityIds = [...new Set(rows.map((r) => r.city_id))];
+  const { data: cityRows, error } = await supabase.from("cities").select("*").in("id", cityIds);
+  if (error) throw error;
+  const citiesById = new Map(((cityRows ?? []) as CityRow[]).map((c) => [c.id, mapCityRow(c)]));
+
+  const groups = new Map<string, SpotRow[]>();
+  for (const row of rows) {
+    const list = groups.get(row.city_id) ?? [];
+    list.push(row);
+    groups.set(row.city_id, list);
+  }
+
+  const results: Spot[] = [];
+  for (const [cityId, groupRows] of groups) {
+    const city = citiesById.get(cityId);
+    if (!city) continue;
+    results.push(...(await hydrateSpotRows(groupRows, city)));
+  }
+  return results;
 }
 
 // =========================================================
@@ -310,12 +418,14 @@ export async function getCity(slug: string): Promise<City | null> {
   return data ? mapCityRow(data as CityRow) : null;
 }
 
-/** 必ず sortSpots を通して返す。status='published' のみ。 */
+/** 必ず sortSpots を通して返す。status='published' のみ。distanceMeters/walkMinutes を埋める。 */
 export async function listSpots(query: SpotQuery): Promise<Spot[]> {
   if (!isSupabaseConfigured()) {
     fallbackLog("listSpots");
+    const city = FIXTURE_CITIES.find((c) => c.slug === query.citySlug);
+    if (!city) return [];
     const published = FIXTURE_SPOTS.filter((s) => s.citySlug === query.citySlug && s.status === "published");
-    return applySpotQuery(published, query);
+    return applySpotQuery(published, query, { lat: city.centerLat, lng: city.centerLng });
   }
 
   const city = await getCity(query.citySlug);
@@ -330,14 +440,20 @@ export async function listSpots(query: SpotQuery): Promise<Spot[]> {
   const { data, error } = await builder;
   if (error) throw error;
 
-  const spots = await hydrateSpotRows((data ?? []) as SpotRow[], city);
-  return applySpotQuery(spots, { ...query, q: undefined }); // q は既に SQL 側で絞り込み済み
+  // hydrateSpotRows は distanceMeters を仮の origin（街の中心）で一度埋めるが、
+  // applySpotQuery が query.origin を優先して最終的に上書きするため二重計算にはなるが結果は正しい。
+  const spots = await hydrateSpotRows((data ?? []) as SpotRow[], city, query.origin);
+  return applySpotQuery(spots, { ...query, q: undefined }, { lat: city.centerLat, lng: city.centerLng }); // q は既に SQL 側で絞り込み済み
 }
 
 export async function getSpot(id: string): Promise<Spot | null> {
   if (!isSupabaseConfigured()) {
     fallbackLog("getSpot");
-    return FIXTURE_SPOTS.find((s) => s.id === id) ?? null;
+    const spot = findFixtureSpot(id);
+    if (!spot) return null;
+    const city = FIXTURE_CITIES.find((c) => c.slug === spot.citySlug);
+    const origin = city ? { lat: city.centerLat, lng: city.centerLng } : { lat: spot.lat, lng: spot.lng };
+    return withDistance(spot, origin);
   }
   const supabase = await createClient();
   const { data, error } = await supabase.from("spots").select("*").eq("id", id).maybeSingle();
@@ -345,7 +461,7 @@ export async function getSpot(id: string): Promise<Spot | null> {
   if (!data) return null;
   const row = data as SpotRow;
   const city = await getCity((await supabase.from("cities").select("slug").eq("id", row.city_id).maybeSingle()).data?.slug ?? "");
-  const cityResolved = city ?? { id: row.city_id, slug: "", name: "", nameKana: "", isPort: false, centerLat: 0, centerLng: 0, defaultZoom: 13 };
+  const cityResolved = city ?? { id: row.city_id, slug: "", name: "", nameKana: "", isPort: false, centerLat: row.lat, centerLng: row.lng, defaultZoom: 13, featuredArea: null };
   const [spot] = await hydrateSpotRows([row], cityResolved);
   return spot ?? null;
 }
@@ -371,8 +487,6 @@ export async function listVerifications(spotId: string): Promise<Verification[]>
 export async function listPendingSpots(citySlug: string, viewerId: string): Promise<Spot[]> {
   if (!isSupabaseConfigured()) {
     fallbackLog("listPendingSpots");
-    // フィクスチャには pending のスポットを用意していない（実在6店は全て published）ため、
-    // 常に空配列になる。挙動としては正しい（同じ街のユーザーに見せる承認待ち一覧が無い状態）。
     const viewerHomeCitySlug = fixtureUserHomeCitySlug(viewerId);
     const pending = FIXTURE_SPOTS.filter(
       (s) =>
@@ -380,7 +494,9 @@ export async function listPendingSpots(citySlug: string, viewerId: string): Prom
         s.status === "pending" &&
         (s.authorId === viewerId || viewerHomeCitySlug === citySlug),
     );
-    return sortSpots(pending);
+    const city = FIXTURE_CITIES.find((c) => c.slug === citySlug);
+    const sorted = sortSpots(pending);
+    return city ? withDistances(sorted, { lat: city.centerLat, lng: city.centerLng }) : sorted;
   }
 
   const city = await getCity(citySlug);
@@ -486,4 +602,133 @@ export async function listRecentlyVerified(
   );
   const limited = limit ? recentlyVerified.slice(0, limit) : recentlyVerified;
   return limited.map((spot) => ({ spot, verifierCount: spot.verifierCount }));
+}
+
+// =========================================================
+// 確認依頼（verification_requests）— Spec §9.1・CONTRACT追補
+// =========================================================
+
+export async function getVerificationRequest(id: string): Promise<VerificationRequest | null> {
+  if (!isSupabaseConfigured()) {
+    fallbackLog("getVerificationRequest");
+    return findFixtureVerificationRequest(id);
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("verification_requests").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data ? mapVerificationRequestRow(data as VerificationRequestRow) : null;
+}
+
+export async function listOpenRequests(userId: string): Promise<VerificationRequest[]> {
+  if (!isSupabaseConfigured()) {
+    fallbackLog("listOpenRequests");
+    return FIXTURE_VERIFICATION_REQUESTS.filter((r) => r.userId === userId && r.status === "open");
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("verification_requests")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("status", "open");
+  if (error) throw error;
+  return ((data ?? []) as VerificationRequestRow[]).map(mapVerificationRequestRow);
+}
+
+// =========================================================
+// プロフィール（S7）— CONTRACT追補
+// =========================================================
+
+interface UserRow {
+  id: string;
+  display_name: string;
+  home_city_id: string | null;
+  area_name: string | null;
+  resident_years: number | null;
+  avatar_url: string | null;
+  lantern_points: number;
+  created_at: string;
+}
+
+function mapUserRow(row: UserRow): UserProfile {
+  return {
+    id: row.id,
+    displayName: row.display_name,
+    homeCityId: row.home_city_id,
+    areaName: row.area_name,
+    residentYears: row.resident_years,
+    avatarUrl: row.avatar_url,
+    lanternPoints: row.lantern_points,
+    createdAt: row.created_at,
+  };
+}
+
+export async function getUserProfile(userId: string): Promise<UserProfile | null> {
+  if (!isSupabaseConfigured()) {
+    fallbackLog("getUserProfile");
+    return fixtureUserProfile(userId);
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("users").select("*").eq("id", userId).maybeSingle();
+  if (error) throw error;
+  return data ? mapUserRow(data as UserRow) : null;
+}
+
+export async function getProfileStats(userId: string): Promise<{
+  spotsCreated: number;
+  verificationsAnswered: number;
+  spotsKeptQuiet: number;
+  pendingRequestCount: number;
+  winterVerificationCount: number;
+  publishedPortSpotCount: number;
+}> {
+  if (!isSupabaseConfigured()) {
+    fallbackLog("getProfileStats");
+    return fixtureProfileStats(userId);
+  }
+
+  const supabase = await createClient();
+  const [{ data: authoredSpots, error: spotsError }, { data: verifications, error: verificationsError }, { count: openRequestCount, error: requestsError }] =
+    await Promise.all([
+      supabase.from("spots").select("id, status, quietness, cities(is_port)").eq("author_id", userId),
+      supabase.from("verifications").select("created_at").eq("user_id", userId),
+      supabase.from("verification_requests").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "open"),
+    ]);
+  if (spotsError) throw spotsError;
+  if (verificationsError) throw verificationsError;
+  if (requestsError) throw requestsError;
+
+  type AuthoredSpotRow = { id: string; status: Spot["status"]; quietness: Quietness; cities: { is_port: boolean } | { is_port: boolean }[] | null };
+  const authoredRows = (authoredSpots ?? []) as AuthoredSpotRow[];
+  const isPort = (row: AuthoredSpotRow) => (Array.isArray(row.cities) ? row.cities[0]?.is_port === true : row.cities?.is_port === true);
+
+  const verificationRows = (verifications ?? []) as Array<{ created_at: string }>;
+
+  return {
+    spotsCreated: authoredRows.length,
+    verificationsAnswered: verificationRows.length,
+    spotsKeptQuiet: authoredRows.filter((r) => r.status === "published" && r.quietness === "quiet").length,
+    pendingRequestCount: openRequestCount ?? 0,
+    winterVerificationCount: verificationRows.filter((v) => {
+      const month = new Date(v.created_at).getUTCMonth() + 1;
+      return month === 12 || month === 1 || month === 2;
+    }).length,
+    publishedPortSpotCount: authoredRows.filter((r) => r.status === "published" && isPort(r)).length,
+  };
+}
+
+export async function listSpotsByAuthor(userId: string): Promise<Spot[]> {
+  if (!isSupabaseConfigured()) {
+    fallbackLog("listSpotsByAuthor");
+    const spots = fixtureSpotsByAuthor(userId);
+    const decorated = spots.map((s) => {
+      const city = fixtureCityById(s.cityId);
+      return city ? withDistance(s, { lat: city.centerLat, lng: city.centerLng }) : s;
+    });
+    return sortSpots(decorated);
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("spots").select("*").eq("author_id", userId);
+  if (error) throw error;
+  const spots = await hydrateSpotRowsAcrossCities((data ?? []) as SpotRow[]);
+  return sortSpots(spots);
 }

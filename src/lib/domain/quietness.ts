@@ -1,10 +1,13 @@
-// 静けさ判定（Spec §2.1）
-// 直近の確認履歴の多数決で現在の静けさを決める。同数なら「新しい方」を採る。
-// 履歴が空なら fallback（投稿時の申告値。既定 quiet）。
+// 静けさ判定（Spec §9.2。§2.1の「多数決」は廃止）
+//
+// RLS上、verifications に答えられるのは対象スポットの投稿者だけである
+// （src/app/actions/spot-verify.ts・supabase/migrations/0002_rls.sql 参照）。
+// したがって複数人の多数決は成立しない。
+//
+// 現在の静けさ ＝ 最後に受理された確認（verifications の中で最も createdAt が新しいもの）の回答。
+// 確認が一度も無ければ fallback（投稿時の申告値。既定 quiet）。
 
 import type { Quietness, Verification } from "../db/types";
-
-const QUIETNESS_VALUES: Quietness[] = ["quiet", "crowding", "touristy"];
 
 export function resolveQuietness(
   verifications: Verification[],
@@ -14,27 +17,13 @@ export function resolveQuietness(
     return fallback;
   }
 
-  const counts: Record<Quietness, number> = {
-    quiet: 0,
-    crowding: 0,
-    touristy: 0,
-  };
-  for (const v of verifications) {
-    counts[v.answer] += 1;
-  }
-
-  const maxCount = Math.max(...QUIETNESS_VALUES.map((q) => counts[q]));
-  const leaders = QUIETNESS_VALUES.filter((q) => counts[q] === maxCount);
-
-  if (leaders.length === 1) {
-    return leaders[0];
-  }
-
-  // 同数タイ: 最も新しい確認の回答を採用する。
-  const newest = [...verifications].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  )[0];
-  return newest.answer;
+  // 最も新しい createdAt を持つ確認の回答を採る。
+  // 同時刻タイの場合は配列の並び順で最初に出会ったものを安定して採用する
+  // （reduce は左から評価するため、同値では先勝ち＝呼び出し側の並び順に対して決定的）。
+  const latest = verifications.reduce((acc, v) =>
+    new Date(v.createdAt).getTime() > new Date(acc.createdAt).getTime() ? v : acc,
+  );
+  return latest.answer;
 }
 
 export function quietnessLabel(q: Quietness): string {

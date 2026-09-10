@@ -83,3 +83,22 @@ export function isWinterMonth(date: string | Date): boolean {
   const month = d.getUTCMonth() + 1; // 1-12
   return month === 12 || month === 1 || month === 2;
 }
+
+/**
+ * 冪等なポイント付与（Spec §9.6・CONTRACT追補）。
+ * 確認 +5 は verification_requests.id につき一度だけ。
+ * 呼び出し側（mutations.ts）は「付与済みの requestId 一覧」を都度渡し、
+ * 既に付与済みなら 0 を返す（Cron再実行・回答の再送で二重加算しない）。
+ */
+export function pointsForAnswer(alreadyAwardedRequestIds: string[], requestId: string): number {
+  return alreadyAwardedRequestIds.includes(requestId) ? 0 : POINTS_PER_VERIFICATION;
+}
+
+/**
+ * 冪等なポイント付与（Spec §9.6・CONTRACT追補）。
+ * 公開 +10 は spots.id につき一度だけ（published_at が初めて入るときのみ）。
+ * 呼び出し側は「更新前の published_at が null だったか」を渡す。
+ */
+export function pointsForPublish(publishedAtWasNull: boolean): number {
+  return publishedAtWasNull ? POINTS_PER_PUBLISHED_SPOT : 0;
+}
