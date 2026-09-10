@@ -16,6 +16,12 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import type { Quietness } from "@/lib/db/types";
 import { quietnessLabel } from "@/lib/domain/quietness";
 
+// MapLibre v6 は Worker の URL を import.meta.url から実行時に組み立てるため、
+// Turbopack では Worker が配信されず 404 になる（タイルもピンも出なくなる）。
+// predev/prebuild で public/maplibre/ に置いた Worker を明示的に指す
+// （scripts/copy-maplibre-worker.mjs）。
+const MAPLIBRE_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
+
 export interface MapPin {
   id: string;
   lat: number;
@@ -122,6 +128,7 @@ export function MapCanvas({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
+    maplibregl.setWorkerUrl(MAPLIBRE_WORKER_URL);
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: {

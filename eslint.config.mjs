@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // predev/prebuild で node_modules からコピーする MapLibre の Worker（生成物）
+    "public/maplibre/**",
   ]),
 ]);
 
