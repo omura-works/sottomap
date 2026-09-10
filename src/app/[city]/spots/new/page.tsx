@@ -29,7 +29,10 @@ export default async function NewSpotPage({ params, searchParams }: NewSpotPageP
 
       <NewSpotForm city={city} />
 
-      <PendingSpotList spots={pendingSpots} citySlug={citySlug} viewerId={DEMO_USER_ID} />
+      {/* SPEC §9.12-6: S2 地図画面と /me からもここへ直接リンクできるようアンカーを用意する。 */}
+      <div id="pending-spots" style={{ scrollMarginTop: "1rem" }}>
+        <PendingSpotList spots={pendingSpots} citySlug={citySlug} viewerId={DEMO_USER_ID} />
+      </div>
     </div>
   );
 }

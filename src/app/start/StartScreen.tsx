@@ -53,10 +53,18 @@ export function StartScreen({
   const selectedData = dataBySlug[selectedSlug] ?? { publishedCount: 0, recentlyVerified: [] };
 
   return (
-    <div className="mx-auto max-w-xl px-4 py-8 lg:py-14 space-y-8">
+    <div
+      className="mx-auto max-w-xl px-4 pt-8 lg:pt-14 space-y-8"
+      // SPEC §9.12-2: /start はチロム（下部タブ）を持たないフルスクリーン導線だが、
+      // モバイル端末のホームインジケータ等に末尾の注記が隠れないよう、
+      // 下部タブ1つぶんに相当する余白を安全域(env(safe-area-inset-bottom))込みで確保する。
+      style={{ paddingBottom: "calc(4rem + env(safe-area-inset-bottom))" }}
+    >
       <header className="space-y-2">
         <p className="text-muted text-xs tracking-wide uppercase">ウラスポ</p>
-        <h1>どの街を歩きますか</h1>
+        {/* SPEC §9.12-3: 原本 S1 の見出しは h2 相当(30px/900)。§4 の h1 既定はそのままに、
+            この画面だけインラインスタイルでサイズを合わせる（グローバルな h1 定義は変えない）。 */}
+        <h1 style={{ fontSize: 30 }}>どの街を歩きますか</h1>
         <p className="text-muted">住んでいる人が残した店だけを見せます。まだ静かなところから。</p>
       </header>
 

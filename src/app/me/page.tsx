@@ -1,9 +1,20 @@
+import Link from "next/link";
 import { getCity } from "@/lib/db/spots";
 import { resolveBadges } from "@/lib/domain/lantern";
 import { quietnessLabel } from "@/lib/domain/quietness";
+import type { Quietness } from "@/lib/db/types";
 import { Card, Divider, Tag } from "@/components/ui";
 import { Disclaimer } from "@/components/profile/Disclaimer";
 import { DEMO_PROFILE, DEMO_AUTHORED_SPOTS } from "@/components/profile/demo-user";
+
+/**
+ * SPEC §9.8: S7「あなたが書いた店」のステータス表記は `quietnessLabel()` の
+ * 「静かなまま」とは別の画面固有コピー「静か」を使う。quiet 以外は原本に
+ * 指定が無いため、通常の `quietnessLabel()` にフォールバックする。
+ */
+function authoredSpotStatusLabel(quietness: Quietness): string {
+  return quietness === "quiet" ? "静か" : quietnessLabel(quietness);
+}
 
 /**
  * S7「プロフィール」`/me`。
@@ -77,10 +88,17 @@ export default async function ProfilePage() {
               style={{ borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}
             >
               <span>{spot.name}</span>
-              <Tag kind="accent2">{quietnessLabel(spot.quietness)}</Tag>
+              <Tag kind="accent2">{authoredSpotStatusLabel(spot.quietness)}</Tag>
             </li>
           ))}
         </ul>
+        {/* SPEC §9.12-6: 承認待ち一覧（S2地図の下部にも同じ導線を追加済み）への
+            導線を /me からも開けるようにする。 */}
+        <p className="text-sm m-0">
+          <Link href={`/${homeCity?.slug ?? "sapporo"}/spots/new#pending-spots`} style={{ color: "var(--color-accent)" }}>
+            承認待ちのピンを見る →
+          </Link>
+        </p>
       </section>
 
       <Card elevation="sm">

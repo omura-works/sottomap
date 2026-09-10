@@ -212,28 +212,39 @@ export function MapCanvas({
         }
 
         const el = createMarkerElement(pin, selected);
+
+        // SPEC §9.10: D1 のホバーカードはホバー・フォーカス・タップの3つで
+        // 同等に開く必要がある。マウス(mouseenter/leave)に加えて、キーボード
+        // フォーカス(focus/blur)とタップ(click/keydown)でも同じ通知を出す。
+        const emitHoverEnter = () => {
+          hoveredIdRef.current = pin.id;
+          const point = map.project([pin.lng, pin.lat]);
+          callbacksRef.current.onHoverPin?.(pin.id, { x: point.x, y: point.y });
+        };
+        const emitHoverLeave = () => {
+          if (hoveredIdRef.current === pin.id) {
+            hoveredIdRef.current = null;
+            callbacksRef.current.onHoverPin?.(null, null);
+          }
+        };
+
         el.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
+          emitHoverEnter();
           callbacksRef.current.onSelectPin?.(pin.id);
         });
         el.addEventListener("keydown", (event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
+            emitHoverEnter();
             callbacksRef.current.onSelectPin?.(pin.id);
           }
         });
-        el.addEventListener("mouseenter", () => {
-          hoveredIdRef.current = pin.id;
-          const point = map.project([pin.lng, pin.lat]);
-          callbacksRef.current.onHoverPin?.(pin.id, { x: point.x, y: point.y });
-        });
-        el.addEventListener("mouseleave", () => {
-          if (hoveredIdRef.current === pin.id) {
-            hoveredIdRef.current = null;
-            callbacksRef.current.onHoverPin?.(null, null);
-          }
-        });
+        el.addEventListener("mouseenter", emitHoverEnter);
+        el.addEventListener("mouseleave", emitHoverLeave);
+        el.addEventListener("focus", emitHoverEnter);
+        el.addEventListener("blur", emitHoverLeave);
 
         const marker = new maplibregl.Marker({ element: el, anchor: "center" }).setLngLat([pin.lng, pin.lat]).addTo(map);
         markersRef.current.set(pin.id, marker);

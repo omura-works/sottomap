@@ -102,12 +102,11 @@ export function NewSpotForm({ city }: NewSpotFormProps) {
         <input type="hidden" name="visitFrequency" value={visitFrequency} />
       </div>
 
+      {/* SPEC §9.8: 原本の文言を一字一句そのまま実装する。 */}
       <Card kicker="立てたあと" title="このピンがどうなるか">
-        <ul className="space-y-1 text-sm list-none">
-          <li>「同じ街の2人が『行ったことがある』と答えると、地図に出ます」</li>
-          <li>「90日ごとに、あなたに一度だけ確認が届きます」</li>
-          <li>「答えないままのピンは、90日後に地図から静かに外れる」</li>
-        </ul>
+        <p className="m-0 text-sm">
+          同じ街の2人が「行ったことがある」と答えると、地図に出ます。90日ごとに、あなたに一度だけ確認が届きます。
+        </p>
       </Card>
 
       {state?.error ? (

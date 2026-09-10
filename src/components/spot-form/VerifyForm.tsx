@@ -15,9 +15,10 @@ export interface VerifyFormProps {
   history: Verification[];
 }
 
+/** SPEC §9.8: 「2025年12月 / 静かなまま」のように年月とラベルを "/" で区切る。 */
 function formatHistoryEntry(v: Verification): string {
   const d = new Date(v.createdAt);
-  return `${d.getFullYear()}年${d.getMonth() + 1}月 ${quietnessLabel(v.answer)}`;
+  return `${d.getFullYear()}年${d.getMonth() + 1}月 / ${quietnessLabel(v.answer)}`;
 }
 
 /** S6「確認」画面のフォーム＋回答後の灯り演出。 */
@@ -61,6 +62,8 @@ export function VerifyForm({ spotId, spotName, daysSinceLast, history }: VerifyF
               <p className="text-lg font-bold" style={{ color: "var(--color-accent)" }}>
                 +{pointsAwarded}
               </p>
+              {/* SPEC §9.8: S6 の報酬説明。原本の文言を一字一句そのまま実装する。 */}
+              <p className="text-sm text-muted m-0">確認を続けた人だけが、次の街を先に見られます。</p>
               {keeperBadge && !keeperBadge.earned ? <p className="text-sm">灯りの番人 あと{keeperBadge.remaining}件</p> : null}
             </div>
           ) : null}
