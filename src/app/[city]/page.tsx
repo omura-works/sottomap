@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
-import { getCity, listSpots, countQuietSpots } from "@/lib/db/spots";
+import { getCity, listSpots, countQuietSpots, listBookmarks } from "@/lib/db/spots";
 import { CityMapScreen } from "@/components/map/CityMapScreen";
 import { firstParam, parseFiltersParam, parseFocusedSpotIds, parseOrigin } from "@/components/spot-list";
+import { DEMO_USER_ID } from "@/components/profile/demo-user";
 
 /**
  * S2「地図」/ D1「PC版トップ」`/[city]`。
@@ -27,12 +28,23 @@ export default async function CityMapPage(props: PageProps<"/[city]">) {
   const origin = parseOrigin(searchParams.lat, searchParams.lng);
   const focusedSpotIds = parseFocusedSpotIds(searchParams.spots);
 
-  const [spots, quietCount] = await Promise.all([
+  const [spots, quietCount, bookmarks] = await Promise.all([
     listSpots({ citySlug: city.slug, filters, origin }),
     countQuietSpots(city.slug),
+    // 未認証(Task 6待ち)のため demo ユーザーの栞を初期表示に使う（S2「栞に挟む」の
+    // 接続。SPEC §9.12-5）。
+    listBookmarks(DEMO_USER_ID),
   ]);
+  const bookmarkedSpotIds = bookmarks.map((bookmark) => bookmark.spotId);
 
   return (
-    <CityMapScreen city={city} spots={spots} quietCount={quietCount} activeFilters={filters} focusedSpotIds={focusedSpotIds} />
+    <CityMapScreen
+      city={city}
+      spots={spots}
+      quietCount={quietCount}
+      activeFilters={filters}
+      focusedSpotIds={focusedSpotIds}
+      bookmarkedSpotIds={bookmarkedSpotIds}
+    />
   );
 }
