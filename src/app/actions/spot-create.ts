@@ -6,10 +6,10 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { getCurrentUserId } from "@/lib/auth";
 import { getCity } from "@/lib/db/spots";
 import { newSpotSchema, type NewSpotInput } from "@/components/spot-form/schema";
 import { createSpot } from "@/lib/db/mutations";
-import { DEMO_USER_ID } from "@/components/profile/demo-user";
 
 export type NewSpotActionState = {
   error?: string;
@@ -25,6 +25,9 @@ export async function createSpotAction(
   _prevState: NewSpotActionState,
   formData: FormData,
 ): Promise<NewSpotActionState> {
+  const userId = await getCurrentUserId();
+  if (!userId) redirect(`/login?next=${encodeURIComponent(`/${citySlug}/spots/new`)}`);
+
   const city = await getCity(citySlug);
   if (!city) {
     return { error: "街の情報が取得できませんでした" };
@@ -53,7 +56,7 @@ export async function createSpotAction(
 
   let createdId: string;
   try {
-    const spot = await createSpot({ ...parsed.data, authorId: DEMO_USER_ID });
+    const spot = await createSpot({ ...parsed.data, authorId: userId });
     createdId = spot.id;
   } catch (error) {
     return { error: error instanceof Error ? error.message : "スポットの作成に失敗しました" };

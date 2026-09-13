@@ -34,7 +34,7 @@ export async function createClient(): Promise<SupabaseClient> {
           }
         } catch {
           // Server Component からの呼び出しでは cookie を書けない場合がある。
-          // セッションのリフレッシュは Middleware（Task6）が担うため無視してよい。
+          // セッションのリフレッシュは Proxy が担うため無視してよい。
         }
       },
     },

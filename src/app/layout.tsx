@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Zen_Kaku_Gothic_New, Zen_Maru_Gothic } from "next/font/google";
 import { AppShell } from "@/components/layout/AppShell";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 import "./globals.css";
 
 // 見出し用フォント（Spec §5: 見出しは "Zen Maru Gothic"）。--font-heading に割り当てる。
@@ -25,9 +26,15 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
+  const isDemoMode = !isSupabaseConfigured();
   return (
     <html lang="ja" className={`${zenMaruGothic.variable} ${zenKakuGothicNew.variable}`}>
       <body className="min-h-screen">
+        {isDemoMode ? (
+          <p className="m-0 px-3 py-1 text-center text-xs text-muted" style={{ background: "var(--color-surface)" }}>
+            デモモード（保存されません）
+          </p>
+        ) : null}
         <AppShell>{children}</AppShell>
       </body>
     </html>

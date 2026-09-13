@@ -1,4 +1,6 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { connection } from "next/server";
+import { getCurrentUserId } from "@/lib/auth";
 import { getSpot, getVerificationRequest, listVerifications } from "@/lib/db/spots";
 import { daysSince } from "@/lib/domain/lifecycle";
 import { VerifyForm } from "@/components/spot-form/VerifyForm";
@@ -10,7 +12,10 @@ interface VerifyPageProps {
 
 /** S6「確認」 `/verify/[requestId]`。requestId は verification_requests.id。 */
 export default async function VerifyPage({ params }: VerifyPageProps) {
+  await connection();
   const { requestId } = await params;
+  const userId = await getCurrentUserId();
+  if (!userId) redirect(`/login?next=${encodeURIComponent(`/verify/${requestId}`)}`);
 
   const request = await getVerificationRequest(requestId);
   if (!request) notFound();

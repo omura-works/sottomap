@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Segment, Tag } from "@/components/ui";
 import { Disclaimer } from "@/components/profile/Disclaimer";
+import { saveHomeCityAction } from "@/app/actions/start";
 
 export interface StartCityOption {
   slug: string;
@@ -45,6 +46,7 @@ export function StartScreen({
   const router = useRouter();
   const [selectedSlug, setSelectedSlug] = useState(defaultCitySlug);
   const [timeOfDay, setTimeOfDay] = useState("day");
+  const [isStarting, startTransition] = useTransition();
 
   const selectedCity = useMemo(
     () => cities.find((city) => city.slug === selectedSlug) ?? cities[0],
@@ -111,7 +113,17 @@ export function StartScreen({
         <p className="text-muted text-sm">
           {selectedCity.name}には、地元が確認したピンが{selectedData.publishedCount}件あります。
         </p>
-        <Button variant="primary" block onClick={() => router.push(`/${selectedSlug}`)}>
+        <Button
+          variant="primary"
+          block
+          disabled={isStarting}
+          onClick={() => {
+            startTransition(async () => {
+              await saveHomeCityAction(selectedSlug);
+              router.push(`/${selectedSlug}`);
+            });
+          }}
+        >
           歩きはじめる
         </Button>
         <Disclaimer />

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { getSpot, listBookmarks } from "@/lib/db/spots";
 import { quietnessLabel } from "@/lib/domain/quietness";
 import { daysSince } from "@/lib/domain/lifecycle";
@@ -7,7 +8,7 @@ import type { Quietness } from "@/lib/db/types";
 import { Card, Tag } from "@/components/ui";
 import type { TagKind } from "@/components/ui";
 import { Disclaimer } from "@/components/profile/Disclaimer";
-import { DEMO_USER_ID } from "@/components/profile/demo-user";
+import { getCurrentUserId } from "@/lib/auth";
 import { BookmarkButton } from "./BookmarkButton";
 
 /**
@@ -39,6 +40,7 @@ export default async function SpotDetailPage({
 }: {
   params: Promise<{ city: string; id: string }>;
 }) {
+  await connection();
   const { city, id } = await params;
   const spot = await getSpot(id);
 
@@ -46,7 +48,8 @@ export default async function SpotDetailPage({
     notFound();
   }
 
-  const bookmarks = await listBookmarks(DEMO_USER_ID);
+  const userId = await getCurrentUserId();
+  const bookmarks = userId ? await listBookmarks(userId) : [];
   const alreadyBookmarked = bookmarks.some((bookmark) => bookmark.spotId === spot.id);
 
   const kicker = [spot.cityName, spot.areaName].filter(Boolean).join("・") + (spot.category ? ` / ${spot.category}` : "");

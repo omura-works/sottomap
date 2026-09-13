@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { getCity } from "@/lib/db/spots";
+import { redirect } from "next/navigation";
+import { connection } from "next/server";
+import { getCurrentUserId } from "@/lib/auth";
+import { getProfileStats, getUserProfile, listCities, listSpotsByAuthor } from "@/lib/db/spots";
 import { resolveBadges } from "@/lib/domain/lantern";
 import { quietnessLabel } from "@/lib/domain/quietness";
 import type { Quietness } from "@/lib/db/types";
 import { Card, Divider, Tag } from "@/components/ui";
 import { Disclaimer } from "@/components/profile/Disclaimer";
-import { DEMO_PROFILE, DEMO_AUTHORED_SPOTS } from "@/components/profile/demo-user";
 
 /**
  * SPEC §9.8: S7「あなたが書いた店」のステータス表記は `quietnessLabel()` の
@@ -17,38 +19,47 @@ function authoredSpotStatusLabel(quietness: Quietness): string {
 }
 
 /**
- * S7「プロフィール」`/me`。
- * 認証未結線（Task 6 待ち）のため `demo-user.ts` の固定プロフィールを使う
- * （SPEC §7 の方針どおり、確認人数・ポイント・バッジ数値はもともと架空データとして
- * 明記される前提のため矛盾しない）。居住地の街名だけは `getCity` で実データを引く。
+ * S7「プロフィール」`/me`。認証ユーザーのプロフィール・集計・投稿を表示する。
  */
 export default async function ProfilePage() {
-  const homeCity = await getCity("sapporo");
-  const cityName = homeCity?.name ?? "札幌";
+  await connection();
+  const userId = await getCurrentUserId();
+  if (!userId) redirect("/login?next=%2Fme");
+  const [profile, stats, authoredSpots, cities] = await Promise.all([
+    getUserProfile(userId),
+    getProfileStats(userId),
+    listSpotsByAuthor(userId),
+    listCities(),
+  ]);
+  const homeCity = cities.find((city) => city.id === profile?.homeCityId) ?? null;
+  const displayName = profile?.displayName ?? "地元の人";
 
   const badges = resolveBadges({
-    verificationCount: DEMO_PROFILE.verificationCount,
-    winterVerificationCount: DEMO_PROFILE.winterVerificationCount,
-    publishedPortSpotCount: DEMO_PROFILE.publishedPortSpotCount,
-    publishedSpotCount: DEMO_PROFILE.postedSpotCount,
+    verificationCount: stats.verificationsAnswered,
+    winterVerificationCount: stats.winterVerificationCount,
+    publishedPortSpotCount: stats.publishedPortSpotCount,
+    publishedSpotCount: authoredSpots.filter((spot) => spot.status === "published").length,
   });
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 lg:py-10 space-y-8">
       <header className="flex items-center gap-4">
-        <Avatar avatarUrl={DEMO_PROFILE.avatarUrl} displayName={DEMO_PROFILE.displayName} />
+        <Avatar avatarUrl={profile?.avatarUrl ?? null} displayName={displayName} />
         <div>
-          <h2 className="m-0">{DEMO_PROFILE.displayName}</h2>
+          <h2 className="m-0">{displayName}</h2>
           <p className="text-muted m-0">
-            {cityName}・{DEMO_PROFILE.areaName}に{DEMO_PROFILE.residentYears}年
+            {[homeCity?.name, profile?.areaName].filter(Boolean).join("・")}
+            {profile?.residentYears !== null && profile?.residentYears !== undefined
+              ? `に${profile.residentYears}年`
+              : ""}
           </p>
         </div>
       </header>
 
       <section className="grid grid-cols-3 gap-3 text-center">
-        <Stat label="立てたピン" value={DEMO_PROFILE.postedSpotCount} />
-        <Stat label="確認した回数" value={DEMO_PROFILE.verificationCount} />
-        <Stat label="静けさを守った店" value={DEMO_PROFILE.keptQuietSpotCount} />
+        <Stat label="立てたピン" value={stats.spotsCreated} />
+        <Stat label="確認した回数" value={stats.verificationsAnswered} />
+        <Stat label="静けさを守った店" value={stats.spotsKeptQuiet} />
       </section>
 
       <Divider />
@@ -81,9 +92,9 @@ export default async function ProfilePage() {
       <section className="space-y-3">
         <h3>あなたが書いた店</h3>
         <ul className="space-y-2">
-          {DEMO_AUTHORED_SPOTS.map((spot) => (
+          {authoredSpots.map((spot) => (
             <li
-              key={spot.name}
+              key={spot.id}
               className="flex items-center justify-between px-3 py-2"
               style={{ borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}
             >
@@ -102,7 +113,7 @@ export default async function ProfilePage() {
       </section>
 
       <Card elevation="sm">
-        <h3 className="m-0">確認待ちが{DEMO_PROFILE.pendingVerificationCount}件あります</h3>
+        <h3 className="m-0">確認待ちが{stats.pendingRequestCount}件あります</h3>
         <p className="m-0">答えないままのピンは、90日後に地図から静かに外れます。</p>
       </Card>
 

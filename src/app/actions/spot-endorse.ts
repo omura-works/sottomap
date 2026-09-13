@@ -5,10 +5,11 @@
 // ここでは「自分の投稿には出さない／押せない」の最終防御のみ行う。
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { getCurrentUserId } from "@/lib/auth";
 import type { SpotStatus } from "@/lib/db/types";
 import { endorseSpot as persistEndorsement } from "@/lib/db/mutations";
 import { getSpot } from "@/lib/db/spots";
-import { DEMO_USER_ID } from "@/components/profile/demo-user";
 
 export interface EndorseResult {
   status: SpotStatus;
@@ -16,7 +17,8 @@ export interface EndorseResult {
 }
 
 export async function endorseSpot(spotId: string, citySlug: string): Promise<EndorseResult> {
-  const userId = DEMO_USER_ID; // TODO(Task6): 認証結線後は実ユーザーIDに置き換える
+  const userId = await getCurrentUserId();
+  if (!userId) redirect(`/login?next=${encodeURIComponent(`/${citySlug}/spots/new`)}`);
 
   const spot = await getSpot(spotId);
   if (!spot) {

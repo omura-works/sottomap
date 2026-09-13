@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { getCity, listSpots, countQuietSpots, listBookmarks } from "@/lib/db/spots";
 import { CityMapScreen } from "@/components/map/CityMapScreen";
 import { firstParam, parseFiltersParam, parseFocusedSpotIds, parseOrigin } from "@/components/spot-list";
-import { DEMO_USER_ID } from "@/components/profile/demo-user";
+import { getCurrentUserId } from "@/lib/auth";
 
 /**
  * S2「地図」/ D1「PC版トップ」`/[city]`。
@@ -16,6 +17,7 @@ import { DEMO_USER_ID } from "@/components/profile/demo-user";
  * - `spots`: 栞画面の「N軒を地図にまとめる」から渡される対象スポットID（カンマ区切り）
  */
 export default async function CityMapPage(props: PageProps<"/[city]">) {
+  await connection();
   const { city: citySlug } = await props.params;
   const searchParams = await props.searchParams;
 
@@ -27,13 +29,12 @@ export default async function CityMapPage(props: PageProps<"/[city]">) {
   const filters = parseFiltersParam(firstParam(searchParams.filters));
   const origin = parseOrigin(searchParams.lat, searchParams.lng);
   const focusedSpotIds = parseFocusedSpotIds(searchParams.spots);
+  const userId = await getCurrentUserId();
 
   const [spots, quietCount, bookmarks] = await Promise.all([
     listSpots({ citySlug: city.slug, filters, origin }),
     countQuietSpots(city.slug),
-    // 未認証(Task 6待ち)のため demo ユーザーの栞を初期表示に使う（S2「栞に挟む」の
-    // 接続。SPEC §9.12-5）。
-    listBookmarks(DEMO_USER_ID),
+    userId ? listBookmarks(userId) : Promise.resolve([]),
   ]);
   const bookmarkedSpotIds = bookmarks.map((bookmark) => bookmark.spotId);
 

@@ -272,3 +272,15 @@ describe("runVerificationCron", () => {
     expect(afterSecond).toHaveLength(1);
   });
 });
+
+describe("setUserHomeCity", () => {
+  it("デモモードでは保存せず、フィクスチャの居住街を変えない", async () => {
+    const { setUserHomeCity } = await import("./mutations");
+    const { getUserProfile } = await import("./spots");
+    const before = await getUserProfile(K_SAN);
+
+    await setUserHomeCity(K_SAN, "a0000000-0000-4000-8000-000000000002");
+
+    expect((await getUserProfile(K_SAN))?.homeCityId).toBe(before?.homeCityId);
+  });
+});

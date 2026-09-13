@@ -4,6 +4,8 @@
 // verification_requests.id を answerVerification() に渡し、回答と次回依頼を一括反映する。
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { getCurrentUserId } from "@/lib/auth";
 import type { Badge, Quietness } from "@/lib/db/types";
 import {
   getProfileStats,
@@ -15,7 +17,6 @@ import {
 import { answerVerification } from "@/lib/db/mutations";
 import { resolveBadges } from "@/lib/domain/lantern";
 import { verifyAnswerSchema } from "@/components/spot-form/verify-schema";
-import { DEMO_USER_ID } from "@/components/profile/demo-user";
 
 export interface SubmitVerificationResult {
   ok: true;
@@ -38,7 +39,8 @@ export async function submitVerification(
     return { ok: false, error: "答えを選んでください" };
   }
 
-  const userId = DEMO_USER_ID; // TODO(Task6): 認証結線後は実ユーザーIDに置き換える
+  const userId = await getCurrentUserId();
+  if (!userId) redirect(`/login?next=${encodeURIComponent(`/verify/${requestId}`)}`);
 
   try {
     const result = await answerVerification(parsed.data.requestId, userId, parsed.data.answer);

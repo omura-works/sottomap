@@ -13,7 +13,12 @@
 // Supabase未接続時はフィクスチャ（./fixtures.ts のインメモリ配列）を直接 mutate して反映する。
 
 import type { Bookmark, Quietness, RequestStatus, Spot, SpotStatus, VisitFrequency } from "./types";
-import { nextStatus, nextVerificationDate, statusAfterAnswer } from "../domain/lifecycle";
+import {
+  nextStatus,
+  nextVerificationDate,
+  PENDING_EXPIRY_DAYS,
+  statusAfterAnswer,
+} from "../domain/lifecycle";
 import { pointsForAnswer, pointsForPublish } from "../domain/lantern";
 import {
   planCronActions,
@@ -147,7 +152,7 @@ export async function endorseSpot(spotId: string, userId: string): Promise<{ pub
 
     const now = new Date();
     const expiryAt = new Date(spot.createdAt);
-    expiryAt.setDate(expiryAt.getDate() + 30);
+    expiryAt.setDate(expiryAt.getDate() + PENDING_EXPIRY_DAYS);
     const timelyEndorsementCount = FIXTURE_ENDORSEMENT_LOG.filter(
       (entry) => entry.spotId === spotId && new Date(entry.createdAt).getTime() <= expiryAt.getTime(),
     ).length;
@@ -204,7 +209,12 @@ export async function endorseSpot(spotId: string, userId: string): Promise<{ pub
     .from("endorsements")
     .select("id", { count: "exact", head: true })
     .eq("spot_id", spotId)
-    .lte("created_at", new Date(new Date(spot.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString());
+    .lte(
+      "created_at",
+      new Date(
+        new Date(spot.createdAt).getTime() + PENDING_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
+      ).toISOString(),
+    );
   if (countError) throw new Error(`承認数の取得に失敗しました: ${countError.message}`);
   const endorsementCount = count ?? spot.endorsementCount;
 
@@ -628,4 +638,13 @@ export async function removeBookmark(userId: string, spotId: string): Promise<vo
   const supabase = await createClient();
   const { error } = await supabase.from("bookmarks").delete().eq("user_id", userId).eq("spot_id", spotId);
   if (error) throw new Error(`栞の削除に失敗しました: ${error.message}`);
+}
+
+/** /start で選んだ街を、ログイン済みユーザーの居住街として保存する。 */
+export async function setUserHomeCity(userId: string, cityId: string): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("users").update({ home_city_id: cityId }).eq("id", userId);
+  if (error) throw new Error(`居住街の保存に失敗しました: ${error.message}`);
 }

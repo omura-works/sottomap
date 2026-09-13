@@ -1,12 +1,17 @@
 import { listBookmarks } from "@/lib/db/spots";
-import { DEMO_USER_ID } from "@/components/profile/demo-user";
+import { getCurrentUserId } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { Disclaimer } from "@/components/profile/Disclaimer";
 import { BookmarkList } from "./BookmarkList";
 import type { BookmarkListItem } from "./BookmarkList";
 
 /** S8「栞」`/bookmarks`。 */
 export default async function BookmarksPage() {
-  const bookmarks = await listBookmarks(DEMO_USER_ID);
+  await connection();
+  const userId = await getCurrentUserId();
+  if (!userId) redirect("/login?next=%2Fbookmarks");
+  const bookmarks = await listBookmarks(userId);
 
   const items: BookmarkListItem[] = bookmarks.map((bookmark) => ({
     id: bookmark.id,

@@ -50,7 +50,7 @@ export function isNavItemActive(item: NavItem, pathname: string): boolean {
  * /start はオンボーディング前の単独導線、/verify/[requestId] はメールリンク等からの
  * 単独導線のため、ナビゲーションチロムなしのフルスクリーン表示にする。
  */
-const CHROME_HIDDEN_PREFIXES = ["/start", "/verify"];
+const CHROME_HIDDEN_PREFIXES = ["/start", "/verify", "/login", "/auth"];
 
 export function isChromeHidden(pathname: string): boolean {
   return CHROME_HIDDEN_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
