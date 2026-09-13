@@ -6,9 +6,8 @@
 
 import { revalidatePath } from "next/cache";
 import type { SpotStatus } from "@/lib/db/types";
+import { endorseSpot as persistEndorsement } from "@/lib/db/mutations";
 import { getSpot } from "@/lib/db/spots";
-import { nextStatus } from "@/lib/domain/lifecycle";
-import { createEndorsement, hasEndorsed, updateSpotStatus } from "@/components/spot-form/db";
 import { DEMO_USER_ID } from "@/components/profile/demo-user";
 
 export interface EndorseResult {
@@ -30,24 +29,11 @@ export async function endorseSpot(spotId: string, citySlug: string): Promise<End
     return { status: spot.status, endorsementCount: spot.endorsementCount };
   }
 
-  const already = await hasEndorsed(spotId, userId);
-  if (!already) {
-    await createEndorsement(spotId, userId);
-  }
-
-  const endorsementCount = already ? spot.endorsementCount : spot.endorsementCount + 1;
-  const now = new Date();
-  const status = nextStatus(
-    { status: spot.status, createdAt: spot.createdAt, nextVerificationAt: spot.nextVerificationAt },
-    endorsementCount,
-    now,
-  );
-
-  if (status !== spot.status) {
-    await updateSpotStatus(spotId, status, now);
-  }
+  await persistEndorsement(spotId, userId);
+  const updated = await getSpot(spotId);
+  if (!updated) throw new Error("更新したスポットが見つかりませんでした");
 
   revalidatePath(`/${citySlug}/spots/new`);
 
-  return { status, endorsementCount };
+  return { status: updated.status, endorsementCount: updated.endorsementCount };
 }

@@ -1,8 +1,7 @@
 // 書き込み系データアクセス（docs/CONTRACT.md 追補 2026-09-09 `src/lib/db/mutations.ts`）。
 //
-// T4 が暫定実装した `src/components/spot-form/db.ts`（削除しない。UI所有領域のため
-// このファイルからは編集しない）のロジックを、CONTRACT追補のシグネチャに合わせて
-// ここへ移植・統合する。主な差分:
+// T4 が暫定実装した `src/components/spot-form/db.ts` のロジックを、
+// CONTRACT追補のシグネチャに合わせてここへ移植・統合する。
 //   - `verification_requests` テーブル（Spec §9.1）の生成・更新を追加した
 //     （T4実装時点ではこのテーブルが契約に無かったため未対応だった）。
 //   - `spots.location` は PostGIS の生成列ベースの geography(Point,4326) であり、
@@ -15,9 +14,14 @@
 
 import type { Bookmark, Quietness, RequestStatus, Spot, SpotStatus, VisitFrequency } from "./types";
 import { nextStatus, nextVerificationDate, statusAfterAnswer } from "../domain/lifecycle";
-import { pointsForAnswer } from "../domain/lantern";
+import { pointsForAnswer, pointsForPublish } from "../domain/lantern";
+import {
+  planCronActions,
+  type CronSpotInput,
+  type CronVerificationRequestInput,
+} from "../domain/verification-cron";
 import { isSupabaseConfigured } from "../supabase/env";
-import { createClient } from "../supabase/server";
+import { createClient, createServiceRoleClient } from "../supabase/server";
 import { getSpot } from "./spots";
 import {
   FIXTURE_BOOKMARKS,
@@ -26,6 +30,7 @@ import {
   FIXTURE_SPOTS,
   FIXTURE_VERIFICATIONS,
   FIXTURE_VERIFICATION_REQUESTS,
+  addFixtureLanternPoints,
   findFixtureSpot,
   findFixtureVerificationRequest,
   fixtureUserHomeCityId,
@@ -141,10 +146,16 @@ export async function endorseSpot(spotId: string, userId: string): Promise<{ pub
     }
 
     const now = new Date();
-    const newStatus = nextStatus({ status: spot.status, createdAt: spot.createdAt }, null, spot.endorsementCount, now);
+    const expiryAt = new Date(spot.createdAt);
+    expiryAt.setDate(expiryAt.getDate() + 30);
+    const timelyEndorsementCount = FIXTURE_ENDORSEMENT_LOG.filter(
+      (entry) => entry.spotId === spotId && new Date(entry.createdAt).getTime() <= expiryAt.getTime(),
+    ).length;
+    const newStatus = nextStatus({ status: spot.status, createdAt: spot.createdAt }, null, timelyEndorsementCount, now);
     if (newStatus !== spot.status) {
       spot.status = newStatus;
       if (newStatus === "published") {
+        const pointsAwarded = pointsForPublish(spot.publishedAt === null);
         spot.publishedAt = now.toISOString();
         const dueAt = nextVerificationDate(now).toISOString();
         spot.nextVerificationAt = dueAt;
@@ -159,6 +170,7 @@ export async function endorseSpot(spotId: string, userId: string): Promise<{ pub
           createdAt: now.toISOString(),
         });
         spot.openRequestId = requestId;
+        addFixtureLanternPoints(spot.authorId, pointsAwarded);
       }
     }
 
@@ -191,7 +203,8 @@ export async function endorseSpot(spotId: string, userId: string): Promise<{ pub
   const { count, error: countError } = await supabase
     .from("endorsements")
     .select("id", { count: "exact", head: true })
-    .eq("spot_id", spotId);
+    .eq("spot_id", spotId)
+    .lte("created_at", new Date(new Date(spot.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString());
   if (countError) throw new Error(`承認数の取得に失敗しました: ${countError.message}`);
   const endorsementCount = count ?? spot.endorsementCount;
 
@@ -203,17 +216,27 @@ export async function endorseSpot(spotId: string, userId: string): Promise<{ pub
       patch.published_at = now.toISOString();
       patch.next_verification_at = nextVerificationDate(now).toISOString();
     }
-    const { error: updateError } = await supabase.from("spots").update(patch).eq("id", spotId);
+    const serviceClient = createServiceRoleClient();
+    const { data: updatedRow, error: updateError } = await serviceClient
+      .from("spots")
+      .update(patch)
+      .eq("id", spotId)
+      .eq("status", spot.status)
+      .select("id")
+      .maybeSingle();
     if (updateError) throw new Error(`ステータス更新に失敗しました: ${updateError.message}`);
 
-    if (newStatus === "published") {
-      const { error: requestError } = await supabase.from("verification_requests").insert({
+    if (newStatus === "published" && updatedRow) {
+      const { error: requestError } = await serviceClient.from("verification_requests").insert({
         spot_id: spotId,
         user_id: spot.authorId,
         due_at: nextVerificationDate(now).toISOString(),
         status: "open",
       });
       if (requestError) throw new Error(`確認依頼の作成に失敗しました: ${requestError.message}`);
+
+      const pointsAwarded = pointsForPublish(spot.publishedAt === null);
+      await addLanternPoints(serviceClient, spot.authorId, pointsAwarded);
     }
   }
 
@@ -280,6 +303,7 @@ export async function answerVerification(
     spot.openRequestId = nextRequestId;
 
     const pointsAwarded = pointsForAnswer([], requestId); // status==='open' だったことが未付与の証跡
+    addFixtureLanternPoints(userId, pointsAwarded);
     return { pointsAwarded, status: spot.status };
   }
 
@@ -312,15 +336,23 @@ export async function answerVerification(
     throw new Error(`確認の記録に失敗しました: ${verificationError?.message ?? "unknown error"}`);
   }
 
-  const { error: requestUpdateError } = await supabase
+  const serviceClient = createServiceRoleClient();
+  const { data: updatedRequest, error: requestUpdateError } = await serviceClient
     .from("verification_requests")
     .update({ status: "answered", answered_verification_id: (verificationRow as { id: string }).id })
-    .eq("id", requestId);
+    .eq("id", requestId)
+    .eq("status", "open")
+    .select("id")
+    .maybeSingle();
   if (requestUpdateError) throw new Error(`確認依頼の更新に失敗しました: ${requestUpdateError.message}`);
+  if (!updatedRequest) {
+    await serviceClient.from("verifications").delete().eq("id", (verificationRow as { id: string }).id);
+    return { pointsAwarded: 0, status: spot.status };
+  }
 
   const newStatus = statusAfterAnswer(spot.status);
   const nextDueAt = nextVerificationDate(now).toISOString();
-  const { error: spotUpdateError } = await supabase
+  const { error: spotUpdateError } = await serviceClient
     .from("spots")
     .update({
       quietness: answer,
@@ -331,7 +363,7 @@ export async function answerVerification(
     .eq("id", spot.id);
   if (spotUpdateError) throw new Error(`確認結果の反映に失敗しました: ${spotUpdateError.message}`);
 
-  const { error: nextRequestError } = await supabase.from("verification_requests").insert({
+  const { error: nextRequestError } = await serviceClient.from("verification_requests").insert({
     spot_id: spot.id,
     user_id: spot.authorId,
     due_at: nextDueAt,
@@ -340,7 +372,203 @@ export async function answerVerification(
   if (nextRequestError) throw new Error(`次回確認依頼の作成に失敗しました: ${nextRequestError.message}`);
 
   const pointsAwarded = pointsForAnswer([], requestId);
+  await addLanternPoints(serviceClient, userId, pointsAwarded);
   return { pointsAwarded, status: newStatus };
+}
+
+async function addLanternPoints(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  points: number,
+): Promise<void> {
+  if (points === 0) return;
+  const { data, error } = await supabase.from("users").select("lantern_points").eq("id", userId).single();
+  if (error || !data) throw new Error(`灯りポイントの取得に失敗しました: ${error?.message ?? "unknown error"}`);
+  const row = data as { lantern_points: number };
+  const { error: updateError } = await supabase
+    .from("users")
+    .update({ lantern_points: row.lantern_points + points })
+    .eq("id", userId);
+  if (updateError) throw new Error(`灯りポイントの更新に失敗しました: ${updateError.message}`);
+}
+
+export interface VerificationCronResult {
+  checked: number;
+  changed: number;
+  missedRequestCount: number;
+  createdRequestCount: number;
+}
+
+/** verification_requests を基準に期限処理と次回依頼生成を一括実行する。 */
+export async function runVerificationCron(now: Date): Promise<VerificationCronResult> {
+  if (!isSupabaseConfigured()) {
+    const spots: CronSpotInput[] = FIXTURE_SPOTS.filter((spot) =>
+      spot.status === "pending" || spot.status === "published",
+    ).map((spot) => ({
+      id: spot.id,
+      authorId: spot.authorId,
+      status: spot.status,
+      createdAt: spot.createdAt,
+      publishedAt: spot.publishedAt,
+      endorsementCreatedAts: FIXTURE_ENDORSEMENT_LOG.filter((entry) => entry.spotId === spot.id).map(
+        (entry) => entry.createdAt,
+      ),
+    }));
+    const requests: CronVerificationRequestInput[] = FIXTURE_VERIFICATION_REQUESTS.filter(
+      (request) => request.status === "open",
+    );
+    const plan = planCronActions(spots, requests, now);
+    let changed = 0;
+    let missedRequestCount = 0;
+    let createdRequestCount = 0;
+    const missedSpotIds = new Set<string>();
+
+    for (const action of plan.requestActions) {
+      const request = findFixtureVerificationRequest(action.id);
+      if (request?.status !== action.from) continue;
+      request.status = action.to;
+      const spot = findFixtureSpot(request.spotId);
+      if (spot) spot.openRequestId = null;
+      missedSpotIds.add(request.spotId);
+      missedRequestCount += 1;
+      changed += 1;
+    }
+    for (const action of plan.spotActions) {
+      const spot = findFixtureSpot(action.id);
+      if (!spot || spot.status !== action.from) continue;
+      if (action.to === "dormant" && !missedSpotIds.has(action.id)) continue;
+      const pointsAwarded = action.to === "published" ? pointsForPublish(spot.publishedAt === null) : 0;
+      spot.status = action.to;
+      if (action.to === "published") {
+        spot.publishedAt = now.toISOString();
+        addFixtureLanternPoints(spot.authorId, pointsAwarded);
+      }
+      changed += 1;
+    }
+    for (const item of plan.requestsToCreate) {
+      const alreadyOpen = FIXTURE_VERIFICATION_REQUESTS.some(
+        (request) => request.spotId === item.spotId && request.status === "open",
+      );
+      if (alreadyOpen) continue;
+      const id = newId();
+      FIXTURE_VERIFICATION_REQUESTS.push({
+        id,
+        spotId: item.spotId,
+        userId: item.userId,
+        dueAt: item.dueAt,
+        status: "open",
+        answeredVerificationId: null,
+        createdAt: now.toISOString(),
+      });
+      const spot = findFixtureSpot(item.spotId);
+      if (spot) {
+        spot.openRequestId = id;
+        spot.nextVerificationAt = item.dueAt;
+      }
+      createdRequestCount += 1;
+      changed += 1;
+    }
+
+    return { checked: spots.length, changed, missedRequestCount, createdRequestCount };
+  }
+
+  const supabase = createServiceRoleClient();
+  const [{ data: spotRows, error: spotError }, { data: requestRows, error: requestError }] = await Promise.all([
+    supabase
+      .from("spots")
+      .select("id, author_id, status, created_at, published_at, endorsements(created_at)")
+      .in("status", ["pending", "published"]),
+    supabase.from("verification_requests").select("id, spot_id, due_at, status").eq("status", "open"),
+  ]);
+  if (spotError) throw new Error(`cron対象スポットの取得に失敗しました: ${spotError.message}`);
+  if (requestError) throw new Error(`cron対象依頼の取得に失敗しました: ${requestError.message}`);
+
+  type CronSpotRow = {
+    id: string;
+    author_id: string;
+    status: SpotStatus;
+    created_at: string;
+    published_at: string | null;
+    endorsements: Array<{ created_at: string }> | { created_at: string } | null;
+  };
+  type CronRequestRow = { id: string; spot_id: string; due_at: string; status: RequestStatus };
+  const spots: CronSpotInput[] = ((spotRows ?? []) as CronSpotRow[]).map((row) => ({
+    id: row.id,
+    authorId: row.author_id,
+    status: row.status,
+    createdAt: row.created_at,
+    publishedAt: row.published_at,
+    endorsementCreatedAts: row.endorsements
+      ? (Array.isArray(row.endorsements) ? row.endorsements : [row.endorsements]).map((item) => item.created_at)
+      : [],
+  }));
+  const requests: CronVerificationRequestInput[] = ((requestRows ?? []) as CronRequestRow[]).map((row) => ({
+    id: row.id,
+    spotId: row.spot_id,
+    dueAt: row.due_at,
+    status: row.status,
+  }));
+  const plan = planCronActions(spots, requests, now);
+  let changed = 0;
+  let missedRequestCount = 0;
+  let createdRequestCount = 0;
+  const missedSpotIds = new Set<string>();
+  const requestSpotIdById = new Map(requests.map((request) => [request.id, request.spotId]));
+
+  for (const action of plan.requestActions) {
+    const { data, error } = await supabase
+      .from("verification_requests")
+      .update({ status: action.to })
+      .eq("id", action.id)
+      .eq("status", action.from)
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(`確認依頼の期限切れ更新に失敗しました: ${error.message}`);
+    if (data) {
+      const spotId = requestSpotIdById.get(action.id);
+      if (spotId) missedSpotIds.add(spotId);
+      missedRequestCount += 1;
+      changed += 1;
+    }
+  }
+  for (const action of plan.spotActions) {
+    if (action.to === "dormant" && !missedSpotIds.has(action.id)) continue;
+    const input = spots.find((spot) => spot.id === action.id);
+    const patch: Record<string, unknown> = { status: action.to };
+    if (action.to === "published") patch.published_at = now.toISOString();
+    const { data, error } = await supabase
+      .from("spots")
+      .update(patch)
+      .eq("id", action.id)
+      .eq("status", action.from)
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(`スポットの期限更新に失敗しました: ${error.message}`);
+    if (!data) continue;
+    if (action.to === "published" && input) {
+      await addLanternPoints(supabase, input.authorId, pointsForPublish(input.publishedAt === null));
+    }
+    changed += 1;
+  }
+  for (const item of plan.requestsToCreate) {
+    const { error } = await supabase.from("verification_requests").insert({
+      spot_id: item.spotId,
+      user_id: item.userId,
+      due_at: item.dueAt,
+      status: "open",
+    });
+    if (error?.code === "23505") continue;
+    if (error) throw new Error(`次回確認依頼の作成に失敗しました: ${error.message}`);
+    const { error: spotUpdateError } = await supabase
+      .from("spots")
+      .update({ next_verification_at: item.dueAt })
+      .eq("id", item.spotId);
+    if (spotUpdateError) throw new Error(`次回確認日の更新に失敗しました: ${spotUpdateError.message}`);
+    createdRequestCount += 1;
+    changed += 1;
+  }
+
+  return { checked: spots.length, changed, missedRequestCount, createdRequestCount };
 }
 
 // =========================================================

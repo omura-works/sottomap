@@ -39,7 +39,8 @@ export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[
   function handleRemove(id: string) {
     startTransition(async () => {
       dispatch({ type: "remove", id });
-      await removeBookmarkAction(id);
+      const item = items.find((candidate) => candidate.id === id);
+      if (item) await removeBookmarkAction(item.spotId);
     });
   }
 

@@ -97,7 +97,7 @@ describe("nextStatus（新シグネチャ）: pending → expired の30日境界
     const s = { status: "pending" as const, createdAt: daysAgoISO(29) };
     expect(nextStatus(s, null, 2, NOW)).toBe("published");
   });
-  it("Spec §9.7: 31日目（期限超過後）でも承認2人が集まっていれば公開が勝つ（同時刻は公開優先）", () => {
+  it("Spec §9.7: 期限前に成立した承認数が2人なら cron 実行が31日目でも公開が勝つ", () => {
     const s = { status: "pending" as const, createdAt: daysAgoISO(31) };
     expect(nextStatus(s, null, 2, NOW)).toBe("published");
   });
@@ -143,24 +143,6 @@ describe("nextStatus（新シグネチャ）: dormant / expired は日時ベー�
   it("expired はそのまま（終端状態。以後の承認も無視）", () => {
     const s = { status: "expired" as const, createdAt: daysAgoISO(400) };
     expect(nextStatus(s, null, 5, NOW)).toBe("expired");
-  });
-});
-
-describe("nextStatus（@deprecated 旧3引数シグネチャ）: 後方互換", () => {
-  it("pending: 旧シグネチャでも新シグネチャと同じ結果", () => {
-    const s = { status: "pending" as const, createdAt: daysAgoISO(31), nextVerificationAt: null };
-    expect(nextStatus(s, 2, NOW)).toBe("published");
-    expect(nextStatus(s, 0, NOW)).toBe("expired");
-  });
-  it("published: nextVerificationAt を due_at とみなして同じ90日境界で判定する", () => {
-    const base = { status: "published" as const, createdAt: daysAgoISO(300) };
-    expect(nextStatus({ ...base, nextVerificationAt: daysAgoISO(89) }, 0, NOW)).toBe("published");
-    expect(nextStatus({ ...base, nextVerificationAt: daysAgoISO(90) }, 0, NOW)).toBe("dormant");
-    expect(nextStatus({ ...base, nextVerificationAt: daysAgoISO(91) }, 0, NOW)).toBe("dormant");
-  });
-  it("published: nextVerificationAt が null なら published のまま", () => {
-    const s = { status: "published" as const, createdAt: daysAgoISO(10), nextVerificationAt: null };
-    expect(nextStatus(s, 0, NOW)).toBe("published");
   });
 });
 

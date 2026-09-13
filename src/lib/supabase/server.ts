@@ -7,7 +7,7 @@
 
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseEnv } from "./env";
 
 export async function createClient(): Promise<SupabaseClient> {
@@ -38,5 +38,17 @@ export async function createClient(): Promise<SupabaseClient> {
         }
       },
     },
+  });
+}
+
+/** RLS が service role 専用にしている cron・状態遷移の書き込みにだけ使う。 */
+export function createServiceRoleClient(): SupabaseClient {
+  const env = getSupabaseEnv();
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!env || !serviceRoleKey) {
+    throw new Error("Supabase の service role 環境変数（SUPABASE_SERVICE_ROLE_KEY）が未設定です。");
+  }
+  return createSupabaseClient(env.url, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
   });
 }

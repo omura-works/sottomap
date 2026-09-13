@@ -1,15 +1,19 @@
 "use server";
 
 // S6「確認」回答の Server Action。
-// 回答 → verifications へ記録 → resolveQuietness で静けさ再計算 → 次回確認日リセット
-// → 灯りポイント/バッジは lantern.ts 経由で算出、という流れ（SPEC §2.3 / §2.5）。
+// verification_requests.id を answerVerification() に渡し、回答と次回依頼を一括反映する。
 
 import { revalidatePath } from "next/cache";
 import type { Badge, Quietness } from "@/lib/db/types";
-import { getSpot, listVerifications } from "@/lib/db/spots";
-import { resolveQuietness } from "@/lib/domain/quietness";
-import { POINTS_PER_VERIFICATION, resolveBadges, totalPoints } from "@/lib/domain/lantern";
-import { applyVerificationResult, createVerificationRecord, getLanternInputForUser } from "@/components/spot-form/db";
+import {
+  getProfileStats,
+  getSpot,
+  getUserProfile,
+  getVerificationRequest,
+  listSpotsByAuthor,
+} from "@/lib/db/spots";
+import { answerVerification } from "@/lib/db/mutations";
+import { resolveBadges } from "@/lib/domain/lantern";
 import { verifyAnswerSchema } from "@/components/spot-form/verify-schema";
 import { DEMO_USER_ID } from "@/components/profile/demo-user";
 
@@ -26,39 +30,39 @@ export interface SubmitVerificationError {
 }
 
 export async function submitVerification(
-  spotId: string,
+  requestId: string,
   answer: Quietness,
 ): Promise<SubmitVerificationResult | SubmitVerificationError> {
-  const parsed = verifyAnswerSchema.safeParse({ spotId, answer });
+  const parsed = verifyAnswerSchema.safeParse({ requestId, answer });
   if (!parsed.success) {
     return { ok: false, error: "答えを選んでください" };
   }
 
   const userId = DEMO_USER_ID; // TODO(Task6): 認証結線後は実ユーザーIDに置き換える
 
-  const spot = await getSpot(spotId);
-  if (!spot) {
-    return { ok: false, error: "スポットが見つかりませんでした" };
-  }
-
-  const now = new Date();
-
   try {
-    await createVerificationRecord(spotId, userId, parsed.data.answer);
-    const verifications = await listVerifications(spotId);
-    const quietness = resolveQuietness(verifications, spot.quietness);
-    await applyVerificationResult(spotId, quietness, now);
+    const result = await answerVerification(parsed.data.requestId, userId, parsed.data.answer);
+    const [profile, stats, authoredSpots] = await Promise.all([
+      getUserProfile(userId),
+      getProfileStats(userId),
+      listSpotsByAuthor(userId),
+    ]);
+    const badges = resolveBadges({
+      verificationCount: stats.verificationsAnswered,
+      winterVerificationCount: stats.winterVerificationCount,
+      publishedPortSpotCount: stats.publishedPortSpotCount,
+      publishedSpotCount: authoredSpots.filter((spot) => spot.status === "published").length,
+    });
+    const request = await getVerificationRequest(parsed.data.requestId);
+    const spot = request ? await getSpot(request.spotId) : null;
 
-    const lanternInput = await getLanternInputForUser(userId);
-    const badges = resolveBadges(lanternInput);
-
-    revalidatePath(`/verify/${spotId}`);
-    revalidatePath(`/${spot.citySlug}/spots/${spotId}`);
+    revalidatePath(`/verify/${parsed.data.requestId}`);
+    if (spot) revalidatePath(`/${spot.citySlug}/spots/${spot.id}`);
 
     return {
       ok: true,
-      pointsAwarded: POINTS_PER_VERIFICATION,
-      totalPoints: totalPoints(lanternInput),
+      pointsAwarded: result.pointsAwarded,
+      totalPoints: profile?.lanternPoints ?? result.pointsAwarded,
       badges,
     };
   } catch (error) {

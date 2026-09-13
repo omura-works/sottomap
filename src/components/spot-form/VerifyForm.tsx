@@ -9,7 +9,7 @@ import { useShowRewardsSetting } from "./reward-settings";
 import { VERIFY_ANSWER_OPTIONS } from "./verify-schema";
 
 export interface VerifyFormProps {
-  spotId: string;
+  requestId: string;
   spotName: string;
   daysSinceLast: number;
   history: Verification[];
@@ -22,7 +22,7 @@ function formatHistoryEntry(v: Verification): string {
 }
 
 /** S6「確認」画面のフォーム＋回答後の灯り演出。 */
-export function VerifyForm({ spotId, spotName, daysSinceLast, history }: VerifyFormProps) {
+export function VerifyForm({ requestId, spotName, daysSinceLast, history }: VerifyFormProps) {
   const [showRewards, setShowRewards] = useShowRewardsSetting();
   const [answered, setAnswered] = useState<Quietness | null>(null);
   const [pointsAwarded, setPointsAwarded] = useState(0);
@@ -33,7 +33,7 @@ export function VerifyForm({ spotId, spotName, daysSinceLast, history }: VerifyF
   const handleAnswer = (answer: Quietness) => {
     setError(null);
     startTransition(async () => {
-      const result = await submitVerification(spotId, answer);
+      const result = await submitVerification(requestId, answer);
       if (!result.ok) {
         setError(result.error);
         return;

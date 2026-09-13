@@ -1,23 +1,20 @@
 import { notFound } from "next/navigation";
-import { getSpot, listVerifications } from "@/lib/db/spots";
+import { getSpot, getVerificationRequest, listVerifications } from "@/lib/db/spots";
 import { daysSince } from "@/lib/domain/lifecycle";
 import { VerifyForm } from "@/components/spot-form/VerifyForm";
+import { Card } from "@/components/ui";
 
 interface VerifyPageProps {
   params: Promise<{ requestId: string }>;
 }
 
-/**
- * S6「確認」 `/verify/[requestId]`（SPEC §4 S6）。
- *
- * `verification_request` を独立して永続化するテーブルは docs/SPEC.md §3 の
- * データモデルに存在しないため、`requestId` は対象スポットの `id` として扱う
- * （＝確認依頼＝次回確認日を迎えた公開スポットそのもの、という設計）。
- */
+/** S6「確認」 `/verify/[requestId]`。requestId は verification_requests.id。 */
 export default async function VerifyPage({ params }: VerifyPageProps) {
   const { requestId } = await params;
 
-  const spot = await getSpot(requestId);
+  const request = await getVerificationRequest(requestId);
+  if (!request) notFound();
+  const spot = await getSpot(request.spotId);
   if (!spot) notFound();
 
   const verifications = await listVerifications(spot.id);
@@ -28,9 +25,21 @@ export default async function VerifyPage({ params }: VerifyPageProps) {
   const lastCheckedAt = spot.lastVerifiedAt ?? spot.publishedAt ?? spot.createdAt;
   const daysSinceLast = daysSince(lastCheckedAt, new Date());
 
+  if (request.status !== "open") {
+    return (
+      <div className="mx-auto max-w-xl px-4 py-8 lg:py-12 space-y-6">
+        <div className="space-y-1">
+          <p className="text-muted text-sm">地元の人へ / 90日ごとの確認</p>
+          <h2>この店は、まだ隠れていますか</h2>
+        </div>
+        <Card kicker="回答済み" title={spot.name} meta={`前回の確認から${daysSinceLast}日`} />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-xl px-4 py-8 lg:py-12">
-      <VerifyForm spotId={spot.id} spotName={spot.name} daysSinceLast={daysSinceLast} history={history} />
+      <VerifyForm requestId={request.id} spotName={spot.name} daysSinceLast={daysSinceLast} history={history} />
     </div>
   );
 }

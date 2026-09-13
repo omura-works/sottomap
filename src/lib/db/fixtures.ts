@@ -565,6 +565,14 @@ export function fixtureUserProfile(userId: string): UserProfile | null {
   };
 }
 
+/** mutations.ts の冪等判定後に、デモユーザーの灯りポイントを反映する。 */
+export function addFixtureLanternPoints(userId: string, points: number): void {
+  if (points === 0) return;
+  const user = FIXTURE_USERS.find((candidate) => candidate.id === userId);
+  if (!user) throw new Error(`fixture user not found: ${userId}`);
+  user.lanternPoints += points;
+}
+
 /** CONTRACT追補 getProfileStats のフィクスチャ実装が使う集計値。 */
 export function fixtureProfileStats(userId: string): {
   spotsCreated: number;

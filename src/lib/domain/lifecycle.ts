@@ -43,11 +43,13 @@ export function isMissed(dueAt: string | Date, now: Date): boolean {
 }
 
 type SpotInput = Pick<Spot, "status" | "createdAt">;
-/** @deprecated 旧シグネチャ用。nextVerificationAt から合成の openRequest を組み立てるためだけに使う。 */
-type LegacySpotInput = Pick<Spot, "status" | "createdAt" | "nextVerificationAt">;
 type OpenRequestInput = Pick<VerificationRequest, "dueAt" | "status"> | null;
 
-function computeNextStatus(
+/**
+ * 次に取るべき状態。日時ベースの遷移のみを判定する（回答イベントは statusAfterAnswer が扱う）。
+ * openRequest は対象スポットの open な確認依頼（無ければ null）。
+ */
+export function nextStatus(
   spot: SpotInput,
   openRequest: OpenRequestInput,
   endorsementCount: number,
@@ -77,47 +79,6 @@ function computeNextStatus(
   // dormant → published の復帰は statusAfterAnswer（回答イベント）が担う。
   // expired は終端状態（Spec §9.7）。以後の承認は受け付けない。
   return spot.status;
-}
-
-/**
- * 次に取るべき状態。日時ベースの遷移のみを判定する（回答イベントは statusAfterAnswer が扱う）。
- * CONTRACT追補（2026-09-09）のシグネチャ。openRequest は対象スポットの open な確認依頼（無ければ null）。
- */
-export function nextStatus(
-  spot: SpotInput,
-  openRequest: OpenRequestInput,
-  endorsementCount: number,
-  now: Date,
-): SpotStatus;
-/**
- * @deprecated 旧シグネチャ（openRequest引数が無い3引数版）。T6 が呼び出し側
- * （`src/app/actions/spot-endorse.ts`・`src/app/api/cron/verification/logic.ts`）を
- * 新シグネチャへ移行するまでの後方互換用。`nextVerificationAt` を due_at とみなした
- * 合成の openRequest（status: 'open'）を組み立てて新ロジックへ委譲するため、
- * 挙動は旧実装（nextVerificationAt から90日超過でdormant）と完全に一致する。
- */
-export function nextStatus(spot: LegacySpotInput, endorsementCount: number, now: Date): SpotStatus;
-export function nextStatus(
-  spot: SpotInput | LegacySpotInput,
-  openRequestOrCount: OpenRequestInput | number,
-  endorsementCountOrNow: number | Date,
-  maybeNow?: Date,
-): SpotStatus {
-  if (typeof openRequestOrCount === "number") {
-    // 旧シグネチャ: (spot, endorsementCount, now)
-    const endorsementCount = openRequestOrCount;
-    const now = endorsementCountOrNow as Date;
-    const legacySpot = spot as LegacySpotInput;
-    const openRequest: OpenRequestInput = legacySpot.nextVerificationAt
-      ? { dueAt: legacySpot.nextVerificationAt, status: "open" }
-      : null;
-    return computeNextStatus(spot, openRequest, endorsementCount, now);
-  }
-
-  const openRequest = openRequestOrCount;
-  const endorsementCount = endorsementCountOrNow as number;
-  const now = maybeNow as Date;
-  return computeNextStatus(spot, openRequest, endorsementCount, now);
 }
 
 /**

@@ -45,6 +45,7 @@ describe("createSpot", () => {
 describe("endorseSpot", () => {
   it("同じ街の2人目の承認で published になり、open な確認依頼が作られる", async () => {
     const { createSpot, endorseSpot } = await import("./mutations");
+    const { getUserProfile } = await import("./spots");
 
     const spot = await createSpot({
       cityId: SAPPORO_CITY_ID,
@@ -56,6 +57,7 @@ describe("endorseSpot", () => {
       authorId: K_SAN,
     });
 
+    const pointsBefore = (await getUserProfile(K_SAN))!.lanternPoints;
     const first = await endorseSpot(spot.id, M_SAN);
     expect(first.published).toBe(false);
 
@@ -71,6 +73,10 @@ describe("endorseSpot", () => {
     const request = await getVerificationRequest(published!.openRequestId as string);
     expect(request?.status).toBe("open");
     expect(request?.userId).toBe(K_SAN); // 依頼先は投稿者
+    expect((await getUserProfile(K_SAN))!.lanternPoints).toBe(pointsBefore + 10);
+
+    await endorseSpot(spot.id, T_SAN);
+    expect((await getUserProfile(K_SAN))!.lanternPoints).toBe(pointsBefore + 10);
   });
 
   it("同じユーザーが二重に承認しても1人としてしかカウントされない", async () => {
@@ -140,14 +146,18 @@ describe("answerVerification（ポイントの二重付与防止・dormantから
     await endorseSpot(spot.id, T_SAN);
     const published = await getSpot(spot.id);
     const requestId = published!.openRequestId as string;
+    const { getUserProfile } = await import("./spots");
+    const pointsBefore = (await getUserProfile(K_SAN))!.lanternPoints;
 
     const result = await answerVerification(requestId, K_SAN, "quiet", "変わっていない");
     expect(result.pointsAwarded).toBe(5);
     expect(result.status).toBe("published");
+    expect((await getUserProfile(K_SAN))!.lanternPoints).toBe(pointsBefore + 5);
 
     // 同じ requestId への再送（二重送信・cron再実行相当）は冪等に 0 ポイント。
     const retry = await answerVerification(requestId, K_SAN, "quiet");
     expect(retry.pointsAwarded).toBe(0);
+    expect((await getUserProfile(K_SAN))!.lanternPoints).toBe(pointsBefore + 5);
 
     const after = await getSpot(spot.id);
     expect(after?.lastVerifiedAt).not.toBeNull();
@@ -232,5 +242,33 @@ describe("addBookmark / removeBookmark", () => {
     await removeBookmark(M_SAN, spot.id);
     const afterRemove = await listBookmarks(M_SAN);
     expect(afterRemove.length).toBe(before);
+  });
+});
+
+describe("runVerificationCron", () => {
+  it("同じ時刻で2回実行しても open 依頼を重複作成しない", async () => {
+    const { createSpot, runVerificationCron } = await import("./mutations");
+    const { FIXTURE_VERIFICATION_REQUESTS, findFixtureSpot } = await import("./fixtures");
+    const spot = await createSpot({
+      cityId: SAPPORO_CITY_ID,
+      name: "cron冪等テスト店",
+      reason: "テスト用の理由文",
+      lat: 43.06,
+      lng: 141.35,
+      visitFrequency: "weekly",
+      authorId: K_SAN,
+    });
+    findFixtureSpot(spot.id)!.status = "published";
+    const now = new Date("2026-09-09T00:00:00.000Z");
+
+    const first = await runVerificationCron(now);
+    const afterFirst = FIXTURE_VERIFICATION_REQUESTS.filter((item) => item.spotId === spot.id).map((item) => ({ ...item }));
+    const second = await runVerificationCron(now);
+    const afterSecond = FIXTURE_VERIFICATION_REQUESTS.filter((item) => item.spotId === spot.id).map((item) => ({ ...item }));
+
+    expect(first.createdRequestCount).toBeGreaterThanOrEqual(1);
+    expect(second).toEqual({ checked: first.checked, changed: 0, missedRequestCount: 0, createdRequestCount: 0 });
+    expect(afterSecond).toEqual(afterFirst);
+    expect(afterSecond).toHaveLength(1);
   });
 });

@@ -8,7 +8,7 @@ export const VERIFY_ANSWER_OPTIONS = [
 ] as const;
 
 export const verifyAnswerSchema = z.object({
-  spotId: z.string().min(1),
+  requestId: z.string().min(1),
   answer: z.enum(["quiet", "crowding", "touristy"], { error: "答えを選んでください" }),
 });
 
