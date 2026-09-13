@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { City, Spot } from "@/lib/db/types";
 import { daysSince } from "@/lib/domain/lifecycle";
-import { Button, Card } from "@/components/ui";
+import { Card } from "@/components/ui";
+import { AddBookmarkButton } from "@/components/bookmark/AddBookmarkButton";
 import { FilterChips, SpotListItem } from "@/components/spot-list";
-import { addBookmarkAction } from "@/app/actions/bookmark-actions";
 import { MapCanvas } from "./index";
 import type { MapPin, MapPoint } from "./index";
 import { buildDistanceMap, mostCommonAreaName, useOrigin, walkingLabel } from "./geo";
@@ -23,19 +23,6 @@ export interface CityMapScreenProps {
   focusedSpotIds: string[] | null;
   /** 閲覧者が既に栞に挟んでいるスポットID（S2 選択カードの初期表示に使う）。省略時は空。 */
   bookmarkedSpotIds?: readonly string[];
-}
-
-/**
- * `City` に街の代表エリア名（例: 札幌なら「北24条」）を持たせる案は SPEC §9.12-7 に
- * 上がっているが、これは本来 T2（データ層）の管轄であり `docs/CONTRACT.md` の
- * `City` 型にはまだ存在しない。型定義そのものは変更せず、将来 T2 側が
- * `featuredArea` を追加した場合にだけ安全に拾えるよう構造的に（プロパティの
- * 有無で）判定する。無ければ null を返し、呼び出し側は従来どおり
- * `mostCommonAreaName` の推定にフォールバックする。
- */
-function getFeaturedArea(city: City): string | null {
-  const value = (city as { featuredArea?: string | null }).featuredArea;
-  return typeof value === "string" && value.length > 0 ? value : null;
 }
 
 /**
@@ -58,20 +45,6 @@ export function CityMapScreen({
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hover, setHover] = useState<{ id: string; point: MapPoint } | null>(null);
-  const [bookmarkedIds, setBookmarkedIds] = useState<ReadonlySet<string>>(
-    () => new Set(bookmarkedSpotIds ?? []),
-  );
-  const [isBookmarkPending, startBookmarkTransition] = useTransition();
-
-  // 栞に挟む（T5 所有の Server Action に接続。SPEC §9.12-5）。
-  // 即座にボタンを確定表示へ切り替えたうえで Server Action を呼ぶ
-  // （`src/app/[city]/spots/[id]/BookmarkButton.tsx` と同じ楽観更新の方針）。
-  const handleBookmark = useCallback((spotId: string) => {
-    setBookmarkedIds((prev) => (prev.has(spotId) ? prev : new Set(prev).add(spotId)));
-    startBookmarkTransition(async () => {
-      await addBookmarkAction(spotId);
-    });
-  }, []);
 
   const fallbackCenter = useMemo(() => ({ lat: city.centerLat, lng: city.centerLng }), [city.centerLat, city.centerLng]);
   const { origin, resolved } = useOrigin(fallbackCenter);
@@ -100,10 +73,7 @@ export function CityMapScreen({
   const distances = useMemo(() => buildDistanceMap(visibleSpots, origin), [visibleSpots, origin]);
   // SPEC §9.12-7: City 側に代表エリア（featuredArea）があればそれを使い、
   // 無ければ従来どおり表示中スポットの最頻エリア名で代替する。
-  const featuredArea = useMemo(
-    () => getFeaturedArea(city) ?? mostCommonAreaName(visibleSpots),
-    [city, visibleSpots],
-  );
+  const featuredArea = city.featuredArea ?? mostCommonAreaName(visibleSpots);
   const cityHeading = featuredArea ? `${city.name}・${featuredArea}` : city.name;
 
   const selectedSpot = visibleSpots.find((s) => s.id === selectedId) ?? null;
@@ -211,14 +181,14 @@ export function CityMapScreen({
               }`}
               title={hoveredSpot.name}
             >
-              {hoveredSpot.reason}
+              {hoveredSpot.hoverDescription ?? hoveredSpot.reason}
             </Card>
           </div>
         ) : null}
 
         {/* ピン選択時の下部カード（S2）: 徒歩N分・地元N人が確認／店名／一行説明／この店を読む＋栞に挟む */}
         {selectedSpot ? (
-          <div className="absolute z-10 bottom-4 left-4 right-4 lg:right-auto lg:w-[380px]">
+          <div className="absolute z-10 bottom-4 left-4 right-4 lg:hidden">
             <Card
               elevation="lg"
               kicker={`${walkingLabel(distances[selectedSpot.id] ?? 0)}・地元${selectedSpot.verifierCount}人が確認`}
@@ -231,19 +201,12 @@ export function CityMapScreen({
                 </Link>
                 {/* 栞アクション（T5 所有の src/app/actions/bookmark-actions.ts に接続。
                     SPEC §9.12-5）。楽観更新後に Server Action を呼ぶ。 */}
-                <div className="flex flex-col items-start gap-1">
-                  <Button
-                    variant="ghost"
-                    type="button"
-                    onClick={() => handleBookmark(selectedSpot.id)}
-                    disabled={isBookmarkPending || bookmarkedIds.has(selectedSpot.id)}
-                  >
-                    栞に挟む
-                  </Button>
-                  {bookmarkedIds.has(selectedSpot.id) ? (
-                    <span className="text-muted text-xs">栞に挟みました。</span>
-                  ) : null}
-                </div>
+                <AddBookmarkButton
+                  key={selectedSpot.id}
+                  spotId={selectedSpot.id}
+                  initiallyBookmarked={bookmarkedSpotIds?.includes(selectedSpot.id) ?? false}
+                  variant="ghost"
+                />
               </div>
             </Card>
           </div>

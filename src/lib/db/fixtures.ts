@@ -137,6 +137,7 @@ interface RawSpot {
   status: SpotStatus;
   initialQuietness: Quietness;
   reason: string;
+  hoverDescription?: string;
   visitFrequency: VisitFrequency;
   authorId: string;
   photoUrl: string | null;
@@ -161,6 +162,7 @@ const RAW_SPOTS: RawSpot[] = [
     initialQuietness: "quiet",
     // Spec §9.8 D1「店3件の説明」1件目（一字一句）。
     reason: "魚屋の直営。地元の値段のまま、海鮮丼になって出てくる。",
+    hoverDescription: "魚屋の直営。狸小路の方が行きやすいが、こちらの方が安い。",
     visitFrequency: "monthly",
     authorId: "b0000000-0000-4000-8000-000000000001",
     photoUrl: null,
@@ -421,13 +423,14 @@ interface RawBookmark {
   plannedAtDaysFromNow: number | null; // 時刻付きの場合は別途 hoursOffset を足す
   plannedAtHoursOffset?: number;
   createdAtDaysAgo: number;
+  meta?: string;
 }
 
 const RAW_BOOKMARKS: RawBookmark[] = [
   { id: "90000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000001", plannedAtDaysFromNow: 1, plannedAtHoursOffset: 12.5, createdAtDaysAgo: 2 },
-  { id: "90000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000004", plannedAtDaysFromNow: null, createdAtDaysAgo: 5 },
-  { id: "90000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000005", plannedAtDaysFromNow: null, createdAtDaysAgo: 8 },
-  { id: "90000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000006", plannedAtDaysFromNow: null, createdAtDaysAgo: 12 },
+  { id: "90000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000004", plannedAtDaysFromNow: null, createdAtDaysAgo: 5, meta: "小樽駅から徒歩10分 / 日替わり定食" },
+  { id: "90000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000005", plannedAtDaysFromNow: null, createdAtDaysAgo: 8, meta: "小樽 / 地元が買いに行く市場" },
+  { id: "90000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000006", plannedAtDaysFromNow: null, createdAtDaysAgo: 12, meta: "小樽 / 朝のうちに" },
 ];
 
 // =========================================================
@@ -488,6 +491,7 @@ function toSpot(raw: RawSpot): Spot {
     status: raw.status,
     quietness: resolveQuietness(verifications, raw.initialQuietness),
     reason: raw.reason,
+    hoverDescription: raw.hoverDescription ?? null,
     visitFrequency: raw.visitFrequency,
     authorId: raw.authorId,
     authorLabel: buildAuthorLabel(author),
@@ -532,6 +536,7 @@ export const FIXTURE_BOOKMARKS: Bookmark[] = RAW_BOOKMARKS.map((b) => {
     spotId: b.spotId,
     plannedAt,
     createdAt: offsetDaysISO(-b.createdAtDaysAgo),
+    meta: b.meta ?? null,
     spot: findSpot(b.spotId),
   };
 });

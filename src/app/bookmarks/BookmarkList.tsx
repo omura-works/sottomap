@@ -3,7 +3,6 @@
 import { useOptimistic, useTransition } from "react";
 import Link from "next/link";
 import { removeBookmarkAction } from "@/app/actions/bookmark-actions";
-import { formatPlannedAt } from "./format-planned-at";
 
 export interface BookmarkListItem {
   id: string;
@@ -14,6 +13,7 @@ export interface BookmarkListItem {
   spotName: string;
   photoUrl: string | null;
   plannedAt: string | null;
+  meta: string;
 }
 
 type ListAction = { type: "remove"; id: string };
@@ -67,7 +67,6 @@ export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[
     <div className="space-y-4">
       <ul className="space-y-2">
         {items.map((item) => {
-          const plannedLabel = formatPlannedAt(item.plannedAt);
           return (
             <li
               key={item.id}
@@ -88,10 +87,7 @@ export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[
               )}
               <div className="flex-1 min-w-0">
                 <p className="m-0 truncate">{item.spotName}</p>
-                <p className="m-0 text-muted text-xs">
-                  {[item.cityName, item.areaName].filter(Boolean).join("・")}
-                  {plannedLabel ? ` / ${plannedLabel}` : ""}
-                </p>
+                <p className="m-0 text-muted text-xs">{item.meta}</p>
               </div>
               <button
                 type="button"

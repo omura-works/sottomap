@@ -60,6 +60,8 @@ export interface Spot {
   status: SpotStatus;
   quietness: Quietness;
   reason: string; // 60字まで
+  /** D1ホバーカード専用の説明。未設定時は reason を表示する。 */
+  hoverDescription?: string | null;
   visitFrequency: VisitFrequency;
   authorId: string;
   authorLabel: string | null; // '— 北24条に14年、Kさん' の後半部分 '北24条に14年、Kさん'
@@ -105,6 +107,8 @@ export interface Bookmark {
   spotId: string;
   plannedAt: string | null; // '明日 12:30' 相当の実日時
   createdAt: string;
+  /** S8で使う栞固有のメタ文言。未設定時はスポット情報から組み立てる。 */
+  meta?: string | null;
   spot: Spot;
 }
 
