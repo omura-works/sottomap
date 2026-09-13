@@ -253,6 +253,11 @@ insert into spots (
   now() - interval '600 days'
 ) on conflict (id) do nothing;
 
+-- Spec §9.8 D1 ホバーカード専用文言（一字一句）。
+update spots
+set hover_description = '魚屋の直営。狸小路の方が行きやすいが、こちらの方が安い。'
+where id = 'd0000000-0000-4000-8000-000000000001';
+
 -- =========================================================
 -- 6. spot_tags
 --   シハチ鮮魚店は Spec §9.8 S4 のタグ3種（魚屋直営／昼が本番／市内2店舗）を持つ。
@@ -351,12 +356,14 @@ on conflict do nothing;
 -- 9. bookmarks（Spec §9.8 S8: シハチ鮮魚店／聖徳太子 飛鳥店／南樽市場／鱗友朝市の4件。
 --    利用者は Task5 が採用した DEMO_USER_ID（Aさん = b...0004）に合わせてある。）
 -- =========================================================
-insert into bookmarks (user_id, spot_id, planned_at, created_at) values
-  ('b0000000-0000-4000-8000-000000000004', 'd0000000-0000-4000-8000-000000000001', now() + interval '1 day' + interval '12 hours 30 minutes', now() - interval '2 days'),
-  ('b0000000-0000-4000-8000-000000000004', 'd0000000-0000-4000-8000-000000000004', null, now() - interval '5 days'),
-  ('b0000000-0000-4000-8000-000000000004', 'd0000000-0000-4000-8000-000000000005', null, now() - interval '8 days'),
-  ('b0000000-0000-4000-8000-000000000004', 'd0000000-0000-4000-8000-000000000006', null, now() - interval '12 days')
-on conflict do nothing;
+insert into bookmarks (user_id, spot_id, planned_at, meta, created_at) values
+  ('b0000000-0000-4000-8000-000000000004', 'd0000000-0000-4000-8000-000000000001', ((now() at time zone 'Asia/Tokyo')::date + interval '1 day 12 hours 30 minutes') at time zone 'Asia/Tokyo', null, now() - interval '2 days'),
+  ('b0000000-0000-4000-8000-000000000004', 'd0000000-0000-4000-8000-000000000004', null, '小樽駅から徒歩10分 / 日替わり定食', now() - interval '5 days'),
+  ('b0000000-0000-4000-8000-000000000004', 'd0000000-0000-4000-8000-000000000005', null, '小樽 / 地元が買いに行く市場', now() - interval '8 days'),
+  ('b0000000-0000-4000-8000-000000000004', 'd0000000-0000-4000-8000-000000000006', null, '小樽 / 朝のうちに', now() - interval '12 days')
+on conflict (user_id, spot_id) do update set
+  planned_at = excluded.planned_at,
+  meta = excluded.meta;
 
 -- =========================================================
 -- 10. verification_requests（Spec §9.1）

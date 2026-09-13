@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { Disclaimer } from "@/components/profile/Disclaimer";
 import { BookmarkList } from "./BookmarkList";
 import type { BookmarkListItem } from "./BookmarkList";
-import { formatPlannedAt } from "./format-planned-at";
+import { formatPlannedAtInTokyo } from "@/lib/format/date-time";
 
 /** S8「栞」`/bookmarks`。 */
 export default async function BookmarksPage() {
@@ -16,7 +16,7 @@ export default async function BookmarksPage() {
 
   const items: BookmarkListItem[] = bookmarks.map((bookmark) => {
     const location = [bookmark.spot.cityName, bookmark.spot.areaName].filter(Boolean).join("・");
-    const plannedLabel = formatPlannedAt(bookmark.plannedAt);
+    const plannedLabel = formatPlannedAtInTokyo(bookmark.plannedAt);
     return {
       id: bookmark.id,
       spotId: bookmark.spotId,

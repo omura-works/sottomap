@@ -4,7 +4,6 @@
 // 同じ街のユーザーへの表示制御は listPendingSpots（Task 2）側の責務、
 // ここでは「自分の投稿には出さない／押せない」の最終防御のみ行う。
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentUserId } from "@/lib/auth";
 import type { SpotStatus } from "@/lib/db/types";
@@ -34,8 +33,6 @@ export async function endorseSpot(spotId: string, citySlug: string): Promise<End
   await persistEndorsement(spotId, userId);
   const updated = await getSpot(spotId);
   if (!updated) throw new Error("更新したスポットが見つかりませんでした");
-
-  revalidatePath(`/${citySlug}/spots/new`);
 
   return { status: updated.status, endorsementCount: updated.endorsementCount };
 }

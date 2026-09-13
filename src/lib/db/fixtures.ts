@@ -16,6 +16,7 @@
 // 架空データである（§7「確認人数…はUI上の架空データ」の一部）。
 
 import { isMissed } from "../domain/lifecycle";
+import { nextDayAtTokyoTime } from "../format/date-time";
 import { resolveQuietness } from "../domain/quietness";
 import type {
   Badge,
@@ -122,7 +123,7 @@ function findCityById(id: string): City | null {
 }
 
 // =========================================================
-// 5. spots（実在6店。座標・住所・カテゴリは supabase/seed.sql と同じ実データ）
+// 5. spots（実在6店＋デモ操作用の承認待ち1店。実在店は supabase/seed.sql と同じ実データ）
 //    reason（引用・説明文）は Spec §9.8「D1 の店3件の説明」の文言に一字一句合わせてある。
 // =========================================================
 interface RawSpot {
@@ -229,7 +230,8 @@ const RAW_SPOTS: RawSpot[] = [
     initialQuietness: "quiet",
     reason: "小樽駅から徒歩10分。観光通りから少し外れているぶん、地元の昼どきが静か。",
     visitFrequency: "weekly",
-    authorId: "b0000000-0000-4000-8000-000000000006",
+    // デモ利用者が確認依頼へ回答できる通常データとして割り当てる。
+    authorId: "b0000000-0000-4000-8000-000000000004",
     photoUrl: null,
     publishedAtDaysAgo: 395,
     nextVerificationAtDaysAgo: -50,
@@ -279,6 +281,27 @@ const RAW_SPOTS: RawSpot[] = [
     createdAtDaysAgo: 600,
     tagSlugs: ["morning-only"],
   },
+  {
+    id: "d0000000-0000-4000-8000-000000000007",
+    citySlug: "sapporo",
+    name: "北24条の小さな喫茶店",
+    address: "北海道札幌市北区北24条西4丁目",
+    areaName: "北24条",
+    category: "喫茶店",
+    lat: 43.087,
+    lng: 141.345,
+    status: "pending",
+    initialQuietness: "quiet",
+    reason: "通りから一本入った、近所の人が静かに過ごす喫茶店。",
+    visitFrequency: "monthly",
+    authorId: "b0000000-0000-4000-8000-000000000002",
+    photoUrl: null,
+    publishedAtDaysAgo: 0,
+    nextVerificationAtDaysAgo: 0,
+    lastVerifiedAtDaysAgo: 0,
+    createdAtDaysAgo: 2,
+    tagSlugs: [],
+  },
 ];
 
 // =========================================================
@@ -326,6 +349,8 @@ interface EndorsementLogEntry {
 }
 
 const RAW_ENDORSEMENTS: Array<{ spotId: string; userId: string; daysAgo: number }> = [
+  // デモ画面で利用者が「最後の1人」として承認できる状態。
+  { spotId: "d0000000-0000-4000-8000-000000000007", userId: "b0000000-0000-4000-8000-000000000005", daysAgo: 1 },
   { spotId: "d0000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000004", daysAgo: 215 },
   { spotId: "d0000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000005", daysAgo: 213 },
   { spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000001", daysAgo: 295 },
@@ -420,17 +445,16 @@ interface RawBookmark {
   id: string;
   userId: string;
   spotId: string;
-  plannedAtDaysFromNow: number | null; // 時刻付きの場合は別途 hoursOffset を足す
-  plannedAtHoursOffset?: number;
+  plannedAtTomorrow: { hour: number; minute: number } | null;
   createdAtDaysAgo: number;
   meta?: string;
 }
 
 const RAW_BOOKMARKS: RawBookmark[] = [
-  { id: "90000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000001", plannedAtDaysFromNow: 1, plannedAtHoursOffset: 12.5, createdAtDaysAgo: 2 },
-  { id: "90000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000004", plannedAtDaysFromNow: null, createdAtDaysAgo: 5, meta: "小樽駅から徒歩10分 / 日替わり定食" },
-  { id: "90000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000005", plannedAtDaysFromNow: null, createdAtDaysAgo: 8, meta: "小樽 / 地元が買いに行く市場" },
-  { id: "90000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000006", plannedAtDaysFromNow: null, createdAtDaysAgo: 12, meta: "小樽 / 朝のうちに" },
+  { id: "90000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000001", plannedAtTomorrow: { hour: 12, minute: 30 }, createdAtDaysAgo: 2 },
+  { id: "90000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000004", plannedAtTomorrow: null, createdAtDaysAgo: 5, meta: "小樽駅から徒歩10分 / 日替わり定食" },
+  { id: "90000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000005", plannedAtTomorrow: null, createdAtDaysAgo: 8, meta: "小樽 / 地元が買いに行く市場" },
+  { id: "90000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000006", plannedAtTomorrow: null, createdAtDaysAgo: 12, meta: "小樽 / 朝のうちに" },
 ];
 
 // =========================================================
@@ -526,10 +550,9 @@ function findSpot(id: string): Spot {
 
 /** mutable: mutations.ts の addBookmark / removeBookmark がここへ push・splice する。 */
 export const FIXTURE_BOOKMARKS: Bookmark[] = RAW_BOOKMARKS.map((b) => {
-  const plannedAt =
-    b.plannedAtDaysFromNow === null
-      ? null
-      : offsetDaysISO(b.plannedAtDaysFromNow + (b.plannedAtHoursOffset ?? 0) / 24);
+  const plannedAt = b.plannedAtTomorrow
+    ? nextDayAtTokyoTime(new Date(), b.plannedAtTomorrow.hour, b.plannedAtTomorrow.minute).toISOString()
+    : null;
   return {
     id: b.id,
     userId: b.userId,

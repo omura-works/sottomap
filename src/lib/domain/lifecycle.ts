@@ -11,12 +11,19 @@
 // dormant ──投稿者が確認に答える──> published（statusAfterAnswer が担う。日時だけでは判定できない）
 
 import type { Spot, SpotStatus, VerificationRequest } from "../db/types";
+import { calendarDaysBetweenInTokyo } from "../format/date-time";
 
 export const ENDORSEMENTS_REQUIRED = 2;
 export const VERIFICATION_INTERVAL_DAYS = 90;
 /** due_at を90日超過したら missed → dormant（Spec §9.4）。旧 DORMANT_AFTER_DAYS(180) は廃止。 */
 export const DORMANT_AFTER_DUE_DAYS = 90;
 export const PENDING_EXPIRY_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function elapsedDaysSince(from: string | Date, now: Date): number {
+  const fromDate = typeof from === "string" ? new Date(from) : from;
+  return Math.floor((now.getTime() - fromDate.getTime()) / DAY_MS);
+}
 
 /** pending のスポットが公開条件を満たしたか（投稿者自身の承認は除外済みの数を渡す） */
 export function canPublish(endorsementCount: number): boolean {
@@ -25,21 +32,17 @@ export function canPublish(endorsementCount: number): boolean {
 
 /** '前回の確認から92日' の 92 を出す */
 export function daysSince(from: string | Date, now: Date): number {
-  const fromDate = typeof from === "string" ? new Date(from) : from;
-  const diffMs = now.getTime() - fromDate.getTime();
-  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  return calendarDaysBetweenInTokyo(from, now);
 }
 
 /** 確認に答えた/公開された時点からの次回確認日（= 次の verification_request.due_at） */
 export function nextVerificationDate(from: Date): Date {
-  const next = new Date(from);
-  next.setDate(next.getDate() + VERIFICATION_INTERVAL_DAYS);
-  return next;
+  return new Date(from.getTime() + VERIFICATION_INTERVAL_DAYS * DAY_MS);
 }
 
 /** 依頼が missed 扱いになるか（due_at から DORMANT_AFTER_DUE_DAYS 日以上経過）。Spec §9.4。 */
 export function isMissed(dueAt: string | Date, now: Date): boolean {
-  return daysSince(dueAt, now) >= DORMANT_AFTER_DUE_DAYS;
+  return elapsedDaysSince(dueAt, now) >= DORMANT_AFTER_DUE_DAYS;
 }
 
 type SpotInput = Pick<Spot, "status" | "createdAt">;
@@ -61,7 +64,7 @@ export function nextStatus(
     if (canPublish(endorsementCount)) {
       return "published";
     }
-    if (daysSince(spot.createdAt, now) > PENDING_EXPIRY_DAYS) {
+    if (elapsedDaysSince(spot.createdAt, now) > PENDING_EXPIRY_DAYS) {
       return "expired";
     }
     return "pending";

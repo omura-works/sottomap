@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Button, Card } from "@/components/ui";
 import type { Badge, Quietness, Verification } from "@/lib/db/types";
 import { quietnessLabel } from "@/lib/domain/quietness";
+import { formatTokyoYearMonth } from "@/lib/format/date-time";
 import { submitVerification } from "@/app/actions/spot-verify";
 import { useShowRewardsSetting } from "./reward-settings";
 import { VERIFY_ANSWER_OPTIONS } from "./verify-schema";
@@ -17,8 +18,7 @@ export interface VerifyFormProps {
 
 /** SPEC §9.8: 「2025年12月 / 静かなまま」のように年月とラベルを "/" で区切る。 */
 function formatHistoryEntry(v: Verification): string {
-  const d = new Date(v.createdAt);
-  return `${d.getFullYear()}年${d.getMonth() + 1}月 / ${quietnessLabel(v.answer)}`;
+  return `${formatTokyoYearMonth(v.createdAt)} / ${quietnessLabel(v.answer)}`;
 }
 
 /** S6「確認」画面のフォーム＋回答後の灯り演出。 */

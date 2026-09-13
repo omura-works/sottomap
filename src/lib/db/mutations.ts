@@ -151,8 +151,7 @@ export async function endorseSpot(spotId: string, userId: string): Promise<{ pub
     }
 
     const now = new Date();
-    const expiryAt = new Date(spot.createdAt);
-    expiryAt.setDate(expiryAt.getDate() + PENDING_EXPIRY_DAYS);
+    const expiryAt = new Date(new Date(spot.createdAt).getTime() + PENDING_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
     const timelyEndorsementCount = FIXTURE_ENDORSEMENT_LOG.filter(
       (entry) => entry.spotId === spotId && new Date(entry.createdAt).getTime() <= expiryAt.getTime(),
     ).length;
@@ -596,6 +595,7 @@ export async function addBookmark(userId: string, spotId: string, plannedAt?: st
       userId,
       spotId,
       plannedAt: plannedAt ?? null,
+      meta: null,
       createdAt: new Date().toISOString(),
       spot,
     };
@@ -615,7 +615,14 @@ export async function addBookmark(userId: string, spotId: string, plannedAt?: st
   if (error || !data) {
     throw new Error(`栞への追加に失敗しました: ${error?.message ?? "unknown error"}`);
   }
-  const row = data as { id: string; user_id: string; spot_id: string; planned_at: string | null; created_at: string };
+  const row = data as {
+    id: string;
+    user_id: string;
+    spot_id: string;
+    planned_at: string | null;
+    meta: string | null;
+    created_at: string;
+  };
   const spot = await getSpot(row.spot_id);
   if (!spot) throw new Error("栞に追加したスポットの取得に失敗しました");
   return {
@@ -623,6 +630,7 @@ export async function addBookmark(userId: string, spotId: string, plannedAt?: st
     userId: row.user_id,
     spotId: row.spot_id,
     plannedAt: row.planned_at,
+    meta: row.meta,
     createdAt: row.created_at,
     spot,
   };

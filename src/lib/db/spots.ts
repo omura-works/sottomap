@@ -244,6 +244,7 @@ interface SpotRow {
   status: Spot["status"];
   quietness: Quietness;
   reason: string;
+  hover_description: string | null;
   visit_frequency: VisitFrequency;
   author_id: string;
   photo_url: string | null;
@@ -281,6 +282,7 @@ function mapSpotRow(
     status: row.status,
     quietness: resolveQuietness(ctx.verifications, row.quietness),
     reason: row.reason,
+    hoverDescription: row.hover_description,
     visitFrequency: row.visit_frequency,
     authorId: row.author_id,
     authorLabel: ctx.author
@@ -525,7 +527,14 @@ export async function listBookmarks(userId: string): Promise<Bookmark[]> {
     .order("created_at", { ascending: false });
   if (error) throw error;
 
-  const rows = (data ?? []) as Array<{ id: string; user_id: string; spot_id: string; planned_at: string | null; created_at: string }>;
+  const rows = (data ?? []) as Array<{
+    id: string;
+    user_id: string;
+    spot_id: string;
+    planned_at: string | null;
+    meta: string | null;
+    created_at: string;
+  }>;
   const bookmarks: Bookmark[] = [];
   for (const row of rows) {
     const spot = await getSpot(row.spot_id);
@@ -535,6 +544,7 @@ export async function listBookmarks(userId: string): Promise<Bookmark[]> {
       userId: row.user_id,
       spotId: row.spot_id,
       plannedAt: row.planned_at,
+      meta: row.meta,
       createdAt: row.created_at,
       spot,
     });

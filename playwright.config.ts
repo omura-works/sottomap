@@ -1,11 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = 3100;
+const PORT = Number(process.env.PLAYWRIGHT_PORT ?? 3131);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
-  fullyParallel: true,
+  fullyParallel: false,
+  workers: 1,
   reporter: "list",
   use: {
     baseURL: BASE_URL,
@@ -18,11 +19,13 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run dev -- --port ${PORT}`,
-    // "/" は /start へ redirect するが /start はまだ他タスク未実装で 404 になるため、
-    // 常に 200 を返す /styleguide（T1所有）で起動完了を判定する。
+    // 先に `npm run build` した成果物をデモモードで起動する。
+    // next dev の開発用子プロセスを残さず、テスト終了時に確実に停止できる。
+    command: `npm run start -- --port ${PORT}`,
+    // アプリ本体のデータ取得とは独立して常に200を返す /styleguide で起動完了を判定する。
     url: `${BASE_URL}/styleguide`,
-    reuseExistingServer: !process.env.CI,
+    // インメモリのデモデータを毎回初期状態から検証する。
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

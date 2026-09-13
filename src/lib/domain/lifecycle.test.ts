@@ -47,6 +47,11 @@ describe("daysSince", () => {
     const d = new Date(daysAgoISO(10));
     expect(daysSince(d, NOW)).toBe(daysSince(daysAgoISO(10), NOW));
   });
+  it("24時間未満でも日本時間の暦日をまたげば1日と数える", () => {
+    const from = new Date("2026-09-14T14:30:00.000Z");
+    const now = new Date("2026-09-14T15:30:00.000Z");
+    expect(daysSince(from, now)).toBe(1);
+  });
 });
 
 describe("nextVerificationDate", () => {

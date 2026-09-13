@@ -3,15 +3,12 @@
 // S6「確認」回答の Server Action。
 // verification_requests.id を answerVerification() に渡し、回答と次回依頼を一括反映する。
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentUserId } from "@/lib/auth";
 import type { Badge, Quietness } from "@/lib/db/types";
 import {
   getProfileStats,
-  getSpot,
   getUserProfile,
-  getVerificationRequest,
   listSpotsByAuthor,
 } from "@/lib/db/spots";
 import { answerVerification } from "@/lib/db/mutations";
@@ -55,11 +52,8 @@ export async function submitVerification(
       publishedPortSpotCount: stats.publishedPortSpotCount,
       publishedSpotCount: authoredSpots.filter((spot) => spot.status === "published").length,
     });
-    const request = await getVerificationRequest(parsed.data.requestId);
-    const spot = request ? await getSpot(request.spotId) : null;
-
-    revalidatePath(`/verify/${parsed.data.requestId}`);
-    if (spot) revalidatePath(`/${spot.citySlug}/spots/${spot.id}`);
+    // この画面は回答直後に「+5」を見せる。revalidatePath は現在のルートも
+    // 同じ応答内で再描画して回答済み画面へ差し替えるため、動的ページの次回読みに任せる。
 
     return {
       ok: true,

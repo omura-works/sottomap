@@ -88,10 +88,16 @@ describe("getSpot / listVerifications", () => {
 });
 
 describe("listPendingSpots", () => {
-  it("フィクスチャに pending は無いため空配列", async () => {
+  it("同じ街の利用者へ、承認1件済みの pending を返す", async () => {
     const { listPendingSpots } = await import("./spots");
-    const spots = await listPendingSpots("sapporo", "b0000000-0000-4000-8000-000000000001");
-    expect(spots).toEqual([]);
+    const spots = await listPendingSpots("sapporo", "b0000000-0000-4000-8000-000000000004");
+
+    expect(spots).toHaveLength(1);
+    expect(spots[0]).toMatchObject({
+      name: "北24条の小さな喫茶店",
+      status: "pending",
+      endorsementCount: 1,
+    });
   });
 });
 
