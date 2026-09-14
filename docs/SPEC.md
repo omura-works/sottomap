@@ -385,3 +385,54 @@ RLS上、確認に答えられるのは投稿者だけである。したがっ�
 6. **承認待ち一覧への導線が不足**: `/[city]/spots/new` の下部にしかない。S2 地図と `/me` からも開けるようにする。
 7. **S2 ヘッダーのエリア名**: 表示スポットの最頻エリアから推定しており「札幌・すすきの」になる。
    街の代表エリアを `cities` に持たせるか、推定ロジックを見直す。
+
+---
+
+## 9.13 安全性と整合性（2026-09-14 最終レビュー領域Aの裁定・§9.1〜9.12 に優先する）
+
+最終レビュー（Codex gpt-5.6-sol / max）で、**クライアントが Supabase の API を直接叩けば RLS の穴から
+ポイント・確認履歴・承認を捏造できる**ことが判明した（`.superpowers/sdd/urasupo/final-review-A-result.md`）。
+原則: **状態・時刻・ポイントを変える書き込みは、利用者に直接させない。** DB 関数（RPC）に集約し、DB が検査する。
+
+### 9.13.1 デモモードは明示的に有効にしたときだけ
+- `URASUPO_DEMO_MODE=1` を**明示**したときだけデモモード。かつ本番（`VERCEL_ENV=production` または `NODE_ENV=production`）では**無効**（設定されていたら起動時に例外）。
+- Supabase の環境変数が**一部だけ**設定されている（URL はあるが anon key が無い、など）ときは例外を投げる（fail-closed）。
+  「足りないからデモに落ちる」挙動は禁止。
+
+### 9.13.2 書き込みは DB 関数（RPC）経由
+以下は `security definer` の Postgres 関数にし、対象の行をロックしたうえで条件を DB が再検査する。
+Server Action はこれを呼ぶだけにする。authenticated ロールからの**直接の insert/update は取り上げる**。
+
+| 関数 | 検査すること |
+|---|---|
+| `create_spot` | 投稿者の `home_city_id` と投稿先の街が一致（地元の人だけ）。`status`・時刻列はDBが決める |
+| `endorse_spot` | 対象が `pending` かつ期限前、投稿者本人でない、同じ街の住人。承認時刻はDBの `now()` |
+| `answer_verification` | 下記 9.13.3 の回答可能条件。回答・依頼の更新・次回依頼・スポット更新・ポイントを**1トランザクション**で |
+| `run_verification_cron` | service-role 専用。期限処理を行ロック下で行い、公開が期限前に成立していれば公開を優先 |
+
+- `verifications` に `verification_request_id`（一意）を追加し、依頼を経由しない回答を不可能にする。
+- `endorsements.created_at`・`spots` の状態/時刻列は DB 既定値のみ（利用者は指定できない）。
+
+### 9.13.3 確認に回答できる時点（§9.1 の補足）
+- 回答できるのは **`due_at` を過ぎた `open` の依頼**だけ（`due_at <= now`）。期限前の依頼は画面に「確認待ち」として出さない。
+- **dormant からの復帰（§9.3）**: スポットが `dormant` のとき、投稿者は**最新の `missed` 依頼に1回だけ**回答できる。
+  回答すると `published` に戻り、次の依頼を `now + 90日` で作る。
+- 回答の受理と +5 は同じトランザクションで行い、同じ依頼では二度と受理しない（§9.6 を DB で保証）。
+
+### 9.13.4 ポイントは台帳で管理
+- `lantern_events(user_id, kind, source_id)` に `(kind, source_id)` の一意制約。確認なら `source_id = verification_request_id`、公開なら `spot_id`。
+- `users.lantern_points` は台帳への記録と同じトランザクションで加算する。**利用者はこの列を更新できない**（列単位で権限を剥奪）。
+- 利用者が更新できる `users` の列は、表示名・アバター・居住街・居住年数だけ。
+
+### 9.13.5 pending の期限は絶対時刻
+- `now >= created_at + interval '30 days'` で `expired`（日数の切り捨てで判定しない）。
+- 2人目の承認のDB時刻が期限前なら公開が勝つ。判定はスポット行のロック下で行う。
+
+### 9.13.6 読み取りの範囲
+- 未ログインでも読めるのは、公開中のスポットと、それに紐づく表示に必要な列だけ。
+- `users` は表示用の列だけを出すビュー経由にする。`endorsements`・`verifications` は、読めるスポットに紐づく行か本人の行に限る。
+
+### 9.13.7 その他
+- メールリンクの戻り先の origin は固定の環境変数（`NEXT_PUBLIC_SITE_URL`）から作る。リクエストヘッダー（`x-forwarded-host`）は使わない。
+- `CRON_SECRET` は `timingSafeEqual` で比較する。
+- RLS と DB 関数には、ローカル Supabase を使った統合テスト（匿名・投稿者・同じ街・別の街・service-role の権限表、同時回答・承認と cron の競合）を置く。
