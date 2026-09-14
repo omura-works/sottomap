@@ -1,7 +1,8 @@
 "use server";
 
-import { headers } from "next/headers";
+import { getSiteOrigin } from "@/lib/auth/site-url";
 import { safeNextPath } from "@/lib/auth/safe-next";
+import { isDemoMode } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 
 export interface LoginActionState {
@@ -17,10 +18,11 @@ export async function sendLoginLink(
   const email = typeof emailValue === "string" ? emailValue.trim() : "";
   if (!/^\S+@\S+\.\S+$/.test(email)) return { error: "メールアドレスを入力してください" };
 
-  const headerStore = await headers();
-  const host = headerStore.get("x-forwarded-host") ?? headerStore.get("host") ?? "localhost:3000";
-  const protocol = headerStore.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  const origin = `${protocol}://${host}`;
+  // デモモードは常にデモユーザーでログイン済みの扱いで、メールは送らない。
+  if (isDemoMode()) return { error: "デモモードではログイン用メールを送れません" };
+
+  // Spec §9.13.7: 戻り先の origin はリクエストヘッダーではなく固定の環境変数から作る。
+  const origin = getSiteOrigin();
   const callback = new URL("/auth/callback", origin);
   callback.searchParams.set("next", safeNextPath(formData.get("next"), origin));
 

@@ -19,13 +19,15 @@ export default defineConfig({
     },
   ],
   webServer: {
-    // 先に `npm run build` した成果物をデモモードで起動する。
-    // next dev の開発用子プロセスを残さず、テスト終了時に確実に停止できる。
-    command: `npm run start -- --port ${PORT}`,
+    // デモモード（Spec §9.13.1）は URASUPO_DEMO_MODE=1 を明示したときだけ、かつ本番（NODE_ENV=production）
+    // では起動時に例外になる。`next build` / `next start` は NODE_ENV=production で動くため、
+    // E2E は開発サーバー（`next dev`、predev で地図の Worker も配置される）をデモモードで起動する。
+    command: `npm run dev -- --port ${PORT}`,
+    env: { URASUPO_DEMO_MODE: "1" },
     // アプリ本体のデータ取得とは独立して常に200を返す /styleguide で起動完了を判定する。
     url: `${BASE_URL}/styleguide`,
     // インメモリのデモデータを毎回初期状態から検証する。
     reuseExistingServer: false,
-    timeout: 120_000,
+    timeout: 180_000,
   },
 });

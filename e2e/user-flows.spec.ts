@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
+// デモ利用者（Aさん）宛ての確認依頼。Spec §9.13.3 に合わせてフィクスチャを用意してある。
+//   ...04: 聖徳太子 飛鳥店。期限（due_at）を過ぎた open → 回答できる
+//   ...05: 南樽市場。期限前の open → 回答フォームを出さない
 const DEMO_VERIFICATION_REQUEST_ID = "80000000-0000-4000-8000-000000000004";
+const NOT_YET_DUE_REQUEST_ID = "80000000-0000-4000-8000-000000000005";
 
 test.describe("デモモードの主要導線", () => {
   test.describe.configure({ mode: "serial" });
@@ -37,6 +41,17 @@ test.describe("デモモードの主要導線", () => {
 
     await page.goto("/sapporo");
     await expect(page.getByRole("link", { name: /北24条の小さな喫茶店/ })).toBeVisible();
+  });
+
+  test("期限前の確認依頼には回答フォームを出さず、確認待ちにも数えない", async ({ page }) => {
+    await page.goto(`/verify/${NOT_YET_DUE_REQUEST_ID}`);
+    await expect(page.getByText("南樽市場", { exact: true })).toBeVisible();
+    await expect(page.getByText(/^次の確認は\d{1,2}月\d{1,2}日に届きます。$/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "静かなまま" })).toHaveCount(0);
+
+    // 期限到来済みの ...04 だけが「確認待ち」。
+    await page.goto("/me");
+    await expect(page.getByRole("heading", { name: "確認待ちが1件あります" })).toBeVisible();
   });
 
   test("同じ確認依頼への再回答ではポイントを加算しない", async ({ browser }) => {

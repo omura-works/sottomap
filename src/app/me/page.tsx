@@ -112,6 +112,8 @@ export default async function ProfilePage() {
         </p>
       </section>
 
+      {/* SPEC §9.13.3: pendingRequestCount は回答できる依頼（期限到来済みの open ＋ dormant 復帰の対象になる
+          最新の missed）だけの件数。期限前の依頼は「確認待ち」に数えない（getProfileStats が数える）。 */}
       <Card elevation="sm">
         <h3 className="m-0">確認待ちが{stats.pendingRequestCount}件あります</h3>
         <p className="m-0">答えないままのピンは、90日後に地図から静かに外れます。</p>

@@ -2,8 +2,8 @@
 // "server-only" パッケージは package.json に無いため使わない（誤ってクライアント側から
 // import した場合は next/headers 側のビルドエラーで検出される）。
 // Next.js 16 では next/headers の cookies() が Promise を返すため await する。
-// 環境変数が無い場合は例外を投げる。UIからの直接利用は避け、
-// 可能な限り src/lib/db/** のデータアクセス関数を経由すること。
+// デモモード（Spec §9.13.1）では Supabase に接続しないため例外を投げる。設定の矛盾も ./env.ts が例外にする。
+// UIからの直接利用は避け、可能な限り src/lib/db/** のデータアクセス関数を経由すること。
 
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
@@ -13,11 +13,7 @@ import { getSupabaseEnv } from "./env";
 export async function createClient(): Promise<SupabaseClient> {
   const env = getSupabaseEnv();
   if (!env) {
-    throw new Error(
-      "Supabase の環境変数（NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY）が未設定です。" +
-        " src/lib/db/** はこの状態でもフォールバックのフィクスチャで動作しますが、" +
-        " createClient() を直接呼ぶコードはこの例外を処理してください。",
-    );
+    throw new Error("デモモードでは Supabase のクライアントを作れません（src/lib/db/** はフィクスチャを使います）。");
   }
 
   const cookieStore = await cookies();
@@ -41,7 +37,10 @@ export async function createClient(): Promise<SupabaseClient> {
   });
 }
 
-/** RLS が service role 専用にしている cron・状態遷移の書き込みにだけ使う。 */
+/**
+ * service role の接続。RLS を通らないため、**cron（run_verification_cron）だけ**で使う（Spec §9.13.2）。
+ * 利用者の操作（承認・確認・投稿）はすべて本人のセッション（createClient）で DB 関数を呼ぶ。
+ */
 export function createServiceRoleClient(): SupabaseClient {
   const env = getSupabaseEnv();
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

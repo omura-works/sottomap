@@ -9,6 +9,7 @@
 // distanceMeters/walkMinutes は、呼び出し元が origin を渡せない経路も含め、
 // 「origin があればそこから、無ければ街の中心から」常に埋める（CONTRACT追補）。
 
+import { countAnswerableRequests, latestMissedRequestId } from "../domain/lifecycle";
 import { sortSpots } from "../domain/ordering";
 import { resolveQuietness } from "../domain/quietness";
 import { isSupabaseConfigured } from "../supabase/env";
@@ -630,6 +631,30 @@ export async function getVerificationRequest(id: string): Promise<VerificationRe
   return data ? mapVerificationRequestRow(data as VerificationRequestRow) : null;
 }
 
+/**
+ * 対象スポットの最新の missed 依頼ID（dormant からの復帰の対象。Spec §9.13.3）。
+ * 依頼は本人宛てしか読めない（RLS）ため、投稿者本人の画面からだけ意味を持つ。
+ */
+export async function getLatestMissedRequestId(spotId: string): Promise<string | null> {
+  if (!isSupabaseConfigured()) {
+    fallbackLog("getLatestMissedRequestId");
+    return latestMissedRequestId(FIXTURE_VERIFICATION_REQUESTS, spotId);
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("verification_requests")
+    .select("id")
+    .eq("spot_id", spotId)
+    .eq("status", "missed")
+    .order("due_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? String((data as { id: string }).id) : null;
+}
+
 export async function listOpenRequests(userId: string): Promise<VerificationRequest[]> {
   if (!isSupabaseConfigured()) {
     fallbackLog("listOpenRequests");
@@ -698,11 +723,16 @@ export async function getProfileStats(userId: string): Promise<{
   }
 
   const supabase = await createClient();
-  const [{ data: authoredSpots, error: spotsError }, { data: verifications, error: verificationsError }, { count: openRequestCount, error: requestsError }] =
+  const [{ data: authoredSpots, error: spotsError }, { data: verifications, error: verificationsError }, { data: requestRows, error: requestsError }] =
     await Promise.all([
       supabase.from("spots").select("id, status, quietness, cities(is_port)").eq("author_id", userId),
       supabase.from("verifications").select("created_at").eq("user_id", userId),
-      supabase.from("verification_requests").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "open"),
+      // Spec §9.13.3: 「確認待ち」は回答できる依頼だけ数える（期限到来済みの open ＋ 復帰できる最新の missed）。
+      supabase
+        .from("verification_requests")
+        .select("id, spot_id, due_at, status, created_at")
+        .eq("user_id", userId)
+        .in("status", ["open", "missed"]),
     ]);
   if (spotsError) throw spotsError;
   if (verificationsError) throw verificationsError;
@@ -713,12 +743,25 @@ export async function getProfileStats(userId: string): Promise<{
   const isPort = (row: AuthoredSpotRow) => (Array.isArray(row.cities) ? row.cities[0]?.is_port === true : row.cities?.is_port === true);
 
   const verificationRows = (verifications ?? []) as Array<{ created_at: string }>;
+  const spotStatusById = new Map(authoredRows.map((row) => [row.id, row.status]));
+  const answerableInputs = ((requestRows ?? []) as Array<{
+    id: string;
+    spot_id: string;
+    due_at: string;
+    status: RequestStatus;
+    created_at: string;
+  }>).flatMap((row) => {
+    const spotStatus = spotStatusById.get(row.spot_id);
+    return spotStatus
+      ? [{ id: row.id, spotId: row.spot_id, dueAt: row.due_at, status: row.status, createdAt: row.created_at, spotStatus }]
+      : [];
+  });
 
   return {
     spotsCreated: authoredRows.length,
     verificationsAnswered: verificationRows.length,
     spotsKeptQuiet: authoredRows.filter((r) => r.status === "published" && r.quietness === "quiet").length,
-    pendingRequestCount: openRequestCount ?? 0,
+    pendingRequestCount: countAnswerableRequests(answerableInputs, new Date()),
     winterVerificationCount: verificationRows.filter((v) => {
       const month = new Date(v.created_at).getUTCMonth() + 1;
       return month === 12 || month === 1 || month === 2;

@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { listCities, countPublishedSpots, listRecentlyVerified } from "@/lib/db/spots";
 import { StartScreen } from "./StartScreen";
 import type { StartCityData } from "./StartScreen";
@@ -10,8 +11,12 @@ const RECENTLY_VERIFIED_LIMIT = 3;
  * 街チップの切り替えを通信なしで即時にするため、8街ぶんの「公開ピン数」と
  * 「今週、静けさが確認された店」を先に並行取得し、クライアント側の
  * StartScreen にまとめて渡す。
+ *
+ * リクエスト時に描画する（connection）。ビルド時に読むと、ビルド環境（NODE_ENV=production で
+ * デモモード不可・Supabase 未設定）で実行モードの判定が例外になり、また公開数が古いまま固定されるため。
  */
 export default async function StartPage() {
+  await connection();
   const cities = await listCities();
 
   const entries = await Promise.all(

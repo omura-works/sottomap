@@ -243,4 +243,22 @@ describe("getUserProfile / getProfileStats / listSpotsByAuthor（CONTRACT追補�
     expect(spots).toHaveLength(1);
     expect(spots[0].name).toBe("シハチ鮮魚店 北24条店");
   });
+
+  it("getProfileStats: 確認待ちは回答できる依頼だけ数える（デモ利用者は期限到来済みの1件のみ。期限前の1件は数えない）", async () => {
+    const { getProfileStats, getVerificationRequest } = await import("./spots");
+    const due = await getVerificationRequest("80000000-0000-4000-8000-000000000004");
+    const notYet = await getVerificationRequest("80000000-0000-4000-8000-000000000005");
+    expect(due?.userId).toBe("b0000000-0000-4000-8000-000000000004");
+    expect(notYet?.userId).toBe("b0000000-0000-4000-8000-000000000004");
+    expect(new Date(due!.dueAt).getTime()).toBeLessThanOrEqual(Date.now());
+    expect(new Date(notYet!.dueAt).getTime()).toBeGreaterThan(Date.now());
+
+    const stats = await getProfileStats("b0000000-0000-4000-8000-000000000004");
+    expect(stats.pendingRequestCount).toBe(1);
+  });
+
+  it("getLatestMissedRequestId: missed が無いスポットは null", async () => {
+    const { getLatestMissedRequestId } = await import("./spots");
+    expect(await getLatestMissedRequestId("d0000000-0000-4000-8000-000000000004")).toBeNull();
+  });
 });

@@ -57,6 +57,12 @@ export function formatTokyoYearMonth(value: string | Date): string {
   return `${year}年${month}月`;
 }
 
+/** 日本時間の「12月13日」形式（年は付けない）。 */
+export function formatTokyoMonthDay(value: string | Date): string {
+  const { month, day } = tokyoDateParts(value);
+  return `${month}月${day}日`;
+}
+
 /** 栞の予定日時を「明日 12:30」「9月15日 12:30」形式にする。 */
 export function formatPlannedAtInTokyo(
   value: string | null,

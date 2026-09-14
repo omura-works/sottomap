@@ -15,7 +15,7 @@
 // 確認」を意図的にシード投入している。これは本番運用では発生しない、デモ表示専用の
 // 架空データである（§7「確認人数…はUI上の架空データ」の一部）。
 
-import { isMissed } from "../domain/lifecycle";
+import { countAnswerableRequests, isMissed } from "../domain/lifecycle";
 import { nextDayAtTokyoTime } from "../format/date-time";
 import { resolveQuietness } from "../domain/quietness";
 import type {
@@ -254,7 +254,9 @@ const RAW_SPOTS: RawSpot[] = [
     initialQuietness: "quiet",
     reason: "観光客は三角市場へ行く。地元は南樽で買う。",
     visitFrequency: "weekly",
-    authorId: "b0000000-0000-4000-8000-000000000007",
+    // デモ利用者の2件目の投稿。確認依頼 80000000-...-05 は期限前（75日後）のままにしてあり、
+    // Spec §9.13.3「期限前の依頼には回答フォームを出さない」を E2E で確かめるのに使う。
+    authorId: "b0000000-0000-4000-8000-000000000004",
     photoUrl: null,
     publishedAtDaysAgo: 495,
     nextVerificationAtDaysAgo: -75,
@@ -644,12 +646,18 @@ export function fixtureProfileStats(userId: string): {
 } {
   const authored = FIXTURE_SPOTS.filter((s) => s.authorId === userId);
   const verifications = FIXTURE_VERIFICATIONS.filter((v) => v.userId === userId);
-  const openRequests = FIXTURE_VERIFICATION_REQUESTS.filter((r) => r.userId === userId && r.status === "open");
+  // Spec §9.13.3: 「確認待ち」は回答できる依頼（期限到来済みの open ＋ 復帰できる最新の missed）だけ。
+  const ownRequests = FIXTURE_VERIFICATION_REQUESTS.filter(
+    (r) => r.userId === userId && (r.status === "open" || r.status === "missed"),
+  ).flatMap((r) => {
+    const spot = FIXTURE_SPOTS.find((s) => s.id === r.spotId);
+    return spot ? [{ ...r, spotStatus: spot.status }] : [];
+  });
   return {
     spotsCreated: authored.length,
     verificationsAnswered: verifications.length,
     spotsKeptQuiet: authored.filter((s) => s.status === "published" && s.quietness === "quiet").length,
-    pendingRequestCount: openRequests.length,
+    pendingRequestCount: countAnswerableRequests(ownRequests, new Date()),
     // isWinterMonth は lantern.ts 側の定義を使いたいが循環 import を避けるため、
     // ここでは月だけを見る単純な再実装をしておく（UTC基準、12/1〜2/末）。
     winterVerificationCount: verifications.filter((v) => {
