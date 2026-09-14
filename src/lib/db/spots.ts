@@ -319,7 +319,8 @@ async function hydrateSpotRows(rows: SpotRow[], city: City, origin?: { lat: numb
       supabase.from("spot_tags").select("spot_id, tags(id, slug, label, kind)").in("spot_id", spotIds),
       supabase.from("verifications").select("*").in("spot_id", spotIds),
       supabase.from("endorsements").select("spot_id").in("spot_id", spotIds),
-      supabase.from("users").select("id, display_name, area_name, resident_years").in("id", authorIds),
+      // Spec §9.13.6: users の全列は本人しか読めない。投稿者クレジットは表示用の列だけを出すビュー経由。
+      supabase.from("public_profiles").select("id, display_name, area_name, resident_years").in("id", authorIds),
       supabase.from("verification_requests").select("id, spot_id").in("spot_id", spotIds).eq("status", "open"),
     ]);
 

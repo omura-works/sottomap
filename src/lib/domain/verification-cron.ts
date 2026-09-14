@@ -1,7 +1,5 @@
 import type { RequestStatus, SpotStatus } from "../db/types";
-import { nextStatus, nextVerificationDate, PENDING_EXPIRY_DAYS } from "./lifecycle";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
+import { isEndorsementOnTime, nextStatus, nextVerificationDate } from "./lifecycle";
 
 export interface CronSpotInput {
   id: string;
@@ -58,9 +56,9 @@ export function planCronActions(
 
   for (const spot of spots) {
     const openRequest = openRequestBySpotId.get(spot.id) ?? null;
-    const expiryAt = new Date(spot.createdAt).getTime() + PENDING_EXPIRY_DAYS * DAY_MS;
-    const timelyEndorsementCount = spot.endorsementCreatedAts.filter(
-      (createdAt) => new Date(createdAt).getTime() <= expiryAt,
+    // Spec §9.13.5: 期限（created_at + 30日、絶対時刻）までに成立した承認だけを数える。
+    const timelyEndorsementCount = spot.endorsementCreatedAts.filter((createdAt) =>
+      isEndorsementOnTime(spot.createdAt, createdAt),
     ).length;
     const to = nextStatus(spot, openRequest, timelyEndorsementCount, now);
 

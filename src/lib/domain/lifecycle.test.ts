@@ -10,6 +10,12 @@ import {
   nextStatus,
   nextVerificationDate,
   statusAfterAnswer,
+  answerEligibility,
+  countAnswerableRequests,
+  isEndorsementOnTime,
+  isPendingExpired,
+  latestMissedRequestId,
+  pendingDeadline,
 } from "./lifecycle";
 
 const NOW = new Date("2026-06-01T00:00:00.000Z");
@@ -90,9 +96,17 @@ describe("nextStatus（新シグネチャ）: pending → expired の30日境界
     const s = { status: "pending" as const, createdAt: daysAgoISO(29) };
     expect(nextStatus(s, null, 0, NOW)).toBe("pending");
   });
-  it("30日ちょうどはまだ pending（30日を超えたら expired）", () => {
+  it("Spec §9.13.5: 30日ちょうど（now >= created_at + 30日）で expired", () => {
     const s = { status: "pending" as const, createdAt: daysAgoISO(30) };
-    expect(nextStatus(s, null, 0, NOW)).toBe("pending");
+    expect(nextStatus(s, null, 0, NOW)).toBe("expired");
+  });
+  it("Spec §9.13.5: created_at + 30日 + 1時間は expired（日数の切り捨てで30日扱いにしない）", () => {
+    const createdAt = new Date(NOW.getTime() - (30 * 24 + 1) * 60 * 60 * 1000).toISOString();
+    expect(nextStatus({ status: "pending", createdAt }, null, 0, NOW)).toBe("expired");
+  });
+  it("期限の1ミリ秒前はまだ pending", () => {
+    const createdAt = new Date(NOW.getTime() - 30 * 24 * 60 * 60 * 1000 + 1).toISOString();
+    expect(nextStatus({ status: "pending", createdAt }, null, 0, NOW)).toBe("pending");
   });
   it("31日目で expired", () => {
     const s = { status: "pending" as const, createdAt: daysAgoISO(31) };
@@ -161,5 +175,74 @@ describe("statusAfterAnswer（Spec §9.3: dormant → published の復帰）", (
   it("pending / expired はそのまま（本来この関数を呼ぶ経路が無い状態）", () => {
     expect(statusAfterAnswer("pending")).toBe("pending");
     expect(statusAfterAnswer("expired")).toBe("expired");
+  });
+});
+
+describe("pending の期限（Spec §9.13.5・絶対時刻）", () => {
+  const createdAt = "2026-01-01T09:00:00.000Z";
+
+  it("期限は created_at + 30日ちょうど", () => {
+    expect(pendingDeadline(createdAt).toISOString()).toBe("2026-01-31T09:00:00.000Z");
+  });
+  it("isPendingExpired: 期限の時刻以降が期限切れ", () => {
+    expect(isPendingExpired(createdAt, new Date("2026-01-31T08:59:59.999Z"))).toBe(false);
+    expect(isPendingExpired(createdAt, new Date("2026-01-31T09:00:00.000Z"))).toBe(true);
+    expect(isPendingExpired(createdAt, new Date("2026-01-31T10:00:00.000Z"))).toBe(true);
+  });
+  it("isEndorsementOnTime: 期限ちょうどの承認は期限内（同時刻は公開優先）、1ミリ秒後は期限外", () => {
+    expect(isEndorsementOnTime(createdAt, "2026-01-31T09:00:00.000Z")).toBe(true);
+    expect(isEndorsementOnTime(createdAt, "2026-01-31T09:00:00.001Z")).toBe(false);
+  });
+});
+
+describe("answerEligibility（Spec §9.13.3）", () => {
+  const now = new Date("2026-09-14T00:00:00.000Z");
+  const past = "2026-09-13T00:00:00.000Z";
+  const future = "2026-09-15T00:00:00.000Z";
+
+  it("期限到来済みの open は回答できる（due_at ちょうども含む）", () => {
+    expect(answerEligibility({ id: "r1", status: "open", dueAt: past }, "published", null, now)).toBe("answerable");
+    expect(answerEligibility({ id: "r1", status: "open", dueAt: now.toISOString() }, "published", null, now)).toBe(
+      "answerable",
+    );
+  });
+  it("期限前の open は回答できない（not-due）", () => {
+    expect(answerEligibility({ id: "r1", status: "open", dueAt: future }, "published", null, now)).toBe("not-due");
+  });
+  it("answered は回答できない", () => {
+    expect(answerEligibility({ id: "r1", status: "answered", dueAt: past }, "published", null, now)).toBe("closed");
+  });
+  it("dormant のスポットの最新 missed だけが回答できる", () => {
+    expect(answerEligibility({ id: "m2", status: "missed", dueAt: past }, "dormant", "m2", now)).toBe("answerable");
+    expect(answerEligibility({ id: "m1", status: "missed", dueAt: past }, "dormant", "m2", now)).toBe("closed");
+  });
+  it("スポットが dormant でなければ missed には回答できない", () => {
+    expect(answerEligibility({ id: "m2", status: "missed", dueAt: past }, "published", "m2", now)).toBe("closed");
+  });
+});
+
+describe("latestMissedRequestId / countAnswerableRequests", () => {
+  const now = new Date("2026-09-14T00:00:00.000Z");
+  const base = { spotId: "s1", createdAt: "2025-01-01T00:00:00.000Z" };
+
+  it("due_at が最も新しい missed を返す（他のスポット・他の状態は無視）", () => {
+    const requests = [
+      { ...base, id: "m-old", status: "missed" as const, dueAt: "2025-03-01T00:00:00.000Z" },
+      { ...base, id: "m-new", status: "missed" as const, dueAt: "2025-09-01T00:00:00.000Z" },
+      { ...base, id: "a", status: "answered" as const, dueAt: "2026-01-01T00:00:00.000Z" },
+      { ...base, spotId: "s2", id: "other", status: "missed" as const, dueAt: "2026-02-01T00:00:00.000Z" },
+    ];
+    expect(latestMissedRequestId(requests, "s1")).toBe("m-new");
+    expect(latestMissedRequestId(requests, "s3")).toBeNull();
+  });
+
+  it("回答できる依頼（期限到来の open ＋ 復帰できる最新 missed）だけを数える", () => {
+    const requests = [
+      { ...base, id: "due", spotId: "p1", status: "open" as const, dueAt: "2026-09-01T00:00:00.000Z", spotStatus: "published" as const },
+      { ...base, id: "future", spotId: "p2", status: "open" as const, dueAt: "2026-12-01T00:00:00.000Z", spotStatus: "published" as const },
+      { ...base, id: "m-old", spotId: "d1", status: "missed" as const, dueAt: "2025-03-01T00:00:00.000Z", spotStatus: "dormant" as const },
+      { ...base, id: "m-new", spotId: "d1", status: "missed" as const, dueAt: "2025-09-01T00:00:00.000Z", spotStatus: "dormant" as const },
+    ];
+    expect(countAnswerableRequests(requests, now)).toBe(2);
   });
 });

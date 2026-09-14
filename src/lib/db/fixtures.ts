@@ -231,11 +231,13 @@ const RAW_SPOTS: RawSpot[] = [
     reason: "小樽駅から徒歩10分。観光通りから少し外れているぶん、地元の昼どきが静か。",
     visitFrequency: "weekly",
     // デモ利用者が確認依頼へ回答できる通常データとして割り当てる。
+    // Spec §9.13.3: 回答できるのは期限（due_at）を過ぎた open の依頼だけなので、
+    // 前回の確認から92日・期限を2日過ぎた状態にしてある（E2E の回答フローもこの依頼を使う）。
     authorId: "b0000000-0000-4000-8000-000000000004",
     photoUrl: null,
     publishedAtDaysAgo: 395,
-    nextVerificationAtDaysAgo: -50,
-    lastVerifiedAtDaysAgo: 40,
+    nextVerificationAtDaysAgo: 2,
+    lastVerifiedAtDaysAgo: 92,
     createdAtDaysAgo: 400,
     tagSlugs: [],
   },
@@ -424,7 +426,7 @@ const RAW_VERIFICATIONS: RawVerification[] = [
 
   { id: "c0000000-0000-4000-8000-000000000009", spotId: "d0000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000006", answer: "quiet", note: null, daysAgo: 300 },
   { id: "c0000000-0000-4000-8000-00000000000a", spotId: "d0000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000006", answer: "quiet", note: null, daysAgo: 210 },
-  { id: "c0000000-0000-4000-8000-00000000000b", spotId: "d0000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000006", answer: "quiet", note: null, daysAgo: 40 },
+  { id: "c0000000-0000-4000-8000-00000000000b", spotId: "d0000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000006", answer: "quiet", note: null, daysAgo: 92 },
 
   { id: "c0000000-0000-4000-8000-00000000000c", spotId: "d0000000-0000-4000-8000-000000000005", userId: "b0000000-0000-4000-8000-000000000007", answer: "quiet", note: null, daysAgo: 400 },
   { id: "c0000000-0000-4000-8000-00000000000d", spotId: "d0000000-0000-4000-8000-000000000005", userId: "b0000000-0000-4000-8000-000000000007", answer: "quiet", note: null, daysAgo: 300 },
@@ -593,12 +595,42 @@ export function fixtureUserProfile(userId: string): UserProfile | null {
   };
 }
 
-/** mutations.ts の冪等判定後に、デモユーザーの灯りポイントを反映する。 */
-export function addFixtureLanternPoints(userId: string, points: number): void {
-  if (points === 0) return;
+// =========================================================
+// 10. lantern_events（ポイント台帳。Spec §9.13.4）
+//     DB の `unique (kind, source_id)` と同じく、(kind, sourceId) につき一度だけ記録・加算する。
+// =========================================================
+export type LanternEventKind = "verification" | "publish";
+
+export interface FixtureLanternEvent {
+  userId: string;
+  kind: LanternEventKind;
+  /** verification なら verification_request_id、publish なら spot_id。 */
+  sourceId: string;
+  points: number;
+  createdAt: string;
+}
+
+/** mutable: awardFixtureLanternPoints だけが push する。 */
+export const FIXTURE_LANTERN_EVENTS: FixtureLanternEvent[] = [];
+
+/**
+ * 台帳へ記録できたときだけ灯りポイントを加算し、加算した点数を返す（既に記録済みなら0）。
+ * DB 側の award_lantern_points（0006）と同じ規則。
+ */
+export function awardFixtureLanternPoints(
+  userId: string,
+  kind: LanternEventKind,
+  sourceId: string,
+  points: number,
+  now: Date,
+): number {
+  if (points <= 0) return 0;
+  if (FIXTURE_LANTERN_EVENTS.some((event) => event.kind === kind && event.sourceId === sourceId)) return 0;
   const user = FIXTURE_USERS.find((candidate) => candidate.id === userId);
   if (!user) throw new Error(`fixture user not found: ${userId}`);
+  FIXTURE_LANTERN_EVENTS.push({ userId, kind, sourceId, points, createdAt: now.toISOString() });
   user.lanternPoints += points;
+  return points;
 }
 
 /** CONTRACT追補 getProfileStats のフィクスチャ実装が使う集計値。 */
