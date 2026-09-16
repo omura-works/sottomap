@@ -427,10 +427,20 @@ Server Action はこれを呼ぶだけにする。authenticated ロールから�
 ### 9.13.5 pending の期限は絶対時刻
 - `now >= created_at + interval '30 days'` で `expired`（日数の切り捨てで判定しない）。
 - 2人目の承認のDB時刻が期限前なら公開が勝つ。判定はスポット行のロック下で行う。
+- 期限ちょうど（`now = created_at + 30日`）の承認は期限内（§9.7 同時刻は公開優先）。DB時刻は `now()`＝各RPCのトランザクション開始時刻。
 
 ### 9.13.6 読み取りの範囲
 - 未ログインでも読めるのは、公開中のスポットと、それに紐づく表示に必要な列だけ。
 - `users` は表示用の列だけを出すビュー経由にする。`endorsements`・`verifications` は、読めるスポットに紐づく行か本人の行に限る。
+- 表示用ビュー（`public_profiles`）と `user_badges` で見えるのは、**本人**・**公開中のスポットの投稿者**・**呼び出し者が読める pending スポットの投稿者**だけ（2026-09-16 再レビューの裁定。スポットを持たない利用者は匿名に見せない）。
+
+### 9.13.8 権限とDB関数の書き方（2026-09-16 再レビューの裁定）
+- **GRANT は既定権限に頼らず明示する**。public スキーマの全オブジェクトについて anon / authenticated から一度すべて取り上げ、必要な SELECT・栞の書き込み・RPC の EXECUTE だけを付け直す。service_role にも必要な権限を明示する。
+- DB 関数は `set search_path = ''` とし、すべての名前をスキーマ修飾する（`public.spots`、`auth.uid()`）。PostGIS はマイグレーション時に実際のスキーマ（`pg_extension.extnamespace`）を調べて修飾する。public スキーマへの CREATE は anon / authenticated / PUBLIC に与えない。
+- `run_verification_cron` はスポット行を `for update skip locked` で取り、ロック中のスポットは次回に回す（回答・承認と交差デッドロックしない）。cron の API は `40P01`・`40001` のとき1回だけ再実行する。
+- 同時実行の統合テストは2接続（pgTAP＋dblink）で書く。
+- 本番（`VERCEL_ENV=production` または `NODE_ENV=production`）の `NEXT_PUBLIC_SITE_URL` は https 必須。
+- 0006 は未適用・未リリースのため、この裁定は 0006 自体を書き換えて反映する（本番DBは未作成）。
 
 ### 9.13.7 その他
 - メールリンクの戻り先の origin は固定の環境変数（`NEXT_PUBLIC_SITE_URL`）から作る。リクエストヘッダー（`x-forwarded-host`）は使わない。
