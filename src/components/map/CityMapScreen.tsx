@@ -11,7 +11,7 @@ import { FilterChips, SpotListItem } from "@/components/spot-list";
 import { sortSpots, splitByQuietness } from "@/lib/domain/ordering";
 import { MapCanvas } from "./index";
 import type { MapPin, MapPoint } from "./index";
-import { buildDistanceMap, useOrigin, walkingLabel, WITHIN_10MIN_METERS } from "./geo";
+import { buildDistanceMap, parseUrlOrigin, useResolvedOrigin, walkingLabel, WITHIN_10MIN_METERS } from "./geo";
 
 export interface CityMapScreenProps {
   city: City;
@@ -55,7 +55,10 @@ export function CityMapScreen({
   const [hover, setHover] = useState<{ id: string; point: MapPoint } | null>(null);
 
   const fallbackCenter = useMemo(() => ({ lat: city.centerLat, lng: city.centerLng }), [city.centerLat, city.centerLng]);
-  const { origin } = useOrigin(fallbackCenter);
+  // Codex R9 重要1: URLにlat/lngが明示されていればそれを基準点にする（共有リンクの座標を尊重）。
+  // 無ければ useOrigin（Geolocation。解決待ちの間は resolved:false で街の中心を返す）。
+  const urlOrigin = useMemo(() => parseUrlOrigin(searchParams), [searchParams]);
+  const { origin, resolved } = useResolvedOrigin(fallbackCenter, urlOrigin);
 
   // 現在地は URL に書き込まない。書き込み（router.replace や履歴 API）は、読み込み直後に押した
   // 「さがす」などの遷移を後から上書きしてしまうため。地図の並びは下で現在地の距離を使って付け直す。
@@ -73,13 +76,16 @@ export function CityMapScreen({
 
   // SPEC §9.14-5: 「まだ静か」ON時は quiet を上、crowding/touristy を「混みはじめた店」の下にまとめる。
   const quietNowActive = activeFilters.includes("quiet-now");
-  // 重要1: 「徒歩10分」はクライアントの現在地（取れなければ街の中心）からの距離で絞り込む
-  // （サーバーは origin を渡されないため、この絞り込みはここで行う）。
+  // Codex R9 重要1: 「徒歩10分」はクライアントの基準点（URL座標優先、無ければ現在地/街の中心）
+  // からの距離で絞り込む（サーバー側では絞り込まない）。
   const withinTenMinActive = activeFilters.includes("within-10min");
+  // Codex R9 重要2: URL座標が無く、位置解決待ち（resolved===false）の間はピンを出さず絞り込みを保留する。
+  const originPending = withinTenMinActive && !urlOrigin && !resolved;
   const filteredSpots = useMemo(() => {
+    if (originPending) return [];
     if (!withinTenMinActive) return visibleSpots;
     return visibleSpots.filter((s) => (distances[s.id] ?? Infinity) <= WITHIN_10MIN_METERS);
-  }, [visibleSpots, distances, withinTenMinActive]);
+  }, [visibleSpots, distances, withinTenMinActive, originPending]);
   // Spec §9.5 の順（距離は現在地から）をクライアント側でも付け直す（上の URL 更新はサーバーへ取り直さないため）。
   const sortedSpots = useMemo(() => sortSpots(filteredSpots, distances), [filteredSpots, distances]);
   const { quiet: quietSpots, crowded: crowdedSpots } = useMemo(() => splitByQuietness(sortedSpots), [sortedSpots]);
@@ -145,19 +151,26 @@ export function CityMapScreen({
         <FilterChips active={activeFilters} onToggle={toggleFilter} />
         {sortedSpots.length === 0 ? (
           <div className="space-y-2">
+            {/* Codex R9 重要2: 位置解決待ちの間はピンを出さず、その旨を控えめに表示する。 */}
             <p className="text-muted text-sm m-0">
-              {hasConditions ? "条件に合う店が見つかりませんでした。" : "まだ店がありません。"}
+              {originPending
+                ? "現在地を確認しています…"
+                : hasConditions
+                  ? "条件に合う店が見つかりませんでした。"
+                  : "まだ店がありません。"}
             </p>
-            <div className="flex flex-wrap gap-2">
-              {hasConditions ? (
-                <button type="button" className="btn btn-secondary" onClick={clearConditions}>
-                  絞り込みを解除する
-                </button>
-              ) : null}
-              <Link href={`/${city.slug}/spots/new`} className="btn btn-secondary">
-                ピンを立てる
-              </Link>
-            </div>
+            {!originPending ? (
+              <div className="flex flex-wrap gap-2">
+                {hasConditions ? (
+                  <button type="button" className="btn btn-secondary" onClick={clearConditions}>
+                    絞り込みを解除する
+                  </button>
+                ) : null}
+                <Link href={`/${city.slug}/spots/new`} className="btn btn-secondary">
+                  ピンを立てる
+                </Link>
+              </div>
+            ) : null}
           </div>
         ) : (
           <>
@@ -219,20 +232,26 @@ export function CityMapScreen({
                 条件（絞り込みチップ・栞からの絞り込み）付きの0件は文言を分け、解除導線も出す。 */}
             {sortedSpots.length === 0 ? (
               <p className="text-xs text-muted m-0">
-                {hasConditions ? "条件に合う店が見つかりませんでした。" : "まだ店がありません。"}
-                {hasConditions ? (
-                  <button
-                    type="button"
-                    onClick={clearConditions}
-                    className="ml-1"
-                    style={{ color: "var(--color-accent-700)", background: "none", border: "none", padding: 0, textDecoration: "underline" }}
-                  >
-                    絞り込みを解除する
-                  </button>
-                ) : null}
-                <Link href={`/${city.slug}/spots/new`} className="ml-1" style={{ color: "var(--color-accent-700)" }}>
-                  ピンを立てる
-                </Link>
+                {originPending ? (
+                  "現在地を確認しています…"
+                ) : (
+                  <>
+                    {hasConditions ? "条件に合う店が見つかりませんでした。" : "まだ店がありません。"}
+                    {hasConditions ? (
+                      <button
+                        type="button"
+                        onClick={clearConditions}
+                        className="ml-1"
+                        style={{ color: "var(--color-accent-700)", background: "none", border: "none", padding: 0, textDecoration: "underline" }}
+                      >
+                        絞り込みを解除する
+                      </button>
+                    ) : null}
+                    <Link href={`/${city.slug}/spots/new`} className="ml-1" style={{ color: "var(--color-accent-700)" }}>
+                      ピンを立てる
+                    </Link>
+                  </>
+                )}
               </p>
             ) : null}
           </div>

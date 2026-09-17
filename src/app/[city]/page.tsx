@@ -14,7 +14,8 @@ import { getCurrentUserId } from "@/lib/auth";
  *
  * URLクエリ:
  * - `filters`: 絞り込みチップ（カンマ区切り slug、既定は「まだ静か」のみ）
- * - `lat` / `lng`: 現在地（クライアントの Geolocation 解決後に付与される）
+ * - `lat` / `lng`: 共有リンクなど、URLに現在地が明示されているとき用（クライアントは現在地を
+ *   自動でURLへ書き込まない。Codex R9 重要1・2）
  * - `spots`: 栞画面の「N軒を地図にまとめる」から渡される対象スポットID（カンマ区切り）
  */
 export default async function CityMapPage(props: PageProps<"/[city]">) {

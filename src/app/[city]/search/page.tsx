@@ -25,6 +25,8 @@ export default async function CitySearchPage(props: PageProps<"/[city]/search">)
   const q = firstParam(searchParams.q) ?? "";
   const origin = parseOrigin(searchParams.lat, searchParams.lng);
 
+  // 軽微: limit を渡さず全件取得する（データ量が小さいうちは、上位3軒への切り出しを
+  // クライアント側の現在地基準の並び替え後に行う必要があるため件数上限をサーバー側に置けない）。
   const spots = await listSpots({
     citySlug: city.slug,
     q: q || undefined,

@@ -79,16 +79,25 @@ export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[
     }
   }
 
+  // Codex R9 重要3: 同じ文言が連続しても読み上げられるよう、一度空にしてから
+  // 次のティックで設定する（同期的に空→本文をまとめて設定すると、DOM上は本文しか
+  // 変化せず、直前と同じ文言のときは再読み上げされない）。
+  function announce(message: string) {
+    setLiveMessage("");
+    setTimeout(() => setLiveMessage(message), 0);
+  }
+
   function handleRemove(item: BookmarkListItem, index: number) {
     const nextId = items[index + 1]?.id;
     const prevId = index > 0 ? items[index - 1]?.id : undefined;
     setErrorMessage(null);
-    setLiveMessage("栞から外しました。");
     startTransition(async () => {
       dispatch({ type: "remove", id: item.id });
       focusNeighborOrHeading(nextId, prevId);
       try {
+        // Codex R9 重要3: 成功通知はServer Actionの成功後に出す（失敗時に「外しました」を出さないため）。
         await removeBookmarkAction(item.spotId);
+        announce(`${item.spotName}を栞から外しました。`);
       } catch (error) {
         // 未ログイン時の Server Action redirect は Next.js に処理させる。
         unstable_rethrow(error);
@@ -99,12 +108,8 @@ export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[
     });
   }
 
-  function handleCancel() {
-    setLiveMessage("そのままにしました。");
-  }
-
-  if (items.length === 0) {
-    return <p className="text-muted">まだ栞に挟んだ店がありません。</p>;
+  function handleCancel(item: BookmarkListItem) {
+    announce(`${item.spotName}はそのままにしました。`);
   }
 
   const cityOrder: string[] = [];
@@ -119,76 +124,83 @@ export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[
 
   return (
     <div className="space-y-4">
-      {/* 行が消えても残るライブリージョン（Codex R8 重要3）。ConfirmRemoveButton 側は持たない。 */}
+      {/* Codex R9 重要3: 0件（早期return）でも常に描画する。行が消えても残るライブリージョン
+          （Codex R8 重要3）。ConfirmRemoveButton 側は持たない。 */}
       <p role="status" aria-live="polite" className="sr-only">
         {liveMessage}
       </p>
 
-      <ul className="space-y-2">
-        {items.map((item) => {
-          const index = items.indexOf(item);
-          return (
-            <li
-              key={item.id}
-              className="flex items-center gap-3 px-3 py-2"
-              style={{ borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}
-            >
-              {item.photoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element -- 外部URLのサムネイルをそのまま表示する
-                <img src={item.photoUrl} alt={item.spotName} className="w-12 h-12 rounded-md object-cover flex-none" />
-              ) : (
-                <div
-                  className="w-12 h-12 rounded-md flex-none flex items-center justify-center text-muted text-[10px]"
-                  style={{ background: "var(--color-neutral-200)" }}
-                  aria-hidden
-                >
-                  写真
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="m-0 truncate">{item.spotName}</p>
-                <p className="m-0 text-muted text-xs">{item.meta}</p>
-              </div>
-              <ConfirmRemoveButton
-                label={`${item.spotName}を栞から外す`}
-                onConfirm={() => handleRemove(item, index)}
-                onCancel={handleCancel}
-                onTriggerRef={(node) => {
-                  triggerRefs.current.set(item.id, node);
-                }}
-              />
-            </li>
-          );
-        })}
-      </ul>
-
-      {errorMessage ? (
-        <p role="alert" className="text-sm" style={{ color: "var(--color-accent-700)" }}>
-          {errorMessage}
-        </p>
-      ) : null}
-
-      {cityOrder.length <= 1 ? (
-        <Link href={`/${cityOrder[0]}?spots=${items.map((item) => item.spotId).join(",")}`} className="btn btn-primary btn-block">
-          {items.length}軒を地図にまとめる
-        </Link>
+      {items.length === 0 ? (
+        <p className="text-muted">まだ栞に挟んだ店がありません。</p>
       ) : (
-        <div className="space-y-2">
-          {cityOrder.map((citySlug) => {
-            const cityItems = itemsByCity.get(citySlug)!;
-            const cityName = cityItems[0].cityName;
-            const spotIds = cityItems.map((item) => item.spotId).join(",");
-            return (
-              <Link
-                key={citySlug}
-                href={`/${citySlug}?spots=${spotIds}`}
-                className="btn btn-primary btn-block"
-              >
-                {cityName}の{cityItems.length}軒を地図にまとめる
-              </Link>
-            );
-          })}
-        </div>
+        <>
+          <ul className="space-y-2">
+            {items.map((item) => {
+              const index = items.indexOf(item);
+              return (
+                <li
+                  key={item.id}
+                  className="flex items-center gap-3 px-3 py-2"
+                  style={{ borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}
+                >
+                  {item.photoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- 外部URLのサムネイルをそのまま表示する
+                    <img src={item.photoUrl} alt={item.spotName} className="w-12 h-12 rounded-md object-cover flex-none" />
+                  ) : (
+                    <div
+                      className="w-12 h-12 rounded-md flex-none flex items-center justify-center text-muted text-[10px]"
+                      style={{ background: "var(--color-neutral-200)" }}
+                      aria-hidden
+                    >
+                      写真
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="m-0 truncate">{item.spotName}</p>
+                    <p className="m-0 text-muted text-xs">{item.meta}</p>
+                  </div>
+                  <ConfirmRemoveButton
+                    label={`${item.spotName}を栞から外す`}
+                    onConfirm={() => handleRemove(item, index)}
+                    onCancel={() => handleCancel(item)}
+                    onTriggerRef={(node) => {
+                      triggerRefs.current.set(item.id, node);
+                    }}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+
+          {errorMessage ? (
+            <p role="alert" className="text-sm" style={{ color: "var(--color-accent-700)" }}>
+              {errorMessage}
+            </p>
+          ) : null}
+
+          {cityOrder.length <= 1 ? (
+            <Link href={`/${cityOrder[0]}?spots=${items.map((item) => item.spotId).join(",")}`} className="btn btn-primary btn-block">
+              {items.length}軒を地図にまとめる
+            </Link>
+          ) : (
+            <div className="space-y-2">
+              {cityOrder.map((citySlug) => {
+                const cityItems = itemsByCity.get(citySlug)!;
+                const cityName = cityItems[0].cityName;
+                const spotIds = cityItems.map((item) => item.spotId).join(",");
+                return (
+                  <Link
+                    key={citySlug}
+                    href={`/${citySlug}?spots=${spotIds}`}
+                    className="btn btn-primary btn-block"
+                  >
+                    {cityName}の{cityItems.length}軒を地図にまとめる
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

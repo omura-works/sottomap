@@ -27,7 +27,8 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/components/map/geo", () => ({
   buildDistanceMap: () => ({}),
-  useOrigin: (fallback: { lat: number; lng: number }) => ({ origin: fallback, resolved: false }),
+  parseUrlOrigin: () => null,
+  useResolvedOrigin: (fallback: { lat: number; lng: number }) => ({ origin: fallback, resolved: false, isPrecise: false }),
 }));
 
 const CITY: City = {
@@ -48,6 +49,9 @@ describe("SearchScreen", () => {
     replaceMock.mockClear();
     nav.slow = false;
     nav.reset();
+    // Codex R9 重要5: デバウンス発火時の window.location.pathname チェックが usePathname の
+    // モック値（"/sapporo/search"）と一致するよう、実際の jsdom のURLも合わせておく。
+    window.history.pushState({}, "", "/sapporo/search");
   });
 
   afterEach(() => {
@@ -121,5 +125,38 @@ describe("SearchScreen", () => {
     // 戻る操作で query が空に戻る。
     rerender(<SearchScreen city={CITY} spots={[]} activeFilters={[]} query="" />);
     expect(input.value).toBe("");
+  });
+
+  // Codex R9 重要5: タイマー発火時にURLが検索ページのままでなければ router.replace しない。
+  it("重要5: 検索入力直後に別画面へ遷移していたら、デバウンス発火時にrouter.replaceしない", () => {
+    render(<SearchScreen city={CITY} spots={[]} activeFilters={["quiet-now"]} query="" />);
+
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "海鮮丼" } });
+    replaceMock.mockClear();
+
+    // このコンポーネントはアンマウントせず、URLだけが別画面へ変わった状態を模す
+    // （SPAの遷移中、次の画面の準備ができるまで前の画面が残っている場合がある）。
+    window.history.pushState({}, "", "/sapporo");
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("SearchScreen（Codex R9 重要2: 位置解決待ち）", () => {
+  beforeEach(() => {
+    replaceMock.mockClear();
+    nav.slow = false;
+    nav.reset();
+  });
+
+  it("URL座標が無く位置解決待ちの間は、結果の代わりに「現在地を確認しています…」を表示する", () => {
+    render(<SearchScreen city={CITY} spots={[]} activeFilters={["within-10min"]} query="" />);
+
+    expect(screen.getByRole("heading", { level: 1, name: "現在地を確認しています…" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("現在地を確認しています…");
   });
 });

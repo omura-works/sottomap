@@ -13,7 +13,8 @@ vi.mock("next/navigation", () => ({
 vi.mock("./geo", () => ({
   buildDistanceMap: () => ({ "spot-1": 560 }),
   mostCommonAreaName: () => null,
-  useOrigin: (origin: { lat: number; lng: number }) => ({ origin, resolved: false, isPrecise: false }),
+  parseUrlOrigin: () => null,
+  useResolvedOrigin: (origin: { lat: number; lng: number }) => ({ origin, resolved: false, isPrecise: false }),
   walkingLabel: () => "徒歩7分",
 }));
 
@@ -161,6 +162,23 @@ describe("CityMapScreen", () => {
     expect(screen.getAllByText("まだ店がありません。").length).toBeGreaterThan(0);
     expect(screen.queryAllByText("条件に合う店が見つかりませんでした。")).toHaveLength(0);
     expect(screen.queryAllByRole("button", { name: "絞り込みを解除する" })).toHaveLength(0);
+  });
+
+  // Codex R9 重要2: 位置解決待ちの間はピンを出さず、その旨を控えめに表示する。
+  it("URL座標が無く位置解決待ちの間は、ピンを出さず「現在地を確認しています…」を表示する", () => {
+    render(
+      <CityMapScreen
+        city={CITY}
+        spots={[SPOT]}
+        quietCount={1}
+        featuredArea="北24条"
+        activeFilters={["within-10min"]}
+        focusedSpotIds={null}
+      />,
+    );
+
+    expect(screen.getAllByText("現在地を確認しています…").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "絞り込みを解除する" })).not.toBeInTheDocument();
   });
 
   it("SPEC §9.14-16: 絞り込みが既定のまま0件（本当に未登録）なら「まだ店がありません。」を出し、解除導線は出さない", () => {

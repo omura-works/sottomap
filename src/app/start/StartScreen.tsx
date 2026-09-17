@@ -59,9 +59,11 @@ export function StartScreen({
   const [selectedSlug, setSelectedSlug] = useState(defaultCitySlug);
   const [isStarting, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  // Codex R8 重要4・軽微1: 灯りの明滅・手順の巡回はどちらも5秒を超える自動運動のため、
-  // 止める手段が必要（WCAG 2.2.2）。既定は prefers-reduced-motion に従い、表示中の変更にも追従する。
-  const [motionPaused, setMotionPaused] = useMotionPreference();
+  // Codex R8 重要4・軽微1・Codex R9 重要4: 灯りの明滅・手順の巡回はどちらも5秒を超える自動運動のため、
+  // 止める手段が必要（WCAG 2.2.2）。既定は prefers-reduced-motion に従い、表示中の変更にも追従するが、
+  // 利用者が明示的に選んだ状態（userChoice）はOS設定の変化で上書きしない。
+  const { motionState, toggleMotion } = useMotionState();
+  const motionPaused = motionState === "paused";
   const activeStep = useCycle(STEPS.length, STEP_INTERVAL_MS, motionPaused);
 
   const selectedCity = cities.find((city) => city.slug === selectedSlug) ?? cities[0];
@@ -83,6 +85,9 @@ export function StartScreen({
   return (
     <div
       className="start-screen min-h-dvh"
+      // Codex R9 重要4: CSS側はこの data-motion を prefers-reduced-motion より優先して見る
+      // （利用者が「動きを再開する」を押せば、OSがreduceでも灯りを動かせるようにするため）。
+      data-motion={motionState}
       // SPEC §9.12-2: /start は下部タブを持たないが、端末のホームインジケータに末尾の注記が隠れないよう余白を取る。
       style={{ background: "var(--color-bg)", paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}
     >
@@ -97,13 +102,13 @@ export function StartScreen({
         <button
           type="button"
           aria-pressed={motionPaused}
-          onClick={() => setMotionPaused((paused) => !paused)}
+          onClick={toggleMotion}
           className="start-motion-toggle absolute right-3 top-3 z-10"
         >
           {motionPaused ? "動きを再開する" : "動きを止める"}
         </button>
 
-        <div aria-hidden className={`absolute inset-0${motionPaused ? " motion-paused" : ""}`}>
+        <div aria-hidden className="absolute inset-0">
           {LIGHTS.map((light, i) => (
             <span
               key={i}
@@ -293,7 +298,9 @@ export function StartScreen({
                     style={{
                       width: on ? "100%" : "0%",
                       background: "var(--color-accent-500)",
-                      transition: on ? `width ${STEP_INTERVAL_MS}ms linear` : "none",
+                      // Codex R9 重要4: 実効状態が停止なら幅アニメーションもしない
+                      // （transitionを切り、途中の遷移で止まらないようにする）。
+                      transition: on && !motionPaused ? `width ${STEP_INTERVAL_MS}ms linear` : "none",
                     }}
                   />
                 </li>
@@ -326,12 +333,20 @@ function useCycle(n: number, intervalMs: number, paused: boolean) {
 }
 
 /**
- * 「動きを止める」トグルの状態。既定は `prefers-reduced-motion: reduce` に従い、
- * 表示中に OS 側の設定が変わっても追従する（Codex R8 重要4）。
- * SSRとの不整合を避けるため、初期値は常に false（マウント後の effect で実際の設定に合わせる）。
+ * 「動きを止める」トグルの実効状態。
+ * Codex R9 重要4: OS設定（`prefers-reduced-motion`）と利用者の明示的な選択（userChoice）を
+ * 別々に持ち、実効状態は「userChoiceがあればそれ、無ければOS設定」で決める。
+ * これにより、手動停止後にOS設定が reduce:false へ変わっても停止のまま維持され、
+ * 逆にOSが reduce のままでも利用者が「動きを再開する」を押せば動く（WCAG 2.2.2の pause は
+ * 利用者が再開を求めるまで再開しない状態のため）。
+ * SSRとの不整合を避けるため、OS設定の初期値は常に false（マウント後の effect で合わせる）。
  */
-function useMotionPreference(): [boolean, (update: boolean | ((prev: boolean) => boolean)) => void] {
-  const [paused, setPaused] = useState(false);
+function useMotionState(): {
+  motionState: "playing" | "paused";
+  toggleMotion: () => void;
+} {
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const [userChoice, setUserChoice] = useState<"paused" | "playing" | null>(null);
 
   useEffect(() => {
     const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -339,9 +354,10 @@ function useMotionPreference(): [boolean, (update: boolean | ((prev: boolean) =>
     // effect本体で同期的に setState しない（react-hooks/set-state-in-effect）。
     // マイクロタスクへずらして、change イベント経由の更新と同じ経路に揃える。
     queueMicrotask(() => {
-      if (!cancelled) setPaused(mql.matches);
+      if (!cancelled) setReduceMotion(mql.matches);
     });
-    const handleChange = (event: MediaQueryListEvent) => setPaused(event.matches);
+    // OS設定の変化は reduceMotion だけを更新し、userChoice は上書きしない。
+    const handleChange = (event: MediaQueryListEvent) => setReduceMotion(event.matches);
     mql.addEventListener("change", handleChange);
     return () => {
       cancelled = true;
@@ -349,5 +365,10 @@ function useMotionPreference(): [boolean, (update: boolean | ((prev: boolean) =>
     };
   }, []);
 
-  return [paused, setPaused];
+  const motionState: "playing" | "paused" = userChoice ?? (reduceMotion ? "paused" : "playing");
+  const toggleMotion = () => {
+    setUserChoice(motionState === "paused" ? "playing" : "paused");
+  };
+
+  return { motionState, toggleMotion };
 }

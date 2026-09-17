@@ -88,4 +88,42 @@ test.describe("現在地の扱い（回帰）", () => {
     await expect(page.getByRole("link", { name: /南樽市場/ })).toBeVisible();
     await expect(page.getByRole("link", { name: /鱗友朝市/ })).toHaveCount(0);
   });
+
+  // Codex R9 重要1: 明示的なlat/lng付きURLでは、その座標だけを基準に絞り込む
+  // （サーバーの基準点と閲覧者の現在地の積集合にならない）。
+  test("重要1(R9): 明示的なlat/lng付きURLは、その座標だけを基準に絞り込まれる", async ({ page }) => {
+    await page.context().grantPermissions(["geolocation"]);
+    // 閲覧者の現在地は南樽市場付近（聖徳太子 飛鳥店から約860m。従来はここで積集合が0件になっていた）。
+    await page.context().setGeolocation(NEAR_MINAMITARU_MARKET);
+
+    const shofutaishiOrigin = "lat=43.1937&lng=140.9989"; // 聖徳太子 飛鳥店自身の座標
+    await page.goto(`/otaru/search?filters=within-10min&${shofutaishiOrigin}`);
+    await expect(page.getByRole("link", { name: /聖徳太子 飛鳥店/ })).toBeVisible();
+
+    await page.goto(`/otaru?filters=within-10min&${shofutaishiOrigin}`);
+    await expect(page.getByRole("link", { name: /聖徳太子 飛鳥店/ })).toBeVisible();
+  });
+
+  // Codex R9 重要2: 位置解決中は結果一覧の代わりに待機文言を出し、解決後に件数を通知する。
+  test("重要2(R9): 位置取得中は「現在地を確認しています…」、解決後は件数が確定する", async ({ page }) => {
+    await grantDelayedGeolocation(page, OTARU_CENTER);
+
+    await page.goto("/otaru/search?filters=within-10min");
+    await expect(page.getByRole("heading", { level: 1, name: "現在地を確認しています…" })).toBeVisible();
+
+    await page.waitForTimeout(2000);
+    await expect(page.getByRole("heading", { level: 1, name: "現在地を確認しています…" })).toHaveCount(0);
+    await expect(page.getByRole("status")).toHaveText(/軒見つかりました|条件に合う店が見つかりませんでした。/);
+  });
+
+  // Codex R9 重要5: 検索欄に入力した直後（300ms以内）に別画面へ移動しても、後から検索URLへ戻されない。
+  test("重要5(R9): 検索入力直後に「地図」へ移動しても地図画面に留まる", async ({ page }) => {
+    await page.goto("/otaru/search");
+    await page.getByRole("searchbox", { name: "小樽の店をさがす" }).fill("市場");
+    await page.getByRole("link", { name: "地図", exact: true }).click();
+
+    await expect(page).toHaveURL(/\/otaru(?:\?.*)?$/);
+    await page.waitForTimeout(1000);
+    await expect(page).toHaveURL(/\/otaru(?:\?.*)?$/);
+  });
 });

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { City, Spot } from "@/lib/db/types";
 import { Input } from "@/components/ui";
-import { buildDistanceMap, useOrigin, WITHIN_10MIN_METERS } from "@/components/map/geo";
+import { buildDistanceMap, parseUrlOrigin, useResolvedOrigin, WITHIN_10MIN_METERS } from "@/components/map/geo";
 import { sortSpots, splitByQuietness } from "@/lib/domain/ordering";
 import { FilterChips } from "./FilterChips";
 import { parseFiltersParam } from "./filters";
@@ -28,8 +28,9 @@ const SEARCH_RESULT_LIMIT = 3;
  * S3「検索」`/[city]/search`。
  * 検索語・絞り込みチップは URL クエリ（q / filters）で管理し、サーバー側の `listSpots` を
  * 通して結果を取得し直す。現在地に依存する処理（「徒歩10分」の絞り込み・距離順・上位3軒）は
- * `useOrigin` の現在地（取れなければ街の中心）を使ってクライアント側で行う
- * （重要1・2: 現在地を URL に書き込むと、直前に始めた別画面への遷移を上書きしてしまうため）。
+ * `useResolvedOrigin` の基準点（URLのlat/lngが明示されていればそれ、無ければ現在地。
+ * 取れなければ街の中心）を使ってクライアント側で行う（サーバーでは絞り込まない。Codex R9 重要1）。
+ * 現在地を URL に自動で書き込まない方針は維持（重要2: 直前に始めた別画面への遷移を上書きしてしまうため）。
  */
 export function SearchScreen({ city, spots, activeFilters, query }: SearchScreenProps) {
   const router = useRouter();
@@ -59,7 +60,10 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
   }, [searchParams]);
 
   const fallbackCenter = useMemo(() => ({ lat: city.centerLat, lng: city.centerLng }), [city.centerLat, city.centerLng]);
-  const { origin } = useOrigin(fallbackCenter);
+  // Codex R9 重要1: URLにlat/lngが明示されていればそれを基準点にする（共有リンクの座標を尊重）。
+  // 無ければ useOrigin（Geolocation。解決待ちの間は resolved:false で街の中心を返す）。
+  const urlOrigin = useMemo(() => parseUrlOrigin(searchParams), [searchParams]);
+  const { origin, resolved } = useResolvedOrigin(fallbackCenter, urlOrigin);
   const distances = useMemo(() => buildDistanceMap(spots, origin), [spots, origin]);
 
   const updateParams = useCallback(
@@ -82,9 +86,15 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
   );
 
   // 検索語はデバウンスしてURLへ反映。
+  // Codex R9 重要5: アンマウント時（下のクリーンアップ）でタイマーを確実にクリアする。
+  // それでも、遷移中（新しい画面がまだ描画待ちで、この画面が未アンマウントのまま）にタイマーが
+  // 発火することがあるため、発火時に現在のURLがまだこの検索ページを指しているかを
+  // `window.location.pathname` で確認し、そうでなければ router.replace しない
+  // （検索欄に入力した直後に別画面へ遷移しても、後から検索URLへ戻されないようにする）。
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
+      if (typeof window !== "undefined" && window.location.pathname !== pathname) return;
       if (inputValue !== query) {
         updateParams({ q: inputValue || null });
       }
@@ -110,17 +120,20 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
     updateParams({ q: null, filters: "none" });
   }, [updateParams]);
 
-  // 重要1: 「徒歩10分」はクライアントの現在地（取れなければ街の中心）からの距離で絞り込む
-  // （サーバーは origin を渡されないため、この絞り込みはここで行う）。
+  // 重要1: 「徒歩10分」はクライアントの基準点（URL座標優先、無ければ現在地/街の中心）からの
+  // 距離で絞り込む（サーバー側では絞り込まない。Codex R9 重要1）。
   const withinTenMinActive = activeFilters.includes("within-10min");
+  // Codex R9 重要2: URL座標が無く、位置解決待ち（resolved===false）の間は絞り込みを保留する
+  // （街中心基準の一時的な結果を見せてから現在地基準へ無通知で差し替えないため）。
+  const originPending = withinTenMinActive && !urlOrigin && !resolved;
   const nearbySpots = useMemo(() => {
     if (!withinTenMinActive) return spots;
     return spots.filter((spot) => (distances[spot.id] ?? Infinity) <= WITHIN_10MIN_METERS);
   }, [spots, distances, withinTenMinActive]);
   // 並び順は必ず sortSpots を通し、見出し「近い順に{N}軒」は絞り込み・上位3軒切りの後の件数。
   const visibleSpots = useMemo(
-    () => sortSpots(nearbySpots, distances).slice(0, SEARCH_RESULT_LIMIT),
-    [nearbySpots, distances],
+    () => (originPending ? [] : sortSpots(nearbySpots, distances).slice(0, SEARCH_RESULT_LIMIT)),
+    [nearbySpots, distances, originPending],
   );
 
   // SPEC §9.14-5: 「まだ静か」ON時は quiet を上、crowding/touristy を「混みはじめた店」の下にまとめる。
@@ -130,10 +143,41 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
   const topList = quietNowActive ? quiet : visibleSpots;
   const bottomList = quietNowActive ? crowded : [];
 
+  // Codex R9 重要2: 結果件数（の確定・変化）をライブリージョンで知らせる。
+  // 位置解決待ちの間はその旨を、確定後は件数（0件なら既存の空状態文言に合わせる）を通知する。
+  const statusMessage = originPending
+    ? "現在地を確認しています…"
+    : visibleSpots.length > 0
+      ? `${visibleSpots.length}軒見つかりました`
+      : "条件に合う店が見つかりませんでした。";
+
+  // Codex R9 重要2: 位置解決で表示が街中心基準→現在地基準へ差し替わったときなど、
+  // 表示中の一覧が変わってフォーカス中の要素が消えた場合は結果見出しへフォーカスを移す。
+  const headingRef = useRef<HTMLHeadingElement | null>(null);
+  const previousVisibleIdsRef = useRef<string[] | null>(null);
+  useEffect(() => {
+    const currentIds = visibleSpots.map((spot) => spot.id);
+    const previousIds = previousVisibleIdsRef.current;
+    previousVisibleIdsRef.current = currentIds;
+    if (previousIds === null) return; // 初回描画ではフォーカスを奪わない。
+    if (previousIds.join(",") === currentIds.join(",")) return;
+    if (document.activeElement === document.body) {
+      headingRef.current?.focus();
+    }
+  }, [visibleSpots]);
+
   return (
     <div className="mx-auto max-w-xl lg:max-w-2xl px-4 py-4 lg:py-8 space-y-4">
-      {/* SPEC §9.14-9: 検索画面の見出しはDOMの先頭にh1を置き、下位見出しはh2に整理する（見た目は現状維持）。 */}
-      <h1 style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.5 }}>近い順に{visibleSpots.length}軒</h1>
+      {/* SPEC §9.14-9: 検索画面の見出しはDOMの先頭にh1を置き、下位見出しはh2に整理する（見た目は現状維持）。
+          Codex R9 重要2: tabIndex=-1 にして、結果差し替えでフォーカスが消えたときの移動先にする。 */}
+      <h1 ref={headingRef} tabIndex={-1} style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.5 }}>
+        {originPending ? "現在地を確認しています…" : `近い順に${visibleSpots.length}軒`}
+      </h1>
+
+      {/* Codex R9 重要2: 結果が確定・変化したことを常設のライブリージョンで通知する。 */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {statusMessage}
+      </p>
 
       <Input
         type="search"
@@ -152,38 +196,45 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
 
       <div className="space-y-2" aria-busy={isPending}>
         {isPending ? <p className="text-muted text-sm m-0">読み込み中…</p> : null}
-        <ul className="flex flex-col gap-1 list-none m-0 p-0">
-          {topList.map((spot) => (
-            <SpotListItem key={spot.id} spot={spot} distanceMeters={distances[spot.id]} />
-          ))}
-        </ul>
 
-        {bottomList.length > 0 ? (
-          <div className="space-y-2 mt-2">
-            <h2 className="text-muted m-0" style={{ fontFamily: "var(--font-body)", fontWeight: 700, fontSize: "0.875rem", lineHeight: 1.5 }}>
-              混みはじめた店
-            </h2>
+        {originPending ? (
+          <p className="text-muted text-sm m-0">現在地を確認しています…</p>
+        ) : (
+          <>
             <ul className="flex flex-col gap-1 list-none m-0 p-0">
-              {bottomList.map((spot) => (
+              {topList.map((spot) => (
                 <SpotListItem key={spot.id} spot={spot} distanceMeters={distances[spot.id]} />
               ))}
             </ul>
-          </div>
-        ) : null}
 
-        {visibleSpots.length === 0 ? (
-          <div className="space-y-2">
-            <p className="text-muted text-sm m-0">条件に合う店が見つかりませんでした。</p>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" className="btn btn-secondary" onClick={clearConditions}>
-                絞り込みを解除する
-              </button>
-              <Link href={`/${city.slug}/spots/new`} className="btn btn-secondary">
-                ピンを立てる
-              </Link>
-            </div>
-          </div>
-        ) : null}
+            {bottomList.length > 0 ? (
+              <div className="space-y-2 mt-2">
+                <h2 className="text-muted m-0" style={{ fontFamily: "var(--font-body)", fontWeight: 700, fontSize: "0.875rem", lineHeight: 1.5 }}>
+                  混みはじめた店
+                </h2>
+                <ul className="flex flex-col gap-1 list-none m-0 p-0">
+                  {bottomList.map((spot) => (
+                    <SpotListItem key={spot.id} spot={spot} distanceMeters={distances[spot.id]} />
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {visibleSpots.length === 0 ? (
+              <div className="space-y-2">
+                <p className="text-muted text-sm m-0">条件に合う店が見つかりませんでした。</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" className="btn btn-secondary" onClick={clearConditions}>
+                    絞り込みを解除する
+                  </button>
+                  <Link href={`/${city.slug}/spots/new`} className="btn btn-secondary">
+                    ピンを立てる
+                  </Link>
+                </div>
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
 
       <SortNote />

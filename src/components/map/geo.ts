@@ -90,6 +90,39 @@ export function useOrigin(fallback: LatLng): { origin: LatLng; resolved: boolean
   return state;
 }
 
+/**
+ * URLの `lat`/`lng`（共有リンクなどで明示された座標）を読む。無効・欠落なら null。
+ * 検索（SearchScreen）・地図（CityMapScreen）の両方で共通に使う
+ * （Codex R9 重要1: 基準点の決め方を1つに揃える）。
+ */
+export function parseUrlOrigin(searchParams: { get(name: string): string | null }): LatLng | null {
+  const lat = searchParams.get("lat");
+  const lng = searchParams.get("lng");
+  if (!lat || !lng) return null;
+  const parsedLat = Number(lat);
+  const parsedLng = Number(lng);
+  if (Number.isNaN(parsedLat) || Number.isNaN(parsedLng)) return null;
+  return { lat: parsedLat, lng: parsedLng };
+}
+
+/**
+ * 「徒歩10分」などの現在地依存の絞り込み・並び順に使う基準点を決める共通ヘルパー
+ * （Codex R9 重要1・2）。
+ * - URLに `lat`/`lng` が明示されていればそれを使う（共有リンクの座標を尊重）。この場合、
+ *   閲覧者の現在地とは無関係にその座標だけが基準になる（サーバー・クライアントの二重絞り込みを防ぐ）。
+ * - 無ければ `useOrigin`（Geolocation。解決待ちの間は `resolved: false` で街の中心を返す）。
+ */
+export function useResolvedOrigin(
+  fallback: LatLng,
+  urlOrigin: LatLng | null,
+): { origin: LatLng; resolved: boolean; isPrecise: boolean } {
+  const geoState = useOrigin(fallback);
+  if (urlOrigin) {
+    return { origin: urlOrigin, resolved: true, isPrecise: false };
+  }
+  return geoState;
+}
+
 /** 表示中のスポット群から距離マップ（spotId → メートル）を作る。 */
 export function buildDistanceMap(spots: Spot[], origin: LatLng): Record<string, number> {
   const map: Record<string, number> = {};

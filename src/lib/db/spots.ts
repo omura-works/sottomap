@@ -15,7 +15,7 @@
 //   - 並び順の4キー（静けさ・距離・最終確認・id）は spots 行だけで決まるので、関連データを取る前に
 //     行だけで並べて件数を絞り、関連データは表示する行の分だけまとめて取る（N+1 にしない）。
 
-import { computeWalkMinutes, haversineMeters, WITHIN_10MIN_METERS } from "../domain/geo";
+import { computeWalkMinutes, haversineMeters } from "../domain/geo";
 import { countAnswerableRequests, latestMissedRequestId } from "../domain/lifecycle";
 import { isWinterMonth } from "../domain/lantern";
 import { sortSpots } from "../domain/ordering";
@@ -96,16 +96,12 @@ function tagFilterSlugs(filters: string[] | undefined): string[] {
 /**
  * SPEC §9.14-5: 「まだ静か」チップは結果を除外しない（表示側で並べ替え・見出し分けするだけ）。
  * このため 'quiet-now' はここでは絞り込み条件として扱わない。
+ * Codex R9 重要1: 「徒歩10分」もサーバー側では絞り込まない（クライアントだけで判定する。
+ * サーバーの街中心基準と閲覧者の現在地基準を両方かけると積集合になり0件になりうるため）。
  */
-function matchesFilter(spot: Spot, filter: string, origin?: LatLng): boolean {
-  switch (filter) {
-    case "within-10min":
-      if (!origin) return true; // 現在地が無ければ絞り込みをスキップ
-      return haversineMeters(origin, { lat: spot.lat, lng: spot.lng }) <= WITHIN_10MIN_METERS;
-    default:
-      // day-only / cash-only / solo-ok 等のタグ slug
-      return spot.tags.some((tag) => tag.slug === filter);
-  }
+function matchesFilter(spot: Spot, filter: string): boolean {
+  // day-only / cash-only / solo-ok 等のタグ slug
+  return spot.tags.some((tag) => tag.slug === filter);
 }
 
 /** 検索語の正規化（前後の空白を除く）。空なら null。 */
@@ -146,9 +142,10 @@ function applySpotQuery(spots: Spot[], query: SpotQuery, cityCenter: LatLng): Sp
     result = result.filter((spot) => matchesQuery(spot, needle));
   }
   // SPEC §9.14-5: 'quiet-now' は絞り込み（除外）には使わない。表示側の並べ替え専用。
-  const activeExcludeFilters = (query.filters ?? []).filter((f) => f !== "quiet-now");
+  // Codex R9 重要1: 'within-10min' もサーバーでは絞り込まない（クライアント側だけで判定）。
+  const activeExcludeFilters = (query.filters ?? []).filter((f) => f !== "quiet-now" && f !== "within-10min");
   if (activeExcludeFilters.length > 0) {
-    result = result.filter((spot) => activeExcludeFilters.every((f) => matchesFilter(spot, f, query.origin)));
+    result = result.filter((spot) => activeExcludeFilters.every((f) => matchesFilter(spot, f)));
   }
 
   const origin = query.origin ?? cityCenter;
@@ -484,12 +481,9 @@ async function selectAndHydrate(
   options: { origin?: LatLng; filters?: string[]; limit?: number },
 ): Promise<Spot[]> {
   const origin = options.origin ?? { lat: city.centerLat, lng: city.centerLng };
+  // Codex R9 重要1: 'within-10min' はサーバーでは絞り込まない（クライアント側だけで判定する。
+  // サーバー基準点と閲覧者の現在地基準点の両方でかけると積集合になり0件になりうるため）。
   let candidates = rows;
-
-  if (options.filters?.includes("within-10min") && options.origin) {
-    const from = options.origin;
-    candidates = candidates.filter((row) => haversineMeters(from, { lat: row.lat, lng: row.lng }) <= WITHIN_10MIN_METERS);
-  }
 
   const tagSlugs = tagFilterSlugs(options.filters);
   if (tagSlugs.length > 0 && candidates.length > 0) {

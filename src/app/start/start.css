@@ -15,17 +15,24 @@
   animation: start-light-glow 4.2s ease-in-out infinite;
 }
 
+/* JSがまだ実行されていない最初のレンダー（data-motion属性が付く前）だけの fallback。
+   Codex R9 重要4: 実行後は data-motion 側のルールがこれより優先される。 */
 @media (prefers-reduced-motion: reduce) {
-  .start-screen .start-light {
+  .start-screen:not([data-motion]) .start-light {
     animation: none;
     opacity: 0.8;
   }
 }
 
-/* Codex R8 重要4: 「動きを止める」ボタンで灯りの明滅を止める（手順の巡回はJS側のタイマーで止める）。 */
-.start-screen .motion-paused .start-light {
-  animation-play-state: paused;
+/* Codex R9 重要4: 実効状態（userChoiceがあればそれ、無ければOS設定）は data-motion 属性で
+   表す。「動きを止める」ボタンで停止・再開のどちらでも、OS設定の reduce に関係なく反映する。 */
+.start-screen[data-motion="paused"] .start-light {
+  animation: none;
   opacity: 0.8;
+}
+
+.start-screen[data-motion="playing"] .start-light {
+  animation: start-light-glow 4.2s ease-in-out infinite;
 }
 
 /* 見た目は控えめ（縁取りのみの小さな文字）だが、当たり判定は44px以上（SPEC §9.14-14）。 */

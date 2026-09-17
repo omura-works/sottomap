@@ -153,7 +153,9 @@ describe("BookmarkList", () => {
       fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
       fireEvent.click(screen.getByRole("button", { name: "外す" }));
 
-      expect(screen.getByRole("status")).toHaveTextContent("栞から外しました。");
+      await waitFor(() =>
+        expect(screen.getByRole("status")).toHaveTextContent("シハチ鮮魚店 北24条店を栞から外しました。"),
+      );
       await waitFor(() =>
         expect(screen.getByRole("button", { name: "聖徳太子 飛鳥店を栞から外す" })).toHaveFocus(),
       );
@@ -199,13 +201,56 @@ describe("BookmarkList", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("栞から外せませんでした。");
     });
 
-    it("「やめる」で取り消すとライブリージョンが「そのままにしました。」を知らせる", () => {
+    it("「やめる」で取り消すとライブリージョンが「そのままにしました。」を知らせる", async () => {
       render(<BookmarkList initialItems={ITEMS} />);
 
       fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
       fireEvent.click(screen.getByRole("button", { name: "やめる" }));
 
-      expect(screen.getByRole("status")).toHaveTextContent("そのままにしました。");
+      await waitFor(() =>
+        expect(screen.getByRole("status")).toHaveTextContent("シハチ鮮魚店 北24条店はそのままにしました。"),
+      );
+    });
+
+    it("最後の1件を外しても通知が出る（0件でもライブリージョンは常設）", async () => {
+      vi.mocked(removeBookmarkAction).mockResolvedValueOnce(undefined);
+      render(<BookmarkList initialItems={[ITEMS[0]]} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
+      fireEvent.click(screen.getByRole("button", { name: "外す" }));
+
+      await waitFor(() => expect(screen.getByText("まだ栞に挟んだ店がありません。")).toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.getByRole("status")).toHaveTextContent("シハチ鮮魚店 北24条店を栞から外しました。"),
+      );
+    });
+
+    it("2回連続で外すと2回とも通知が変化する", async () => {
+      vi.mocked(removeBookmarkAction).mockResolvedValueOnce(undefined).mockResolvedValueOnce(undefined);
+      render(<BookmarkList initialItems={ITEMS} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "南樽市場を栞から外す" }));
+      fireEvent.click(screen.getByRole("button", { name: "外す" }));
+      await waitFor(() =>
+        expect(screen.getByRole("status")).toHaveTextContent("南樽市場を栞から外しました。"),
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "鱗友朝市を栞から外す" }));
+      fireEvent.click(screen.getByRole("button", { name: "外す" }));
+      await waitFor(() =>
+        expect(screen.getByRole("status")).toHaveTextContent("鱗友朝市を栞から外しました。"),
+      );
+    });
+
+    it("失敗時に成功文を出さない", async () => {
+      vi.mocked(removeBookmarkAction).mockRejectedValueOnce(new Error("network"));
+      render(<BookmarkList initialItems={ITEMS} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
+      fireEvent.click(screen.getByRole("button", { name: "外す" }));
+
+      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("栞から外せませんでした。"));
+      expect(screen.getByRole("status")).toHaveTextContent("");
     });
   });
 });

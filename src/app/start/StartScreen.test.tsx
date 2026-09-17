@@ -149,6 +149,35 @@ describe("StartScreen（SPEC §9.15 案B）", () => {
 
       expect(screen.getByRole("button", { name: "動きを再開する" })).toHaveAttribute("aria-pressed", "true");
     });
+
+    // Codex R9 重要4: 利用者の明示的な選択（userChoice）はOS設定の変化で上書きされない。
+    it("手動停止後にOS設定がreduce:falseへ変わっても停止のまま", () => {
+      const control = mockReducedMotion(false);
+      render(<StartScreen cities={CITIES} dataBySlug={DATA} defaultCitySlug="sapporo" />);
+
+      fireEvent.click(screen.getByRole("button", { name: "動きを止める" }));
+      expect(screen.getByRole("button", { name: "動きを再開する" })).toHaveAttribute("aria-pressed", "true");
+
+      act(() => {
+        control.setMatches(false);
+      });
+
+      expect(screen.getByRole("button", { name: "動きを再開する" })).toHaveAttribute("aria-pressed", "true");
+      expect(document.querySelector(".start-screen")).toHaveAttribute("data-motion", "paused");
+    });
+
+    it("OSがreduceのままでも「動きを再開する」を押すとdata-motion=playingになる", async () => {
+      mockReducedMotion(true);
+      render(<StartScreen cities={CITIES} dataBySlug={DATA} defaultCitySlug="sapporo" />);
+
+      const toggle = await screen.findByRole("button", { name: "動きを再開する" });
+      expect(document.querySelector(".start-screen")).toHaveAttribute("data-motion", "paused");
+
+      fireEvent.click(toggle);
+
+      expect(screen.getByRole("button", { name: "動きを止める" })).toHaveAttribute("aria-pressed", "false");
+      expect(document.querySelector(".start-screen")).toHaveAttribute("data-motion", "playing");
+    });
   });
 
   it("軽微1: 街を切り替えたときの件数の文章はライブリージョンで知らせる", () => {
