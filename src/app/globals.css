@@ -424,11 +424,25 @@ button.tag::after {
   position: absolute;
   inset: -11px;
 }
-/* SPEC §9.14-16: FilterChips は gap:6px で隙間が狭く、-11px の拡張だと隣接チップの
-   タップ領域が重なる（折返し行の後続チップがタップを奪う恐れがある）。
-   `.chip-group` 内だけ拡張量を gap の半分以下に抑え、重ならないようにする。 */
-.chip-group button.tag::after {
-  inset: -3px;
+/* SPEC §9.14-14: FilterChips は、見た目のタグ（span）を 44×44px 以上の透明なボタンで包む。
+   疑似要素で広げると gap:6px の隣接チップと判定が重なるため、ボタン自体の大きさで確保する。 */
+.chip-hit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.chip-hit:focus-visible {
+  outline: none;
+}
+.chip-hit:focus-visible .tag {
+  outline: 2px solid var(--color-accent-600);
+  outline-offset: 2px;
 }
 .tag-accent {
   background: var(--color-accent-100);

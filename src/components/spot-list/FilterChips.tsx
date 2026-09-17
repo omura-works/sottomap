@@ -19,14 +19,22 @@ export function FilterChips({ active, onToggle, className }: FilterChipsProps) {
       className={className ? `chip-group ${className}` : "chip-group"}
       role="group"
       aria-label="絞り込み"
-      style={{ display: "flex", flexWrap: "wrap", gap: 6 }}
+      style={{ display: "flex", flexWrap: "wrap", columnGap: 6, rowGap: 0 }}
     >
       {FILTER_OPTIONS.map((option) => {
         const isActive = active.includes(option.slug);
+        // SPEC §9.14-14: 当たり判定は 44×44px 以上の透明なボタン全体。見た目のタグはその中に置く
+        // （隣のチップとは列の gap、上下の行とはボタンの高さで区切られ、判定が重ならない）。
         return (
-          <Tag key={option.slug} as="button" kind={isActive ? "accent" : "outline"} aria-pressed={isActive} onClick={() => onToggle(option.slug)}>
-            {option.label}
-          </Tag>
+          <button
+            key={option.slug}
+            type="button"
+            className="chip-hit"
+            aria-pressed={isActive}
+            onClick={() => onToggle(option.slug)}
+          >
+            <Tag kind={isActive ? "accent" : "outline"}>{option.label}</Tag>
+          </button>
         );
       })}
     </div>

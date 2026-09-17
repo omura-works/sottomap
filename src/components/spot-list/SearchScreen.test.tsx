@@ -5,13 +5,17 @@ import { SearchScreen } from "./SearchScreen";
 
 // SPEC §9.14-14: デバウンスのタイマーが古い searchParams を閉じ込めないことを検証するため、
 // router.replace で更新した URL を useSearchParams が読み返すように、簡易な可変ストアを使う。
-const { getParams, replaceMock } = vi.hoisted(() => {
+// slow を true にすると、router.replace を呼んでも useSearchParams が古い URL を返し続ける
+// （遷移が 300ms 以上終わらない状態）を再現する。
+const { getParams, replaceMock, nav } = vi.hoisted(() => {
   let current = new URLSearchParams();
+  const nav = { slow: false, reset: () => (current = new URLSearchParams()) };
   const replaceMock = vi.fn((url: string) => {
+    if (nav.slow) return;
     const [, qs = ""] = url.split("?");
     current = new URLSearchParams(qs);
   });
-  return { getParams: () => current, replaceMock };
+  return { getParams: () => current, replaceMock, nav };
 });
 
 vi.mock("next/navigation", () => ({
@@ -42,6 +46,8 @@ describe("SearchScreen", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     replaceMock.mockClear();
+    nav.slow = false;
+    nav.reset();
   });
 
   afterEach(() => {
@@ -49,7 +55,7 @@ describe("SearchScreen", () => {
   });
 
   it("SPEC §9.14-14: 入力直後にチップを操作しても、後発の検索語反映がチップ条件を消さない", () => {
-    const { rerender } = render(<SearchScreen city={CITY} spots={[]} activeFilters={[]} query="" />);
+    const { rerender } = render(<SearchScreen city={CITY} spots={[]} activeFilters={["quiet-now"]} query="" />);
 
     // 検索語を入力（まだ300msのデバウンスは発火していない）。
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "海鮮丼" } });
@@ -58,12 +64,12 @@ describe("SearchScreen", () => {
     });
 
     // デバウンス完了前にチップをタップ。即座に filters が URL へ反映される。
-    fireEvent.click(screen.getByRole("button", { name: "まだ静か" }));
+    fireEvent.click(screen.getByRole("button", { name: "昼だけ" }));
     expect(replaceMock).toHaveBeenCalledTimes(1);
-    expect(replaceMock.mock.calls[0][0]).toContain("filters=quiet-now");
+    expect(replaceMock.mock.calls[0][0]).toContain("filters=quiet-now%2Cday-only");
 
     // チップ操作後に画面が再描画され、useSearchParams が最新のURLを返すようになる想定。
-    rerender(<SearchScreen city={CITY} spots={[]} activeFilters={["quiet-now"]} query="" />);
+    rerender(<SearchScreen city={CITY} spots={[]} activeFilters={["quiet-now", "day-only"]} query="" />);
 
     // 残りのデバウンス時間が経過し、検索語がURLへ反映される。
     act(() => {
@@ -73,7 +79,38 @@ describe("SearchScreen", () => {
     expect(replaceMock).toHaveBeenCalledTimes(2);
     const lastUrl = replaceMock.mock.calls[1][0] as string;
     expect(lastUrl).toContain("q=%E6%B5%B7%E9%AE%AE%E4%B8%BC");
-    expect(lastUrl).toContain("filters=quiet-now");
+    expect(lastUrl).toContain("filters=quiet-now%2Cday-only");
+  });
+
+  it("遷移が300ms以上終わらず再描画もされなくても、検索語の反映がチップ条件を消さない", () => {
+    nav.slow = true;
+    render(<SearchScreen city={CITY} spots={[]} activeFilters={["quiet-now"]} query="" />);
+
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "海鮮丼" } });
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "昼だけ" }));
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(replaceMock).toHaveBeenCalledTimes(2);
+    const lastUrl = replaceMock.mock.calls[1][0] as string;
+    expect(lastUrl).toContain("q=%E6%B5%B7%E9%AE%AE%E4%B8%BC");
+    expect(lastUrl).toContain("filters=quiet-now%2Cday-only");
+  });
+
+  it("遷移中にチップを続けて押しても、両方の条件が残る", () => {
+    nav.slow = true;
+    render(<SearchScreen city={CITY} spots={[]} activeFilters={["quiet-now"]} query="" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "昼だけ" }));
+    fireEvent.click(screen.getByRole("button", { name: "現金のみ" }));
+
+    const lastUrl = replaceMock.mock.calls.at(-1)?.[0] as string;
+    const filters = new URLSearchParams(lastUrl.split("?")[1]).get("filters")?.split(",") ?? [];
+    expect(filters).toEqual(expect.arrayContaining(["quiet-now", "day-only", "cash-only"]));
   });
 
   it("SPEC §9.14-14: ブラウザの戻る操作で入力欄がURLのqueryに同期する", () => {

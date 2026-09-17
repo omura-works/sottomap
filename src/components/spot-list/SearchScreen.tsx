@@ -8,6 +8,7 @@ import { Input } from "@/components/ui";
 import { buildDistanceMap, useOrigin } from "@/components/map/geo";
 import { splitByQuietness } from "@/lib/domain/ordering";
 import { FilterChips } from "./FilterChips";
+import { parseFiltersParam } from "./filters";
 import { SpotListItem } from "./SpotListItem";
 import { SortNote } from "./SortNote";
 
@@ -46,9 +47,11 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
   // `updateParams` の依存に `searchParams` を含めると、直前の入力で作られたタイマーの
   // クロージャが古い `searchParams`（チップ操作前の状態）を閉じ込め、後から発火したときに
   // チップの条件を消してしまう。
-  const searchParamsRef = useRef(searchParams);
+  // さらに、router.replace が完了して useSearchParams が更新されるまでの間も、
+  // 直前に作った URL を正とするため、updateParams が遷移を始める前に ref を先に進める。
+  const searchParamsRef = useRef(searchParams.toString());
   useEffect(() => {
-    searchParamsRef.current = searchParams;
+    searchParamsRef.current = searchParams.toString();
   }, [searchParams]);
 
   const fallbackCenter = useMemo(() => ({ lat: city.centerLat, lng: city.centerLng }), [city.centerLat, city.centerLng]);
@@ -57,7 +60,7 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
 
   const updateParams = useCallback(
     (updates: Record<string, string | null>) => {
-      const params = new URLSearchParams(searchParamsRef.current.toString());
+      const params = new URLSearchParams(searchParamsRef.current);
       for (const [key, value] of Object.entries(updates)) {
         if (value === null || value === "") {
           params.delete(key);
@@ -65,6 +68,7 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
           params.set(key, value);
         }
       }
+      searchParamsRef.current = params.toString();
       // SPEC §9.14-7: 検索の遷移中は aria-busy と待機表示を出す。
       startTransition(() => {
         router.replace(`${pathname}?${params.toString()}`, { scroll: false });
@@ -99,10 +103,12 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
 
   const toggleFilter = useCallback(
     (slug: string) => {
-      const next = activeFilters.includes(slug) ? activeFilters.filter((f) => f !== slug) : [...activeFilters, slug];
+      // 遷移中に続けて押された場合も取りこぼさないよう、props ではなく直前に作った URL から現在の条件を読む。
+      const current = parseFiltersParam(new URLSearchParams(searchParamsRef.current).get("filters"));
+      const next = current.includes(slug) ? current.filter((f) => f !== slug) : [...current, slug];
       updateParams({ filters: next.length > 0 ? next.join(",") : "none" });
     },
-    [activeFilters, updateParams],
+    [updateParams],
   );
 
   const clearConditions = useCallback(() => {
@@ -131,7 +137,7 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
       />
 
       <div className="space-y-2">
-        <h2 className="text-sm text-muted" style={{ fontFamily: "var(--font-body)", fontWeight: 700 }}>
+        <h2 className="text-muted" style={{ fontFamily: "var(--font-body)", fontWeight: 700, fontSize: "0.875rem", lineHeight: 1.5 }}>
           絞る
         </h2>
         <FilterChips active={activeFilters} onToggle={toggleFilter} />
@@ -147,7 +153,7 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
 
         {bottomList.length > 0 ? (
           <div className="space-y-2 mt-2">
-            <h2 className="text-sm text-muted m-0" style={{ fontWeight: 700 }}>
+            <h2 className="text-muted m-0" style={{ fontFamily: "var(--font-body)", fontWeight: 700, fontSize: "0.875rem", lineHeight: 1.5 }}>
               混みはじめた店
             </h2>
             <ul className="flex flex-col gap-1 list-none m-0 p-0">

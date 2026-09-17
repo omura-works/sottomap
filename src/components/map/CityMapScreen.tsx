@@ -7,7 +7,7 @@ import type { City, Spot } from "@/lib/db/types";
 import { daysSince } from "@/lib/domain/lifecycle";
 import { Card } from "@/components/ui";
 import { AddBookmarkButton } from "@/components/bookmark/AddBookmarkButton";
-import { DEFAULT_ACTIVE_FILTERS, FilterChips, SpotListItem } from "@/components/spot-list";
+import { FilterChips, SpotListItem } from "@/components/spot-list";
 import { splitByQuietness } from "@/lib/domain/ordering";
 import { MapCanvas } from "./index";
 import type { MapPin, MapPoint } from "./index";
@@ -91,10 +91,9 @@ export function CityMapScreen({
 
   // SPEC §9.14-16: 条件（絞り込みチップ・栞からの絞り込み）付きの0件と、
   // 街に本当に店が無い0件とで空状態の文言を分ける。
-  const isDefaultFilters =
-    activeFilters.length === DEFAULT_ACTIVE_FILTERS.length &&
-    activeFilters.every((slug) => DEFAULT_ACTIVE_FILTERS.includes(slug));
-  const hasConditions = !isDefaultFilters || focusedSpotIds !== null;
+  // 「まだ静か」は除外しない（§9.14-5）ので、ON/OFF どちらでも条件とはみなさない。
+  const hasExcludingFilter = activeFilters.some((slug) => slug !== "quiet-now");
+  const hasConditions = hasExcludingFilter || focusedSpotIds !== null;
 
   const selectedSpot = visibleSpots.find((s) => s.id === selectedId) ?? null;
   const hoveredSpot = hover ? (visibleSpots.find((s) => s.id === hover.id) ?? null) : null;
@@ -177,7 +176,9 @@ export function CityMapScreen({
             </ul>
             {bottomSpots.length > 0 ? (
               <div className="space-y-1">
-                <h4 className="text-sm text-muted m-0">混みはじめた店</h4>
+                <h4 className="text-muted m-0" style={{ fontSize: "0.875rem", lineHeight: 1.5 }}>
+                  混みはじめた店
+                </h4>
                 <ul className="flex flex-col gap-1 list-none m-0 p-0">
                   {bottomSpots.map((spot) => (
                     <SpotListItem
@@ -253,6 +254,8 @@ export function CityMapScreen({
           onBackgroundClick={() => setSelectedId(null)}
           fitToPins={Boolean(focusedSpotIds)}
           className="absolute inset-0"
+          // 右上には街名カードと「栞」の丸ボタンが重なるため、ズームボタンは左下に置く（右下は「＋」と出典）。
+          controlsPosition="bottom-left"
         />
 
         {/* 右下の丸い＋（ピンを立てる） */}
