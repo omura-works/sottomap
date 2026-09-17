@@ -19,3 +19,6 @@ yarn-error.log*
 docs/design-reference/original-canvas.html
 # MapLibre の Worker（predev/prebuild で node_modules からコピーする生成物）
 public/maplibre/
+
+# Claude Code の作業用 worktree
+.claude/worktrees/
