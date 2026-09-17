@@ -573,3 +573,8 @@ button.tag::after {
 .input {
   padding-inline: 14px;
 }
+
+/* 街の地図: 右上に重なる「栞」の丸ボタン（上端 12px＋高さ 36px 程度）の下にズームボタンを置く。 */
+.city-map .maplibregl-ctrl-top-right {
+  top: 56px;
+}

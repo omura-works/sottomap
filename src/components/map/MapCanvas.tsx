@@ -50,8 +50,6 @@ export interface MapCanvasProps {
   tileUrlTemplate?: string;
   /** 出典表記。既定は「地理院タイル」。 */
   attribution?: string;
-  /** ズームボタンの位置。画面側の重ねボタンと重なる場合に変える。既定は右上。 */
-  controlsPosition?: "top-right" | "top-left" | "bottom-right" | "bottom-left";
 }
 
 export const DEFAULT_TILE_URL_TEMPLATE = "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png";
@@ -116,7 +114,6 @@ export function MapCanvas({
   className,
   tileUrlTemplate = DEFAULT_TILE_URL_TEMPLATE,
   attribution = DEFAULT_ATTRIBUTION,
-  controlsPosition = "top-right",
 }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -161,7 +158,7 @@ export function MapCanvas({
       attributionControl: false,
     });
 
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), controlsPosition);
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
     map.on("click", (event) => {
       // マーカー要素上のクリックは個別ハンドラで stopPropagation 済みなので、

@@ -39,6 +39,30 @@ test.describe("モバイル導線", () => {
     await expect(bottomCard.getByText("魚屋の直営。地元の値段のまま、海鮮丼になって出てくる。", { exact: true })).toBeVisible();
   });
 
+  test("ピン選択中も、ズームボタン・栞ボタン・下部カードがほかの要素に覆われずにタップできる", async ({ page }) => {
+    await page.goto("/sapporo");
+    const pin = page.getByRole("button", { name: /シハチ鮮魚店 北24条店/ });
+    await expect(pin).toBeVisible();
+    await pin.tap();
+    await expect(page.getByRole("link", { name: "この店を読む" })).toBeVisible();
+
+    // 各要素の中心で一番上にある要素が、その要素自身（または子孫）であること。
+    const topmost = async (selector: string) =>
+      page.locator(selector).first().evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const top = document.elementFromPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2);
+        return top !== null && el.contains(top);
+      });
+    expect(await topmost(".maplibregl-ctrl-zoom-in")).toBe(true);
+    expect(await topmost(".maplibregl-ctrl-zoom-out")).toBe(true);
+    expect(await page.getByRole("link", { name: "栞", exact: true }).first().isVisible()).toBe(true);
+    expect(await topmost('main a[aria-label="栞"]')).toBe(true);
+
+    // 実際にズームボタンを押せる（下部カードは閉じない＝地図の背景クリック扱いにならない）。
+    await page.locator(".maplibregl-ctrl-zoom-in").tap();
+    await expect(page.getByRole("link", { name: "この店を読む" })).toBeVisible();
+  });
+
   test("SPEC §9.14-4/14: タップで栞に挟むと、複数都市それぞれの「地図にまとめる」ボタンに分かれる", async ({
     page,
   }) => {

@@ -200,9 +200,10 @@ export function CityMapScreen({
       {/* 地図（モバイルは全面、PCは右ペイン） */}
       <div className="relative flex-1 min-w-0 h-full">
         {/* S2: モバイル上部ヘッダ（街名／「静かなまま、N軒」／栞導線） */}
-        <div className="lg:hidden absolute top-0 inset-x-0 z-10 flex items-start justify-between gap-2 p-3">
+        <div className="lg:hidden absolute top-0 inset-x-0 z-10 flex items-start justify-between gap-2 p-3 pointer-events-none">
+          {/* 全幅の透明な枠がズームボタンへのタップを奪わないよう、枠は素通しにして中身だけ操作を受ける */}
           <div
-            className="flex-1"
+            className="flex-1 pointer-events-auto"
             style={{ background: "var(--color-bg)", borderRadius: "var(--radius-md)", padding: "8px 14px", boxShadow: "var(--shadow-md)" }}
           >
             {/* SPEC §9.14-11: モバイル側の意味上のh1（デスクトップ側のh1とはCSSで排他表示）。 */}
@@ -237,7 +238,7 @@ export function CityMapScreen({
           <Link
             href="/bookmarks"
             aria-label="栞"
-            className="btn btn-secondary btn-icon"
+            className="btn btn-secondary btn-icon pointer-events-auto"
             style={{ background: "var(--color-bg)", boxShadow: "var(--shadow-md)" }}
           >
             栞
@@ -253,9 +254,9 @@ export function CityMapScreen({
           onHoverPin={(id, point) => setHover(id && point ? { id, point } : null)}
           onBackgroundClick={() => setSelectedId(null)}
           fitToPins={Boolean(focusedSpotIds)}
-          className="absolute inset-0"
-          // 右上には街名カードと「栞」の丸ボタンが重なるため、ズームボタンは左下に置く（右下は「＋」と出典）。
-          controlsPosition="bottom-left"
+          // 右上のズームボタンは「栞」の丸ボタンと重なるため、.city-map で栞ボタンの下へずらす
+          // （下部は選択カード・「＋」・出典が占めるので置かない）。
+          className="absolute inset-0 city-map"
         />
 
         {/* 右下の丸い＋（ピンを立てる） */}
