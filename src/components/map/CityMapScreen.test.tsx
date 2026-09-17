@@ -136,12 +136,30 @@ describe("CityMapScreen", () => {
     expect(screen.getAllByText("札幌・北24条").length).toBeGreaterThan(0);
   });
 
-  it("SPEC §9.14-15: 表示スポットが0件のとき、条件解除ではなく投稿への導線を出す", () => {
+  it("SPEC §9.14-16: 絞り込みチップが既定と異なり0件のとき、条件に合う旨と解除導線を出す", () => {
     render(
       <CityMapScreen city={CITY} spots={[]} quietCount={0} featuredArea={null} activeFilters={[]} focusedSpotIds={null} />,
     );
 
-    expect(screen.getByText("条件に合う店が見つかりませんでした。")).toBeInTheDocument();
+    expect(screen.getAllByText("条件に合う店が見つかりませんでした。").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: "ピンを立てる" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "絞り込みを解除する" }).length).toBeGreaterThan(0);
+  });
+
+  it("SPEC §9.14-16: 絞り込みが既定のまま0件（本当に未登録）なら「まだ店がありません。」を出し、解除導線は出さない", () => {
+    render(
+      <CityMapScreen
+        city={CITY}
+        spots={[]}
+        quietCount={0}
+        featuredArea={null}
+        activeFilters={["quiet-now"]}
+        focusedSpotIds={null}
+      />,
+    );
+
+    expect(screen.getAllByText("まだ店がありません。").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "絞り込みを解除する" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "ピンを立てる" }).length).toBeGreaterThan(0);
   });
 });

@@ -6,18 +6,26 @@ export interface FieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
   label: string;
   maxLength?: number;
   value?: string;
-  hint?: ReactNode;
+  /** 通常の補足文（スタイルガイドの「正直な理由を一言で。」など）。エラー扱いはしない。 */
+  description?: ReactNode;
+  /** 入力エラー。指定時のみ `aria-invalid` / `role="alert"` を付ける。 */
+  error?: ReactNode;
 }
 
 /**
  * label + input + （maxLength指定時のみ）文字数カウンタ。
  * 例: 「なぜ、あなたはここへ行くのか（60字まで）」で `maxLength={60}` を渡す。
+ *
+ * SPEC §9.14-16: `description`（補足）と `error` は別 prop。
+ * `aria-invalid` と `role="alert"` は `error` のときだけ付ける。
  */
-export function Field({ label, maxLength, value, hint, id, className, ...props }: FieldProps) {
+export function Field({ label, maxLength, value, description, error, id, className, ...props }: FieldProps) {
   const autoId = useId();
   const inputId = id ?? autoId;
-  const hintId = `${inputId}-hint`;
+  const descriptionId = `${inputId}-description`;
+  const errorId = `${inputId}-error`;
   const length = value?.length ?? 0;
+  const describedBy = [description ? descriptionId : null, error ? errorId : null].filter(Boolean).join(" ") || undefined;
 
   return (
     <div className={cn("field", className)}>
@@ -27,8 +35,8 @@ export function Field({ label, maxLength, value, hint, id, className, ...props }
         className="input"
         maxLength={maxLength}
         value={value}
-        aria-invalid={hint ? true : undefined}
-        aria-describedby={hint ? hintId : undefined}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy}
         {...props}
       />
       {typeof maxLength === "number" ? (
@@ -36,9 +44,14 @@ export function Field({ label, maxLength, value, hint, id, className, ...props }
           {length}/{maxLength}
         </div>
       ) : null}
-      {hint ? (
-        <div id={hintId} className="field-hint" role="alert">
-          {hint}
+      {description ? (
+        <div id={descriptionId} className="field-hint">
+          {description}
+        </div>
+      ) : null}
+      {error ? (
+        <div id={errorId} className="field-hint" role="alert">
+          {error}
         </div>
       ) : null}
     </div>

@@ -14,6 +14,18 @@ export const VISIT_FREQUENCY_OPTIONS: Array<{ value: VisitFrequency; label: stri
 /** SPEC §4 S5「なぜ、あなたはここへ行くのか（60字まで）」の上限。 */
 export const REASON_MAX_LENGTH = 60;
 
+/**
+ * 緯度・経度は空文字だと「未選択」を表す。`z.coerce.number()` は `Number("")`（=0）を
+ * 有効な数値として通してしまうため、空文字は明示的に `undefined`（必須エラー）へ倒す。
+ * SPEC §9.14-15: 地図のピンと緯度経度入力は同格の代替手段。
+ */
+const coerceOptionalNumber = (value: unknown) => {
+  if (typeof value === "string" && value.trim() === "") return undefined;
+  return value;
+};
+
+const POSITION_REQUIRED_ERROR = "地図で位置を選ぶか、緯度・経度を入力してください";
+
 export const newSpotSchema = z.object({
   cityId: z.string().min(1, "街の情報が取得できませんでした"),
   name: z
@@ -29,14 +41,20 @@ export const newSpotSchema = z.object({
   visitFrequency: z.enum(["weekly", "monthly", "yearly"], {
     error: "頻度を選んでください",
   }),
-  lat: z.coerce
-    .number({ error: "地図でピンの位置を選んでください" })
-    .min(-90, "緯度は-90から90の範囲で入力してください")
-    .max(90, "緯度は-90から90の範囲で入力してください"),
-  lng: z.coerce
-    .number({ error: "地図でピンの位置を選んでください" })
-    .min(-180, "経度は-180から180の範囲で入力してください")
-    .max(180, "経度は-180から180の範囲で入力してください"),
+  lat: z.preprocess(
+    coerceOptionalNumber,
+    z.coerce
+      .number({ error: POSITION_REQUIRED_ERROR })
+      .min(-90, "緯度は-90から90の範囲で入力してください")
+      .max(90, "緯度は-90から90の範囲で入力してください"),
+  ),
+  lng: z.preprocess(
+    coerceOptionalNumber,
+    z.coerce
+      .number({ error: POSITION_REQUIRED_ERROR })
+      .min(-180, "経度は-180から180の範囲で入力してください")
+      .max(180, "経度は-180から180の範囲で入力してください"),
+  ),
 });
 
 export type NewSpotInput = z.infer<typeof newSpotSchema>;
