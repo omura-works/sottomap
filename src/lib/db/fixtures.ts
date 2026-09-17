@@ -14,10 +14,16 @@
 // 対象スポットの投稿者のみ挿入可・Spec §9.2）では起こり得ない「投稿者以外のユーザーによる
 // 確認」を意図的にシード投入している。これは本番運用では発生しない、デモ表示専用の
 // 架空データである（§7「確認人数…はUI上の架空データ」の一部）。
+//
+// 【seed.sql に無い、デモモード専用のデータ】（Spec §7「シードは実在する店のみ」のため seed には入れない）
+//   - 北24条の小さな喫茶店（pending。承認の導線）
+//   - 大通の小さな定食屋／大通の古い蕎麦屋（published。デモ利用者 Aさん（札幌在住）が投稿者で、
+//     期限到来済みの確認依頼・期限前の確認依頼を持つ。確認の導線と E2E に使う）
+// それ以外（実在6店の投稿者・静けさ・時刻・確認履歴）は seed.sql と一致させる。
 
+import { isWinterMonth } from "../domain/lantern";
 import { countAnswerableRequests, isMissed } from "../domain/lifecycle";
 import { nextDayAtTokyoTime } from "../format/date-time";
-import { resolveQuietness } from "../domain/quietness";
 import type {
   Badge,
   Bookmark,
@@ -86,6 +92,7 @@ export const FIXTURE_BADGE_DEFS: Array<Pick<Badge, "slug" | "glyph" | "label">> 
 interface FixtureUser {
   id: string;
   displayName: string;
+  /** mutable: setFixtureUserHomeCity が変える（resetFixtureUserHomeCities で初期値に戻す）。 */
   homeCitySlug: string;
   areaName: string;
   residentYears: number;
@@ -106,6 +113,9 @@ const FIXTURE_USERS: FixtureUser[] = [
   { id: "b0000000-0000-4000-8000-00000000000a", displayName: "Yさん", homeCitySlug: "otaru", areaName: "塩谷", residentYears: 4, lanternPoints: 10, createdAtDaysAgo: 600 },
 ];
 
+/** 居住街の初期値（テスト間で元に戻すため）。 */
+const INITIAL_HOME_CITY_SLUGS = new Map(FIXTURE_USERS.map((u) => [u.id, u.homeCitySlug]));
+
 function findUser(id: string): FixtureUser {
   const user = FIXTURE_USERS.find((u) => u.id === id);
   if (!user) throw new Error(`fixture user not found: ${id}`);
@@ -123,7 +133,7 @@ function findCityById(id: string): City | null {
 }
 
 // =========================================================
-// 5. spots（実在6店＋デモ操作用の承認待ち1店。実在店は supabase/seed.sql と同じ実データ）
+// 5. spots（実在6店＋デモモード専用の架空3店。実在店は supabase/seed.sql と同じ実データ）
 //    reason（引用・説明文）は Spec §9.8「D1 の店3件の説明」の文言に一字一句合わせてある。
 // =========================================================
 interface RawSpot {
@@ -136,7 +146,8 @@ interface RawSpot {
   lat: number;
   lng: number;
   status: SpotStatus;
-  initialQuietness: Quietness;
+  /** spots.quietness（現在の静けさの正本。seed.sql の値と同じ）。 */
+  quietness: Quietness;
   reason: string;
   hoverDescription?: string;
   visitFrequency: VisitFrequency;
@@ -160,7 +171,7 @@ const RAW_SPOTS: RawSpot[] = [
     lat: 43.0847,
     lng: 141.3486,
     status: "published",
-    initialQuietness: "quiet",
+    quietness: "quiet",
     // Spec §9.8 D1「店3件の説明」1件目（一字一句）。
     reason: "魚屋の直営。地元の値段のまま、海鮮丼になって出てくる。",
     hoverDescription: "魚屋の直営。狸小路の方が行きやすいが、こちらの方が安い。",
@@ -183,7 +194,7 @@ const RAW_SPOTS: RawSpot[] = [
     lat: 43.0552,
     lng: 141.354,
     status: "published",
-    initialQuietness: "quiet",
+    quietness: "quiet",
     // Spec §9.8 D1「店3件の説明」2件目（一字一句）。
     reason: "ザンギは唐揚げではない、と地元は言う。持ち帰りもできる。",
     visitFrequency: "weekly",
@@ -205,7 +216,7 @@ const RAW_SPOTS: RawSpot[] = [
     lat: 43.0562,
     lng: 141.3534,
     status: "published",
-    initialQuietness: "quiet",
+    quietness: "crowding",
     // Spec §9.8 D1「店3件の説明」3件目（一字一句）。
     reason: "味噌。夜のすすきので、地元が最後に寄る一杯。",
     visitFrequency: "monthly",
@@ -227,17 +238,14 @@ const RAW_SPOTS: RawSpot[] = [
     lat: 43.1937,
     lng: 140.9989,
     status: "published",
-    initialQuietness: "quiet",
+    quietness: "quiet",
     reason: "小樽駅から徒歩10分。観光通りから少し外れているぶん、地元の昼どきが静か。",
     visitFrequency: "weekly",
-    // デモ利用者が確認依頼へ回答できる通常データとして割り当てる。
-    // Spec §9.13.3: 回答できるのは期限（due_at）を過ぎた open の依頼だけなので、
-    // 前回の確認から92日・期限を2日過ぎた状態にしてある（E2E の回答フローもこの依頼を使う）。
-    authorId: "b0000000-0000-4000-8000-000000000004",
+    authorId: "b0000000-0000-4000-8000-000000000006",
     photoUrl: null,
     publishedAtDaysAgo: 395,
-    nextVerificationAtDaysAgo: 2,
-    lastVerifiedAtDaysAgo: 92,
+    nextVerificationAtDaysAgo: -50,
+    lastVerifiedAtDaysAgo: 40,
     createdAtDaysAgo: 400,
     tagSlugs: [],
   },
@@ -251,12 +259,10 @@ const RAW_SPOTS: RawSpot[] = [
     lat: 43.1875,
     lng: 140.9925,
     status: "published",
-    initialQuietness: "quiet",
+    quietness: "quiet",
     reason: "観光客は三角市場へ行く。地元は南樽で買う。",
     visitFrequency: "weekly",
-    // デモ利用者の2件目の投稿。確認依頼 80000000-...-05 は期限前（75日後）のままにしてあり、
-    // Spec §9.13.3「期限前の依頼には回答フォームを出さない」を E2E で確かめるのに使う。
-    authorId: "b0000000-0000-4000-8000-000000000004",
+    authorId: "b0000000-0000-4000-8000-000000000007",
     photoUrl: null,
     publishedAtDaysAgo: 495,
     nextVerificationAtDaysAgo: -75,
@@ -274,7 +280,7 @@ const RAW_SPOTS: RawSpot[] = [
     lat: 43.2004,
     lng: 140.9944,
     status: "published",
-    initialQuietness: "touristy",
+    quietness: "touristy",
     reason: "朝のうちに行くのが地元の流儀。昼が近づくほど観光バスが増える。",
     visitFrequency: "monthly",
     authorId: "b0000000-0000-4000-8000-000000000008",
@@ -295,7 +301,7 @@ const RAW_SPOTS: RawSpot[] = [
     lat: 43.087,
     lng: 141.345,
     status: "pending",
-    initialQuietness: "quiet",
+    quietness: "quiet",
     reason: "通りから一本入った、近所の人が静かに過ごす喫茶店。",
     visitFrequency: "monthly",
     authorId: "b0000000-0000-4000-8000-000000000002",
@@ -306,6 +312,53 @@ const RAW_SPOTS: RawSpot[] = [
     createdAtDaysAgo: 2,
     tagSlugs: [],
   },
+  {
+    // デモモード専用（架空）。デモ利用者 Aさん（札幌・大通）の投稿。
+    // Spec §9.13.3: 回答できるのは期限（due_at）を過ぎた open の依頼だけなので、
+    // 前回の確認から92日・期限を2日過ぎた状態にしてある（確認依頼 80000000-...-08。E2E の回答フローに使う）。
+    id: "d0000000-0000-4000-8000-000000000008",
+    citySlug: "sapporo",
+    name: "大通の小さな定食屋",
+    address: "北海道札幌市中央区大通西7丁目",
+    areaName: "大通",
+    category: "定食",
+    lat: 43.0598,
+    lng: 141.3462,
+    status: "published",
+    quietness: "crowding",
+    reason: "昼どきは勤め人で埋まるが、二時を過ぎると近所の人だけになる。",
+    visitFrequency: "weekly",
+    authorId: "b0000000-0000-4000-8000-000000000004",
+    photoUrl: null,
+    publishedAtDaysAgo: 182,
+    nextVerificationAtDaysAgo: 2,
+    lastVerifiedAtDaysAgo: 92,
+    createdAtDaysAgo: 190,
+    tagSlugs: [],
+  },
+  {
+    // デモモード専用（架空）。デモ利用者 Aさんの2件目の投稿。確認依頼 80000000-...-09 は期限前（75日後）で、
+    // Spec §9.13.3「期限前の依頼には回答フォームを出さない」を E2E で確かめるのに使う。
+    id: "d0000000-0000-4000-8000-000000000009",
+    citySlug: "sapporo",
+    name: "大通の古い蕎麦屋",
+    address: "北海道札幌市中央区大通西9丁目",
+    areaName: "大通",
+    category: "蕎麦",
+    lat: 43.0594,
+    lng: 141.3431,
+    status: "published",
+    quietness: "crowding",
+    reason: "昼は並ぶ。夕方の早い時間なら、まだ静かに手繰れる。",
+    visitFrequency: "monthly",
+    authorId: "b0000000-0000-4000-8000-000000000004",
+    photoUrl: null,
+    publishedAtDaysAgo: 110,
+    nextVerificationAtDaysAgo: -75,
+    lastVerifiedAtDaysAgo: 15,
+    createdAtDaysAgo: 120,
+    tagSlugs: [],
+  },
 ];
 
 // =========================================================
@@ -313,14 +366,16 @@ const RAW_SPOTS: RawSpot[] = [
 //    published 到達時に1件作られる、という規則どおり、各 published スポットに
 //    due_at = nextVerificationAtDaysAgo で1件だけ open（または既に missed）の依頼を用意する。
 //    「同一スポットに open は高々1件」は生成ロジック自体が満たす（1スポット1件のみ生成）。
+//    依頼IDの末尾12桁はスポットIDの末尾12桁と同じ（d...-04 → 80...-04）。
+//    （seed.sql は確認履歴ごとに answered の依頼も作るが、フィクスチャの画面では使わないので持たない。）
 // =========================================================
 export const FIXTURE_VERIFICATION_REQUESTS: VerificationRequest[] = RAW_SPOTS.filter(
   (raw) => raw.status === "published",
-).map((raw, index) => {
+).map((raw) => {
   const dueAt = offsetDaysISO(-raw.nextVerificationAtDaysAgo);
   const status: RequestStatus = isMissed(dueAt, new Date()) ? "missed" : "open";
   return {
-    id: `80000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+    id: `80000000-0000-4000-8000-${raw.id.slice(-12)}`,
     spotId: raw.id,
     userId: raw.authorId,
     dueAt,
@@ -367,6 +422,11 @@ const RAW_ENDORSEMENTS: Array<{ spotId: string; userId: string; daysAgo: number 
   { spotId: "d0000000-0000-4000-8000-000000000005", userId: "b0000000-0000-4000-8000-000000000006", daysAgo: 495 },
   { spotId: "d0000000-0000-4000-8000-000000000006", userId: "b0000000-0000-4000-8000-00000000000a", daysAgo: 593 },
   { spotId: "d0000000-0000-4000-8000-000000000006", userId: "b0000000-0000-4000-8000-000000000007", daysAgo: 590 },
+  // デモモード専用の架空店（札幌の住人の承認）
+  { spotId: "d0000000-0000-4000-8000-000000000008", userId: "b0000000-0000-4000-8000-000000000001", daysAgo: 185 },
+  { spotId: "d0000000-0000-4000-8000-000000000008", userId: "b0000000-0000-4000-8000-000000000005", daysAgo: 182 },
+  { spotId: "d0000000-0000-4000-8000-000000000009", userId: "b0000000-0000-4000-8000-000000000001", daysAgo: 115 },
+  { spotId: "d0000000-0000-4000-8000-000000000009", userId: "b0000000-0000-4000-8000-000000000005", daysAgo: 110 },
 ];
 
 /** mutable: mutations.ts の endorseSpot がここへ push する。読み取りは endorsementCountForSpot 経由。 */
@@ -428,7 +488,7 @@ const RAW_VERIFICATIONS: RawVerification[] = [
 
   { id: "c0000000-0000-4000-8000-000000000009", spotId: "d0000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000006", answer: "quiet", note: null, daysAgo: 300 },
   { id: "c0000000-0000-4000-8000-00000000000a", spotId: "d0000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000006", answer: "quiet", note: null, daysAgo: 210 },
-  { id: "c0000000-0000-4000-8000-00000000000b", spotId: "d0000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000006", answer: "quiet", note: null, daysAgo: 92 },
+  { id: "c0000000-0000-4000-8000-00000000000b", spotId: "d0000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000006", answer: "quiet", note: null, daysAgo: 40 },
 
   { id: "c0000000-0000-4000-8000-00000000000c", spotId: "d0000000-0000-4000-8000-000000000005", userId: "b0000000-0000-4000-8000-000000000007", answer: "quiet", note: null, daysAgo: 400 },
   { id: "c0000000-0000-4000-8000-00000000000d", spotId: "d0000000-0000-4000-8000-000000000005", userId: "b0000000-0000-4000-8000-000000000007", answer: "quiet", note: null, daysAgo: 300 },
@@ -439,6 +499,10 @@ const RAW_VERIFICATIONS: RawVerification[] = [
   { id: "c0000000-0000-4000-8000-000000000011", spotId: "d0000000-0000-4000-8000-000000000006", userId: "b0000000-0000-4000-8000-000000000008", answer: "quiet", note: null, daysAgo: 350 },
   { id: "c0000000-0000-4000-8000-000000000012", spotId: "d0000000-0000-4000-8000-000000000006", userId: "b0000000-0000-4000-8000-000000000008", answer: "touristy", note: "観光バスを見かけるようになった", daysAgo: 100 },
   { id: "c0000000-0000-4000-8000-000000000013", spotId: "d0000000-0000-4000-8000-000000000006", userId: "b0000000-0000-4000-8000-000000000008", answer: "touristy", note: "昼はもう観光地", daysAgo: 95 },
+
+  // デモモード専用の架空店（投稿者 Aさんの前回の確認）
+  { id: "c0000000-0000-4000-8000-000000000020", spotId: "d0000000-0000-4000-8000-000000000008", userId: "b0000000-0000-4000-8000-000000000004", answer: "crowding", note: null, daysAgo: 92 },
+  { id: "c0000000-0000-4000-8000-000000000021", spotId: "d0000000-0000-4000-8000-000000000009", userId: "b0000000-0000-4000-8000-000000000004", answer: "crowding", note: null, daysAgo: 15 },
 ];
 
 // =========================================================
@@ -498,7 +562,6 @@ function verifierCountForSpot(spotId: string): number {
 function toSpot(raw: RawSpot): Spot {
   const city = findCitySlug(raw.citySlug);
   const author = findUser(raw.authorId);
-  const verifications = verificationsForSpot(raw.id);
   const tags = raw.tagSlugs.map((slug) => {
     const tag = FIXTURE_TAGS.find((t) => t.slug === slug);
     if (!tag) throw new Error(`fixture tag not found: ${slug}`);
@@ -517,7 +580,8 @@ function toSpot(raw: RawSpot): Spot {
     lat: raw.lat,
     lng: raw.lng,
     status: raw.status,
-    quietness: resolveQuietness(verifications, raw.initialQuietness),
+    // 正本は spots.quietness（実DBと同じ）。確認履歴との一致は fixtures.test.ts で検証する。
+    quietness: raw.quietness,
     reason: raw.reason,
     hoverDescription: raw.hoverDescription ?? null,
     visitFrequency: raw.visitFrequency,
@@ -567,6 +631,23 @@ export const FIXTURE_BOOKMARKS: Bookmark[] = RAW_BOOKMARKS.map((b) => {
     spot: findSpot(b.spotId),
   };
 });
+
+/** /start で選んだ街をユーザーの居住街にする（mutations.ts の setUserHomeCity のデモ経路）。 */
+export function setFixtureUserHomeCity(userId: string, cityId: string): void {
+  const user = FIXTURE_USERS.find((u) => u.id === userId);
+  if (!user) throw new Error("ユーザーが見つかりませんでした");
+  const city = findCityById(cityId);
+  if (!city) throw new Error("街の情報が取得できませんでした");
+  user.homeCitySlug = city.slug;
+}
+
+/** 全ユーザーの居住街を初期値に戻す（テスト間のリセット用）。 */
+export function resetFixtureUserHomeCities(): void {
+  for (const user of FIXTURE_USERS) {
+    const initial = INITIAL_HOME_CITY_SLUGS.get(user.id);
+    if (initial) user.homeCitySlug = initial;
+  }
+}
 
 export function fixtureUserHomeCitySlug(userId: string): string | null {
   const user = FIXTURE_USERS.find((u) => u.id === userId);
@@ -658,12 +739,8 @@ export function fixtureProfileStats(userId: string): {
     verificationsAnswered: verifications.length,
     spotsKeptQuiet: authored.filter((s) => s.status === "published" && s.quietness === "quiet").length,
     pendingRequestCount: countAnswerableRequests(ownRequests, new Date()),
-    // isWinterMonth は lantern.ts 側の定義を使いたいが循環 import を避けるため、
-    // ここでは月だけを見る単純な再実装をしておく（UTC基準、12/1〜2/末）。
-    winterVerificationCount: verifications.filter((v) => {
-      const month = new Date(v.createdAt).getUTCMonth() + 1;
-      return month === 12 || month === 1 || month === 2;
-    }).length,
+    // 日本時間の暦月で12〜2月（domain/lantern.ts）。
+    winterVerificationCount: verifications.filter((v) => isWinterMonth(v.createdAt)).length,
     publishedPortSpotCount: authored.filter((s) => s.status === "published" && findCityById(s.cityId)?.isPort).length,
   };
 }

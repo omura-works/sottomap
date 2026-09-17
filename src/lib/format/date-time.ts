@@ -51,6 +51,11 @@ export function calendarDaysBetweenInTokyo(from: string | Date, to: string | Dat
   return calendarDayNumber(tokyoDateParts(to)) - calendarDayNumber(tokyoDateParts(from));
 }
 
+/** 日本時間の暦月（1〜12）。 */
+export function tokyoCalendarMonth(value: string | Date): number {
+  return tokyoDateParts(value).month;
+}
+
 /** 「2025年12月」形式。 */
 export function formatTokyoYearMonth(value: string | Date): string {
   const { year, month } = tokyoDateParts(value);

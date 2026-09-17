@@ -108,4 +108,43 @@ describe("compareSpots / sortSpots", () => {
       expect(compareSpots(a, b)).toBe(0);
     });
   });
+  describe("4つのキー（静けさ→距離→最終確認の新しい順→id）を同時に検証する", () => {
+    // 並びの期待値:
+    //   静けさ quiet の中で、距離 100m の2件（最終確認が新しい q-near-new → 古い q-near-old）、
+    //   距離 100m・最終確認も同じ2件（q-tie-a・q-tie-b）は id 昇順。
+    //   距離 300m の q-far は quiet の最後。crowding は距離が最短でも quiet の後。
+    const t1 = "2026-01-01T00:00:00.000Z";
+    const t2 = "2026-02-01T00:00:00.000Z";
+    const t3 = "2026-03-01T00:00:00.000Z";
+    const input = [
+      spot({ id: "c-nearest", quietness: "crowding", distanceMeters: 10, lastVerifiedAt: t3 }),
+      spot({ id: "q-far", quietness: "quiet", distanceMeters: 300, lastVerifiedAt: t3 }),
+      spot({ id: "q-tie-b", quietness: "quiet", distanceMeters: 100, lastVerifiedAt: t1 }),
+      spot({ id: "q-near-new", quietness: "quiet", distanceMeters: 100, lastVerifiedAt: t3 }),
+      spot({ id: "q-unknown", quietness: "quiet", distanceMeters: null, lastVerifiedAt: t3 }),
+      spot({ id: "q-tie-a", quietness: "quiet", distanceMeters: 100, lastVerifiedAt: t1 }),
+      spot({ id: "q-near-mid", quietness: "quiet", distanceMeters: 100, lastVerifiedAt: t2 }),
+      spot({ id: "t-near", quietness: "touristy", distanceMeters: 1, lastVerifiedAt: t3 }),
+    ];
+    const expected = ["q-near-new", "q-near-mid", "q-tie-a", "q-tie-b", "q-far", "q-unknown", "c-nearest", "t-near"];
+
+    it("Spot に埋まった distanceMeters だけで（distances を渡さなくても）4キーで並ぶ", () => {
+      expect(sortSpots(input).map((s) => s.id)).toEqual(expected);
+      expect(sortSpots([...input].reverse()).map((s) => s.id)).toEqual(expected);
+    });
+
+    it("distances を渡すとそちらを優先する（distanceMeters より優先）", () => {
+      const distances = { "q-far": 50 };
+      expect(sortSpots(input, distances).map((s) => s.id)).toEqual([
+        "q-far",
+        "q-near-new",
+        "q-near-mid",
+        "q-tie-a",
+        "q-tie-b",
+        "q-unknown",
+        "c-nearest",
+        "t-near",
+      ]);
+    });
+  });
 });

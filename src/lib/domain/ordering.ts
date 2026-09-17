@@ -23,9 +23,9 @@ export function compareSpots(
     return rankDiff;
   }
 
-  // 距離不明は Infinity 扱い。
-  const distA = distances?.[a.id] ?? Infinity;
-  const distB = distances?.[b.id] ?? Infinity;
+  // 距離: 明示の distances を優先し、無ければ Spot に埋まっている distanceMeters。どちらも無ければ Infinity。
+  const distA = distances?.[a.id] ?? a.distanceMeters ?? Infinity;
+  const distB = distances?.[b.id] ?? b.distanceMeters ?? Infinity;
   if (distA !== distB) {
     return distA - distB;
   }

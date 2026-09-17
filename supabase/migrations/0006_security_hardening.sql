@@ -9,7 +9,7 @@
 --
 -- 0001〜0005 は書き換えない。このマイグレーションで次を行う。
 --   1. ポイント台帳 lantern_events（unique (kind, source_id)）
---   2. verifications.verification_request_id（verification_requests への FK・一意）
+--   2. verifications.verification_request_id（verification_requests への FK・一意・NOT NULL）
 --   3. 読み取り範囲（RLS）と表示用ビュー public_profiles（§9.13.6）
 --   4. DB 関数 create_spot / endorse_spot / answer_verification / run_verification_cron と内部関数
 --   5. 権限の明示（§9.13.8）: public スキーマの全オブジェクトを anon / authenticated / PUBLIC から一度取り上げ、
@@ -59,12 +59,12 @@ alter table public.lantern_events enable row level security;
 -- =========================================================
 -- 2. verifications.verification_request_id（§9.13.2）
 --    依頼を経由しない回答を不可能にする（書き込みは answer_verification だけが行う）。
---    seed のデータは依頼に紐づかないことがあるため NULL を許す（NULL は一意制約の対象外）。
---    新しい行は answer_verification が必ず依頼IDを入れる。
+--    すべての確認は依頼に紐づく（NOT NULL）。seed の確認履歴も、対応する answered の依頼を作ってから入れる。
+--    依頼が消えるとき（スポットの削除に伴う）は、その回答も一緒に消える。
 -- =========================================================
 alter table public.verifications
   add column if not exists verification_request_id uuid
-    references public.verification_requests (id) on delete set null;
+    references public.verification_requests (id) on delete cascade;
 
 create unique index if not exists verifications_verification_request_id_key
   on public.verifications (verification_request_id);
@@ -86,6 +86,10 @@ where v.id = src.verification_id
   and not exists (
     select 1 from public.verifications other where other.verification_request_id = src.request_id
   );
+
+-- 依頼に紐づかない回答が残っていれば、ここで適用が失敗する（空のDBでは0件。§9.13.8 の適用の前提を参照）。
+alter table public.verifications
+  alter column verification_request_id set not null;
 
 -- =========================================================
 -- 3. 読み取り範囲（RLS）と表示用ビュー

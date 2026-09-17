@@ -1,13 +1,14 @@
 // src/lib/db/mutations.ts のフィクスチャ・フォールバック経路（インメモリ書き込み）を検証する。
 // デモモード（vitest.config.ts が URASUPO_DEMO_MODE=1 を渡す）前提。
 // フィクスチャ経路には DB 関数（supabase/migrations/0006_security_hardening.sql）と同じ規則を
-// 実装してあり、ここでその規則を検証する（SQL 自体の検証は supabase/tests/0006_security.sql・未実行）。
+// 実装してあり、ここでその規則を検証する（SQL 自体の検証は supabase/tests/*.sql の pgTAP）。
 //
 // 各テストは可能な限り「新規に createSpot したスポット」を使って完結させ、
 // supabase/seed.sql 相当の既存フィクスチャ（listRecentlyVerified の3人/5人/4人 等）を
 // 壊さないようにしている。
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { resetFixtureUserHomeCities } from "./fixtures";
 
 const SAPPORO_CITY_ID = "a0000000-0000-4000-8000-000000000001";
 const K_SAN = "b0000000-0000-4000-8000-000000000001"; // 北24条
@@ -24,6 +25,7 @@ beforeAll(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  resetFixtureUserHomeCities();
 });
 
 /** Date だけを偽の時計にする（Promise やタイマーには触れない）。 */
@@ -421,10 +423,18 @@ describe("addBookmark / removeBookmark", () => {
     });
 
     const before = (await listBookmarks(M_SAN)).length;
-    await addBookmark(M_SAN, spot.id);
+    const first = await addBookmark(M_SAN, spot.id);
     await addBookmark(M_SAN, spot.id); // 重複追加は冪等
     const afterAdd = await listBookmarks(M_SAN);
     expect(afterAdd.length).toBe(before + 1);
+
+    // 再登録は DB の upsert と同じく、既存行の予定日を上書きする（id・作成日時・メタはそのまま）
+    const planned = "2026-10-01T03:30:00.000Z";
+    const updated = await addBookmark(M_SAN, spot.id, planned);
+    expect(updated).toMatchObject({ id: first.id, createdAt: first.createdAt, plannedAt: planned, meta: null });
+    expect((await listBookmarks(M_SAN)).find((b) => b.spotId === spot.id)?.plannedAt).toBe(planned);
+    const cleared = await addBookmark(M_SAN, spot.id);
+    expect(cleared.plannedAt).toBeNull();
 
     await removeBookmark(M_SAN, spot.id);
     const afterRemove = await listBookmarks(M_SAN);
@@ -460,14 +470,66 @@ describe("runVerificationCron", () => {
   });
 });
 
-describe("setUserHomeCity", () => {
-  it("デモモードでは保存せず、フィクスチャの居住街を変えない", async () => {
-    const { setUserHomeCity } = await import("./mutations");
+const OTARU_CITY_ID = "a0000000-0000-4000-8000-000000000002";
+
+describe("setUserHomeCity（デモモードでも居住街を実際に変える）", () => {
+  it("小樽へ変えると小樽に投稿でき、札幌には投稿できなくなる", async () => {
+    const { setUserHomeCity, createSpot } = await import("./mutations");
     const { getUserProfile } = await import("./spots");
-    const before = await getUserProfile(K_SAN);
 
-    await setUserHomeCity(K_SAN, "a0000000-0000-4000-8000-000000000002");
+    await setUserHomeCity(K_SAN, OTARU_CITY_ID);
 
-    expect((await getUserProfile(K_SAN))?.homeCityId).toBe(before?.homeCityId);
+    expect((await getUserProfile(K_SAN))?.homeCityId).toBe(OTARU_CITY_ID);
+    const spot = await createSpot({ ...newPendingInput("小樽に越した人の店"), cityId: OTARU_CITY_ID });
+    expect(spot.citySlug).toBe("otaru");
+    await expect(createSpot(newPendingInput("元の街の店"))).rejects.toThrow("住んでいる街にだけピンを立てられます");
+  });
+
+  it("小樽へ変えると小樽の pending を承認できる（同じ街の判定に効く）", async () => {
+    const { setUserHomeCity, createSpot, endorseSpot } = await import("./mutations");
+    const spot = await createSpot({ ...newPendingInput("小樽の承認テスト店"), cityId: OTARU_CITY_ID, authorId: OTARU_S_SAN });
+
+    await expect(endorseSpot(spot.id, M_SAN)).rejects.toThrow("同じ街に住むユーザーのみ承認できます");
+    await setUserHomeCity(M_SAN, OTARU_CITY_ID);
+    await expect(endorseSpot(spot.id, M_SAN)).resolves.toEqual({ published: false });
+  });
+
+  it("テスト間でリセットされ、前のテストの変更が残らない", async () => {
+    const { getUserProfile } = await import("./spots");
+    expect((await getUserProfile(K_SAN))?.homeCityId).toBe(SAPPORO_CITY_ID);
+    expect((await getUserProfile(M_SAN))?.homeCityId).toBe(SAPPORO_CITY_ID);
+  });
+
+  it("存在しない街は拒否する", async () => {
+    const { setUserHomeCity } = await import("./mutations");
+    await expect(setUserHomeCity(K_SAN, "no-such-city")).rejects.toThrow("街の情報が取得できませんでした");
+  });
+});
+
+describe("createSpot の入力検証（create_spot と同じ規則・同じ文言）", () => {
+  it.each([
+    ["空の名前", { name: "   " }, "店の名前は80字以内で入力してください"],
+    ["81字の名前", { name: "あ".repeat(81) }, "店の名前は80字以内で入力してください"],
+    ["空の理由", { reason: "  " }, "なぜここへ行くのかを60字以内で入力してください"],
+    ["61字の理由", { reason: "い".repeat(61) }, "なぜここへ行くのかを60字以内で入力してください"],
+    ["不明な頻度", { visitFrequency: "daily" }, "行く頻度を選んでください"],
+    ["範囲外の緯度", { lat: 91 }, "場所を選んでください"],
+    ["範囲外の経度", { lng: -181 }, "場所を選んでください"],
+    ["数でない座標", { lat: Number.NaN }, "場所を選んでください"],
+  ])("%s は拒否され、フィクスチャに残らない", async (_label, override, message) => {
+    const { createSpot } = await import("./mutations");
+    const { FIXTURE_SPOTS } = await import("./fixtures");
+    const before = FIXTURE_SPOTS.length;
+    const input = { ...newPendingInput("検証テスト店"), ...override } as Parameters<typeof createSpot>[0];
+    await expect(createSpot(input)).rejects.toThrow(message);
+    expect(FIXTURE_SPOTS.length).toBe(before);
+  });
+
+  it("80字の名前・60字の理由（絵文字はコードポイントで数える）は受け付け、名前の前後の空白を除く", async () => {
+    const { createSpot } = await import("./mutations");
+    const name = "🍜".repeat(80);
+    const spot = await createSpot({ ...newPendingInput(` ${name} `), reason: "🐟".repeat(60) });
+    expect(spot.name).toBe(name);
+    expect(spot.reason).toBe("🐟".repeat(60));
   });
 });

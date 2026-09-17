@@ -51,13 +51,41 @@ describe("resolveQuietness（Spec §9.2: 最後に受理された確認の回答
     expect(resolveQuietness(verifications)).toBe("quiet");
   });
 
-  it("同時刻タイでも例外を投げず決定的に1件を採る", () => {
-    const verifications = [
-      verification({ id: "v1", answer: "quiet", createdAt: "2026-01-01T00:00:00.000Z" }),
+  it("同時刻の相反する回答は、入力順に関係なく混雑側（crowding）を採る", () => {
+    const quiet = verification({ id: "v1", answer: "quiet", createdAt: "2026-01-01T00:00:00.000Z" });
+    const crowding = verification({ id: "v2", answer: "crowding", createdAt: "2026-01-01T00:00:00.000Z" });
+    expect(resolveQuietness([quiet, crowding])).toBe("crowding");
+    expect(resolveQuietness([crowding, quiet])).toBe("crowding");
+  });
+
+  it("同時刻の3種は、入力順に関係なく touristy を採る", () => {
+    const items = [
+      verification({ id: "v3", answer: "quiet", createdAt: "2026-01-01T00:00:00.000Z" }),
+      verification({ id: "v1", answer: "touristy", createdAt: "2026-01-01T00:00:00.000Z" }),
       verification({ id: "v2", answer: "crowding", createdAt: "2026-01-01T00:00:00.000Z" }),
     ];
-    expect(() => resolveQuietness(verifications)).not.toThrow();
-    expect(["quiet", "crowding"]).toContain(resolveQuietness(verifications));
+    const permutations = [
+      [0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0],
+    ].map((order) => order.map((i) => items[i]));
+    for (const list of permutations) {
+      expect(resolveQuietness(list)).toBe("touristy");
+    }
+  });
+
+  it("同時刻で回答も同じなら id の大きい方（結果の回答は同じ）", () => {
+    const a = verification({ id: "v1", answer: "quiet", createdAt: "2026-01-01T00:00:00.000Z" });
+    const b = verification({ id: "v2", answer: "quiet", createdAt: "2026-01-01T00:00:00.000Z" });
+    expect(resolveQuietness([a, b])).toBe("quiet");
+    expect(resolveQuietness([b, a])).toBe("quiet");
+  });
+
+  it("新しい方が quiet なら、それより古い混雑回答より優先する（タイ規則は同時刻のときだけ）", () => {
+    const list = [
+      verification({ id: "v9", answer: "touristy", createdAt: "2026-01-01T00:00:00.000Z" }),
+      verification({ id: "v1", answer: "quiet", createdAt: "2026-01-01T00:00:00.001Z" }),
+    ];
+    expect(resolveQuietness(list)).toBe("quiet");
+    expect(resolveQuietness([...list].reverse())).toBe("quiet");
   });
 });
 

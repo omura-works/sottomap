@@ -38,6 +38,7 @@ import {
   fixtureUserHomeCityId,
   fixtureUserProfile,
   hasFixtureEndorsement,
+  setFixtureUserHomeCity,
 } from "./fixtures";
 
 function newId(): string {
@@ -68,6 +69,39 @@ export interface CreateSpotInput {
 
 const createSpotResultSchema = z.string().min(1);
 
+const VISIT_FREQUENCIES: readonly VisitFrequency[] = ["weekly", "monthly", "yearly"];
+
+/** PostgreSQL の char_length と同じく、コードポイント単位で数える。 */
+function charLength(value: string): number {
+  return Array.from(value).length;
+}
+
+/**
+ * create_spot（0006）と同じ入力検証。検査の順序とエラー文も DB 関数に合わせる。
+ * 戻り値は DB が保存する形（名前は前後の空白を除く。理由はそのまま）。
+ */
+export function validateCreateSpotInput(input: Pick<CreateSpotInput, "name" | "reason" | "lat" | "lng" | "visitFrequency">): {
+  name: string;
+  reason: string;
+} {
+  // btrim は空白（U+0020）だけを除く。
+  const name = input.name.replace(/^ +| +$/g, "");
+  if (charLength(name) === 0 || charLength(name) > 80) {
+    throw new Error("店の名前は80字以内で入力してください");
+  }
+  if (charLength(input.reason.replace(/^ +| +$/g, "")) === 0 || charLength(input.reason) > 60) {
+    throw new Error("なぜここへ行くのかを60字以内で入力してください");
+  }
+  if (!VISIT_FREQUENCIES.includes(input.visitFrequency)) {
+    throw new Error("行く頻度を選んでください");
+  }
+  const { lat, lng } = input;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    throw new Error("場所を選んでください");
+  }
+  return { name, reason: input.reason };
+}
+
 export async function createSpot(input: CreateSpotInput): Promise<Spot> {
   if (!isSupabaseConfigured()) {
     const city = FIXTURE_CITIES.find((c) => c.id === input.cityId);
@@ -76,6 +110,7 @@ export async function createSpot(input: CreateSpotInput): Promise<Spot> {
     if (fixtureUserHomeCityId(input.authorId) !== city.id) {
       throw new Error("住んでいる街にだけピンを立てられます");
     }
+    const { name, reason } = validateCreateSpotInput(input);
     const author = fixtureUserProfile(input.authorId);
     const now = new Date().toISOString();
     const spot: Spot = {
@@ -83,7 +118,7 @@ export async function createSpot(input: CreateSpotInput): Promise<Spot> {
       cityId: city.id,
       citySlug: city.slug,
       cityName: city.name,
-      name: input.name,
+      name,
       areaName: null,
       address: null,
       category: null,
@@ -91,7 +126,7 @@ export async function createSpot(input: CreateSpotInput): Promise<Spot> {
       lng: input.lng,
       status: "pending",
       quietness: "quiet",
-      reason: input.reason,
+      reason,
       visitFrequency: input.visitFrequency,
       authorId: input.authorId,
       authorLabel: author ? `${author.areaName ?? ""}に${author.residentYears ?? "?"}年、${author.displayName}` : null,
@@ -111,6 +146,8 @@ export async function createSpot(input: CreateSpotInput): Promise<Spot> {
     return spot;
   }
 
+  // DB 関数も同じ検査をするが、通信の前に同じ文言で弾いておく（居住街の検査は DB だけが行える）。
+  validateCreateSpotInput(input);
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("create_spot", {
     p_city_id: input.cityId,
@@ -432,10 +469,16 @@ export async function runVerificationCron(now: Date): Promise<VerificationCronRe
 
 export async function addBookmark(userId: string, spotId: string, plannedAt?: string): Promise<Bookmark> {
   if (!isSupabaseConfigured()) {
-    const existing = FIXTURE_BOOKMARKS.find((b) => b.userId === userId && b.spotId === spotId);
-    if (existing) return existing;
     const spot = findFixtureSpot(spotId);
     if (!spot) throw new Error("スポットが見つかりませんでした");
+    const existing = FIXTURE_BOOKMARKS.find((b) => b.userId === userId && b.spotId === spotId);
+    if (existing) {
+      // DB の upsert（on conflict (user_id, spot_id)）と同じく、送った列（予定日）だけを上書きする。
+      // id・作成日時・メタ文言は既存行のまま。
+      existing.plannedAt = plannedAt ?? null;
+      existing.spot = spot;
+      return existing;
+    }
     const bookmark: Bookmark = {
       id: newId(),
       userId,
@@ -497,9 +540,13 @@ export async function removeBookmark(userId: string, spotId: string): Promise<vo
 /**
  * /start で選んだ街を、ログイン済みユーザーの居住街として保存する。
  * users の更新は列単位の権限（display_name / avatar_url / home_city_id / resident_years）の範囲で行う。
+ * デモモードでもフィクスチャの居住街を実際に変える（以後の投稿・承認の「同じ街」判定に効く）。
  */
 export async function setUserHomeCity(userId: string, cityId: string): Promise<void> {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured()) {
+    setFixtureUserHomeCity(userId, cityId);
+    return;
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.from("users").update({ home_city_id: cityId }).eq("id", userId);

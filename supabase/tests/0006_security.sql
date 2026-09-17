@@ -1,6 +1,5 @@
 -- 0006_security_hardening.sql の権限表と DB 関数の規則（docs/SPEC.md §9.13）を検証する pgTAP テスト。
 --
--- 【未実行】作成時の開発環境では Docker が動かず、一度も実行していない。
 -- 実行方法（Docker Desktop と Supabase CLI が必要）:
 --   npx supabase start
 --   npx supabase db reset      -- migrations 0001〜0006 と seed.sql を適用
@@ -14,7 +13,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(64);
+select plan(66);
 
 -- =========================================================
 -- テストデータ（postgres として作成）
@@ -69,14 +68,15 @@ insert into verification_requests (id, spot_id, user_id, due_at, status, created
   ('33330000-0000-4000-8000-000000000003', '22220000-0000-4000-8000-000000000003', '11110000-0000-4000-8000-00000000000a', now() + interval '90 days', 'open',   now() - interval '1 day'),
   ('33330000-0000-4000-8000-000000000004', '22220000-0000-4000-8000-000000000004', '11110000-0000-4000-8000-00000000000a', now() - interval '1 day',   'open',   now() - interval '91 days'),
   ('33330000-0000-4000-8000-000000000051', '22220000-0000-4000-8000-000000000005', '11110000-0000-4000-8000-00000000000a', now() - interval '400 days', 'missed', now() - interval '490 days'),
-  ('33330000-0000-4000-8000-000000000052', '22220000-0000-4000-8000-000000000005', '11110000-0000-4000-8000-00000000000a', now() - interval '200 days', 'missed', now() - interval '290 days');
+  ('33330000-0000-4000-8000-000000000052', '22220000-0000-4000-8000-000000000005', '11110000-0000-4000-8000-00000000000a', now() - interval '200 days', 'missed', now() - interval '290 days'),
+  ('33330000-0000-4000-8000-000000000050', '22220000-0000-4000-8000-000000000005', '11110000-0000-4000-8000-00000000000a', now() - interval '500 days', 'answered', now() - interval '590 days');
 
 insert into endorsements (spot_id, user_id, created_at) values
   ('22220000-0000-4000-8000-000000000006', '11110000-0000-4000-8000-00000000000b', now() - interval '30 days'),
   ('22220000-0000-4000-8000-000000000006', '11110000-0000-4000-8000-00000000000c', now() - interval '29 days');
 
-insert into verifications (spot_id, user_id, answer, created_at) values
-  ('22220000-0000-4000-8000-000000000005', '11110000-0000-4000-8000-00000000000a', 'quiet', now() - interval '500 days');
+insert into verifications (spot_id, user_id, answer, created_at, verification_request_id) values
+  ('22220000-0000-4000-8000-000000000005', '11110000-0000-4000-8000-00000000000a', 'quiet', now() - interval '500 days', '33330000-0000-4000-8000-000000000050');
 
 -- バッジ（seed で入っていれば再利用）: A（公開中スポットの投稿者）と B（スポットなし）に keeper
 insert into badges (slug, glyph, label) values ('keeper', '灯', 'テスト用')
@@ -90,6 +90,17 @@ cross join (values
 ) as u(id)
 where b.slug = 'keeper'
 on conflict do nothing;
+
+-- =========================================================
+-- 確認は必ず依頼に紐づく（§9.13.2）
+-- =========================================================
+select col_not_null('public', 'verifications', 'verification_request_id', 'verifications.verification_request_id は NOT NULL');
+select throws_ok(
+  $$ insert into verifications (spot_id, user_id, answer) values ('22220000-0000-4000-8000-000000000004', '11110000-0000-4000-8000-00000000000a', 'quiet') $$,
+  '23502',
+  null,
+  '依頼に紐づかない確認は（postgres でも）入れられない'
+);
 
 -- =========================================================
 -- 権限表（SPEC §9.13.8。postgres として has_*_privilege で検査）

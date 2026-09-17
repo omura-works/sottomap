@@ -1,6 +1,5 @@
 -- 0006_security_hardening.sql の同時実行（docs/SPEC.md §9.13.7・§9.13.8）を2接続で検証する pgTAP テスト。
 --
--- 【未実行】作成時の開発環境では Docker が動かず、一度も実行していない。
 -- 実行方法（Docker Desktop と Supabase CLI が必要）:
 --   npx supabase start
 --   npx supabase db reset
@@ -12,8 +11,12 @@
 --   - c1・c2 では `begin` → `set local role ...` → `set local request.jwt.claims ...` で利用者・cron になりきる。
 --   - 待ちが発生する操作は dblink_send_query で非同期に送り、相手のコミット後に dblink_get_result で受け取る。
 --     古い実装（cron がロック待ちする）ではロック待ちが lock_timeout（10秒）でエラーになり、テストが失敗する。
---   - dblink の接続文字列は、既定で `host=127.0.0.1 port=<port> dbname=<現在のDB> user=postgres password=postgres`
---     （Supabase のローカル既定）。違う場合は DB の設定 `urasupo.test_dblink_connstr` で上書きする:
+--   - dblink の接続文字列は、既定で `host=<このセッションのサーバー側アドレス> port=<port> dbname=<現在のDB>
+--     user=postgres password=postgres`（Supabase のローカル既定。本番の秘密ではない）。
+--     postgres は非スーパーユーザーなので、dblink は「実際にパスワード認証を使った接続」しか許さない。
+--     ローカルの Supabase コンテナは 127.0.0.1 が trust 認証（パスワードを使わない）ため、
+--     scram 認証になるコンテナのネットワークアドレス（inet_server_addr()）へ接続する。
+--     違う場合は DB の設定 `urasupo.test_dblink_connstr` で上書きする:
 --       alter database postgres set urasupo.test_dblink_connstr = 'host=... user=... password=...';
 --
 -- 注意:
@@ -37,7 +40,12 @@ as $$
   select coalesce(
     nullif(current_setting('urasupo.test_dblink_connstr', true), ''),
     format(
-      'host=127.0.0.1 port=%s dbname=%s user=postgres password=postgres',
+      'host=%s port=%s dbname=%s user=postgres password=postgres',
+      coalesce(
+        case when inet_server_addr() is not null and not host(inet_server_addr()) in ('127.0.0.1', '::1')
+          then host(inet_server_addr()) end,
+        '127.0.0.1'
+      ),
       current_setting('port'),
       current_database()
     )

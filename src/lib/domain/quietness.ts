@@ -6,8 +6,29 @@
 //
 // 現在の静けさ ＝ 最後に受理された確認（verifications の中で最も createdAt が新しいもの）の回答。
 // 確認が一度も無ければ fallback（投稿時の申告値。既定 quiet）。
+//
+// 正本について（Spec §9.13.2）: 実DBでは answer_verification が回答と同じトランザクションで
+// spots.quietness を更新するので、画面に出す値は spots.quietness を正本とする（src/lib/db/spots.ts）。
+// この関数は「確認履歴から求めた値」と正本が一致することを検証するためのドメイン規則として残す。
 
 import type { Quietness, Verification } from "../db/types";
+
+/** 同時刻タイのときに採る順（混雑を見落とさない側を優先する）。 */
+const TIE_PRIORITY: Record<Quietness, number> = {
+  touristy: 2,
+  crowding: 1,
+  quiet: 0,
+};
+
+function isNewer(candidate: Verification, current: Verification): boolean {
+  const diff = new Date(candidate.createdAt).getTime() - new Date(current.createdAt).getTime();
+  if (diff !== 0) return diff > 0;
+  // 同時刻タイ: 入力の並び順に依存させない。
+  // 1. 混雑側（touristy > crowding > quiet）を採る  2. それでも同じなら id の大きい方。
+  const priorityDiff = TIE_PRIORITY[candidate.answer] - TIE_PRIORITY[current.answer];
+  if (priorityDiff !== 0) return priorityDiff > 0;
+  return candidate.id > current.id;
+}
 
 export function resolveQuietness(
   verifications: Verification[],
@@ -16,13 +37,7 @@ export function resolveQuietness(
   if (verifications.length === 0) {
     return fallback;
   }
-
-  // 最も新しい createdAt を持つ確認の回答を採る。
-  // 同時刻タイの場合は配列の並び順で最初に出会ったものを安定して採用する
-  // （reduce は左から評価するため、同値では先勝ち＝呼び出し側の並び順に対して決定的）。
-  const latest = verifications.reduce((acc, v) =>
-    new Date(v.createdAt).getTime() > new Date(acc.createdAt).getTime() ? v : acc,
-  );
+  const latest = verifications.reduce((acc, v) => (isNewer(v, acc) ? v : acc));
   return latest.answer;
 }
 

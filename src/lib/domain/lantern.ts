@@ -1,6 +1,7 @@
 // 灯り（ポイント／バッジ）Spec §2.5
 
 import type { Badge } from "../db/types";
+import { tokyoCalendarMonth } from "../format/date-time";
 
 export const POINTS_PER_VERIFICATION = 5;
 export const POINTS_PER_PUBLISHED_SPOT = 10;
@@ -78,9 +79,9 @@ export function resolveBadges(input: LanternInput): Badge[] {
  * 集計する際に使う。
  */
 export function isWinterMonth(date: string | Date): boolean {
-  const d = typeof date === "string" ? new Date(date) : date;
-  // UTC基準で判定する（ローカルタイムゾーンによって日付がずれるのを避けるため）。
-  const month = d.getUTCMonth() + 1; // 1-12
+  // 日本時間の暦月で判定する（実行環境のタイムゾーンにも UTC にも依存しない）。
+  // 例: 2025-11-30T15:00:00Z は日本では12月1日 0:00 なので冬。
+  const month = tokyoCalendarMonth(date); // 1-12
   return month === 12 || month === 1 || month === 2;
 }
 

@@ -309,8 +309,12 @@ on conflict do nothing;
 --
 --    鱗友朝市は quiet→quiet→touristy→touristy という履歴。resolveQuietness は
 --    多数決をしないため、単純に最新（＝時系列で一番新しい touristy）を採用する例。
+--
+--    確認は必ず依頼に紐づく（0006: verifications.verification_request_id は NOT NULL）。
+--    各行に、回答者宛ての回答済み（answered）依頼を1件ずつ作ってから紐づける
+--    （依頼の due_at = 回答時刻、created_at = 回答時刻の90日前）。現在の open 依頼は 10. で作る。
 -- =========================================================
-insert into verifications (spot_id, user_id, answer, note, created_at) values
+with src (spot_id, user_id, answer, note, created_at) as (values
   -- シハチ鮮魚店（quiet が継続。直近バッチは投稿者Kさん+架空2名=計3人）
   ('d0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'quiet', null, now() - interval '120 days'),
   ('d0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'quiet', null, now() - interval '30 days'),
@@ -350,7 +354,36 @@ insert into verifications (spot_id, user_id, answer, note, created_at) values
   ('d0000000-0000-4000-8000-000000000006', 'b0000000-0000-4000-8000-000000000008', 'quiet', null, now() - interval '350 days'),
   ('d0000000-0000-4000-8000-000000000006', 'b0000000-0000-4000-8000-000000000008', 'touristy', '観光バスを見かけるようになった', now() - interval '100 days'),
   ('d0000000-0000-4000-8000-000000000006', 'b0000000-0000-4000-8000-000000000008', 'touristy', '昼はもう観光地', now() - interval '95 days')
-on conflict do nothing;
+),
+numbered as materialized (
+  select
+    src.spot_id::uuid as spot_id,
+    src.user_id::uuid as user_id,
+    src.answer::text as answer,
+    src.note::text as note,
+    src.created_at::timestamptz as created_at,
+    gen_random_uuid() as request_id,
+    gen_random_uuid() as verification_id
+  from src
+),
+inserted_requests as (
+  insert into verification_requests (id, spot_id, user_id, due_at, status, created_at)
+  select request_id, spot_id, user_id, created_at, 'answered', created_at - interval '90 days'
+  from numbered
+  returning id
+)
+insert into verifications (id, spot_id, user_id, answer, note, created_at, verification_request_id)
+select verification_id, spot_id, user_id, answer, note, created_at, request_id
+from numbered
+where exists (select 1 from inserted_requests r where r.id = numbered.request_id);
+
+-- 回答済み依頼から回答への逆向きの紐づけ
+update verification_requests vr
+set answered_verification_id = v.id
+from verifications v
+where v.verification_request_id = vr.id
+  and vr.status = 'answered'
+  and vr.answered_verification_id is null;
 
 -- =========================================================
 -- 9. bookmarks（Spec §9.8 S8: シハチ鮮魚店／聖徳太子 飛鳥店／南樽市場／鱗友朝市の4件。

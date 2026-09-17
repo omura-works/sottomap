@@ -1,6 +1,5 @@
-// Supabase 未接続（テスト環境には NEXT_PUBLIC_SUPABASE_URL 等が無い）を利用して、
-// src/lib/db/spots.ts のフィクスチャ・フォールバック経路を検証する。
-// 実DBに接続する分岐（src/lib/supabase/server.ts 経由）はここでは通らない。
+// デモモード（vitest.config.ts が URASUPO_DEMO_MODE=1 を渡す）で、src/lib/db/spots.ts のフィクスチャ経路を検証する。
+// 実DBに接続する分岐のうち、PostgREST の応答から Spot を組み立てる部分は spots.postgrest.test.ts で検証する。
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -33,11 +32,29 @@ describe("listCities / getCity", () => {
 });
 
 describe("listSpots", () => {
-  it("published のみ、sortSpots を通した順で返す（quiet が先）", async () => {
+  it("published のみ、sortSpots を通した順で返す（静けさ → 街の中心からの距離）", async () => {
     const { listSpots } = await import("./spots");
     const spots = await listSpots({ citySlug: "sapporo" });
     expect(spots.every((s) => s.status === "published")).toBe(true);
-    expect(spots.map((s) => s.quietness)).toEqual(["quiet", "quiet", "crowding"]);
+    // 札幌の中心（43.0621, 141.3544）から: ザンギ約0.8km・シハチ約2.5km／輝風約0.7km・大通の2店は約0.7km・約0.9km
+    expect(spots.map((s) => [s.quietness, s.name])).toEqual([
+      ["quiet", "札幌ザンギ本舗"],
+      ["quiet", "シハチ鮮魚店 北24条店"],
+      ["crowding", "札幌らーめん輝風 すすきの店"],
+      ["crowding", "大通の小さな定食屋"],
+      ["crowding", "大通の古い蕎麦屋"],
+    ]);
+  });
+
+  it("q は前後の空白を除いて、地域名（area_name）も検索する", async () => {
+    const { listSpots } = await import("./spots");
+    const spots = await listSpots({ citySlug: "otaru", q: "  色内 " });
+    expect(spots.map((s) => s.name)).toEqual(["鱗友朝市"]);
+  });
+
+  it("空白だけの q は全件（§9.10 空検索）", async () => {
+    const { listSpots } = await import("./spots");
+    expect(await listSpots({ citySlug: "otaru", q: "   " })).toHaveLength(3);
   });
 
   it("filters: quiet-now で crowding/touristy を除外する", async () => {
@@ -53,10 +70,10 @@ describe("listSpots", () => {
     expect(spots[0].name).toBe("札幌ザンギ本舗");
   });
 
-  it("limit で件数を絞れる", async () => {
+  it("limit で件数を絞れる（並べてから絞る）", async () => {
     const { listSpots } = await import("./spots");
     const spots = await listSpots({ citySlug: "sapporo", limit: 1 });
-    expect(spots).toHaveLength(1);
+    expect(spots.map((s) => s.name)).toEqual(["札幌ザンギ本舗"]);
   });
 
   it("タグ slug フィルタで絞り込める", async () => {
@@ -120,7 +137,8 @@ describe("listBookmarks", () => {
 describe("countPublishedSpots / countQuietSpots", () => {
   it("街ごとの公開件数を数える", async () => {
     const { countPublishedSpots } = await import("./spots");
-    expect(await countPublishedSpots("sapporo")).toBe(3);
+    // 札幌は実在3店＋デモモード専用の架空2店（fixtures.ts 冒頭の注記）
+    expect(await countPublishedSpots("sapporo")).toBe(5);
     expect(await countPublishedSpots("otaru")).toBe(3);
   });
 
@@ -131,14 +149,15 @@ describe("countPublishedSpots / countQuietSpots", () => {
 });
 
 describe("listRecentlyVerified", () => {
-  it("直近7日に確認があった店を verifierCount 付きで返す", async () => {
+  it("直近7日に確認があった店を verifierCount 付きで、§9.5 の順（静けさ → 街の中心からの距離）で返す", async () => {
     const { listRecentlyVerified } = await import("./spots");
     const result = await listRecentlyVerified("sapporo");
     expect(result.map((r) => r.spot.name)).toEqual([
-      "シハチ鮮魚店 北24条店",
       "札幌ザンギ本舗",
+      "シハチ鮮魚店 北24条店",
       "札幌らーめん輝風 すすきの店",
     ]);
+    expect(result.every((r) => r.spot.distanceMeters !== null)).toBe(true);
     expect(result.every((r) => r.verifierCount >= 1)).toBe(true);
   });
 
@@ -245,9 +264,12 @@ describe("getUserProfile / getProfileStats / listSpotsByAuthor（CONTRACT追補�
   });
 
   it("getProfileStats: 確認待ちは回答できる依頼だけ数える（デモ利用者は期限到来済みの1件のみ。期限前の1件は数えない）", async () => {
-    const { getProfileStats, getVerificationRequest } = await import("./spots");
-    const due = await getVerificationRequest("80000000-0000-4000-8000-000000000004");
-    const notYet = await getVerificationRequest("80000000-0000-4000-8000-000000000005");
+    const { getProfileStats, getVerificationRequest, getSpot } = await import("./spots");
+    const due = await getVerificationRequest("80000000-0000-4000-8000-000000000008");
+    const notYet = await getVerificationRequest("80000000-0000-4000-8000-000000000009");
+    // デモ利用者（札幌在住）の依頼は札幌のスポットに付いている
+    expect((await getSpot(due!.spotId))?.citySlug).toBe("sapporo");
+    expect((await getSpot(notYet!.spotId))?.citySlug).toBe("sapporo");
     expect(due?.userId).toBe("b0000000-0000-4000-8000-000000000004");
     expect(notYet?.userId).toBe("b0000000-0000-4000-8000-000000000004");
     expect(new Date(due!.dueAt).getTime()).toBeLessThanOrEqual(Date.now());
