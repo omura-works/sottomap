@@ -33,12 +33,31 @@ NEXT_PUBLIC_SITE_URL=https://YOUR_DOMAIN
 CRON_SECRET=十分に長いランダムな値
 ```
 
-- `NEXT_PUBLIC_SITE_URL` はログイン用メールのリンクの戻り先（`/auth/callback`）の origin に使います。リクエストヘッダー（`Host` / `X-Forwarded-Host`）は使いません。未設定だとログイン用メールを送る時点で例外になります。Supabase の Authentication → URL Configuration の Redirect URLs にも `https://YOUR_DOMAIN/auth/callback` を登録してください。
+- `NEXT_PUBLIC_SITE_URL` はログイン用メールのリンクの戻り先（`/auth/callback`）の origin に使います。リクエストヘッダー（`Host` / `X-Forwarded-Host`）は使いません。未設定だとログイン用メールを送る時点で例外になります。本番（`VERCEL_ENV=production` または `NODE_ENV=production`）では `https://` の URL だけを受け付けます。本番以外で `http://` を使えるのは `localhost` / `127.0.0.1` / `[::1]` だけです。Supabase の Authentication → URL Configuration の Redirect URLs にも `https://YOUR_DOMAIN/auth/callback` を登録してください。
 - `SUPABASE_SERVICE_ROLE_KEY` は cron（`/api/cron/verification`）だけが使う秘密鍵です。承認・確認・投稿は、利用者本人のセッションで DB 関数（`create_spot` / `endorse_spot` / `answer_verification`）を呼びます。ブラウザへ公開せず、VercelでもServer-sideの環境変数として設定してください。
 
-DBは `supabase/migrations/` のSQLを番号順（`0001` → `0006`）に適用してから、`supabase/seed.sql` を投入します。既存環境では未適用のマイグレーションだけを順に適用してください。
+DBは `supabase/migrations/` のSQLを番号順（`0001` → `0006`）に適用してから、`supabase/seed.sql` を投入します。
 
-`0006_security_hardening.sql` は、利用者からの直接の書き込み（スポットの状態、承認、確認、確認依頼、灯りポイント）を取り上げ、DB 関数に集約します。適用後は、0005 以前のアプリ（テーブルへ直接書き込む版）からの承認・確認・投稿は権限エラーになるため、アプリのデプロイと同時に適用してください。
+`0006_security_hardening.sql` は、利用者からの直接の書き込み（スポットの状態、承認、確認、確認依頼、灯りポイント）を取り上げ、DB 関数に集約します。あわせて、public スキーマの表・ビュー・関数の権限を既定権限に頼らず明示し（anon / authenticated から一度すべて取り上げて必要なものだけ付け直す）、DB 関数を `search_path = ''` とスキーマ修飾で固定します。適用後は、0005 以前のアプリ（テーブルへ直接書き込む版）からの承認・確認・投稿は権限エラーになるため、アプリのデプロイと同時に適用してください。
+
+- **0006 は空のDB（新規プロジェクト）に適用する前提です。** 既にデータがある DB に適用する場合は、適用の前後で次を監査し、必要なら調整してください。0006 は既存データの整合性を保証しません。
+  - ポイント残高: `users.lantern_points` が、公開（+10）と確認（+5）の実績から説明できるか。0006 で作る台帳 `lantern_events` には既存の加算が記録されないため、以後の二重加算防止の前提がずれないよう、台帳の補完または残高の補正が必要です。
+  - 確認履歴: `verifications` に、確認依頼を経由しない行や捏造された行が無いか（`verification_request_id` が NULL の行）。
+  - 承認時刻: `endorsements.created_at` が利用者に指定された値でないか。pending の期限判定（`created_at + 30日`）に使います。
+- 0006 は `alter default privileges for role postgres` で、今後 postgres が作るオブジェクトに anon / authenticated への既定権限が付かないようにします（関数の PUBLIC への EXECUTE は全スキーマ分）。マイグレーションを実行するロールがこれを変更できない環境では警告を出して続行します。その場合も、0006 が明示した GRANT / REVOKE は有効です。
+
+### 実DBでの検証（本番公開前に必須）
+
+RLS・権限表・DB 関数・同時実行は、ローカルの Supabase で pgTAP テスト（`supabase/tests/*.sql`）を流して確かめます。**本番公開の前に必ず実行してください。**
+
+1. Docker Desktop を起動する（Supabase CLI は devDependencies に入っています）
+2. `npx supabase start`
+3. `npx supabase db reset`（migrations 0001〜0006 と seed を適用）
+4. `npx supabase test db`
+
+- `0006_security.sql` は権限表（匿名・投稿者・同じ街・別の街・service_role）と DB 関数の規則を1接続で検査し、最後に rollback します。
+- `0006_concurrency.sql` は `dblink` 拡張で自分自身の DB に2接続を張り、cron と回答の交差、同じ依頼への同時回答、期限直前の承認と cron、同時承認を検査します。別接続から見えるようテストデータはコミットし、最後に削除します。cron は DB 全体を処理するので、seed のデータにも期限処理が反映されます（元に戻すには `npx supabase db reset`）。
+  - 接続文字列の既定は `host=127.0.0.1 port=<DBのport> dbname=<現在のDB> user=postgres password=postgres`（Supabase のローカル既定）です。違う場合は `alter database postgres set urasupo.test_dblink_connstr = '...';` で上書きしてください。
 
 ## テスト
 
@@ -51,8 +70,8 @@ npx playwright test
 
 - Vitest は `vitest.config.ts` で `URASUPO_DEMO_MODE=1` を渡し、フィクスチャ経路で動きます。フィクスチャ経路には DB 関数と同じ規則（回答できる時点、同じ依頼の二重受理の禁止、pending の期限、ポイント台帳）を実装してあり、その規則を検証します。
 - Playwright は `URASUPO_DEMO_MODE=1` で開発サーバー（`next dev`）を起動し、実際の画面導線を検証します。ブラウザの導入はPlaywrightの案内に従って別途行ってください。
-- `supabase/tests/*.sql` は RLS と DB 関数の権限表を確かめる pgTAP テストです。実行には Docker と Supabase CLI が必要です（`supabase start` → `supabase db reset` → `supabase test db`）。**このリポジトリの開発環境には PostgreSQL が無いため、まだ一度も実行していません。**
+- `supabase/tests/*.sql` は RLS・権限表・DB 関数・同時実行を確かめる pgTAP テストです。手順は上の「実DBでの検証」を参照してください。**作成時の開発環境では Docker が動かなかったため、まだ一度も実行していません。**
 
 ## Vercel Cron
 
-`vercel.json` は `/api/cron/verification` を毎日 `0 18 * * *`（UTC）に呼び出します。Vercelの環境変数に `CRON_SECRET` を設定してください。APIは `Authorization: Bearer <CRON_SECRET>` が一致しない呼び出し（`CRON_SECRET` が未設定・空の場合を含む）を `401` で拒否します。比較は SHA-256 で固定長にしたうえでの定数時間比較です。
+`vercel.json` は `/api/cron/verification` を毎日 `0 18 * * *`（UTC）に呼び出します。Vercelの環境変数に `CRON_SECRET` を設定してください。APIは `Authorization: Bearer <CRON_SECRET>` が一致しない呼び出し（`CRON_SECRET` が未設定・空の場合を含む）を `401` で拒否します。比較は SHA-256 で固定長にしたうえでの定数時間比較です。DB 関数 `run_verification_cron` は、回答・承認がロック中のスポットを待たずに次回へ回し（結果の `skippedLockedCount`）、API はデッドロック（`40P01`）・直列化失敗（`40001`）のときだけ1回再実行します。

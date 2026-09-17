@@ -1,28 +1,26 @@
 -- 0006_security_hardening.sql の権限表と DB 関数の規則（docs/SPEC.md §9.13）を検証する pgTAP テスト。
 --
--- 【未実行】このリポジトリの開発環境には PostgreSQL / Docker / Supabase CLI が無いため、一度も実行していない。
--- 実行方法（Docker と Supabase CLI が必要）:
---   supabase start
---   supabase db reset      -- migrations 0001〜0006 と seed.sql を適用
---   supabase test db       -- supabase/tests/*.sql を pgTAP で実行
+-- 【未実行】作成時の開発環境では Docker が動かず、一度も実行していない。
+-- 実行方法（Docker Desktop と Supabase CLI が必要）:
+--   npx supabase start
+--   npx supabase db reset      -- migrations 0001〜0006 と seed.sql を適用
+--   npx supabase test db       -- supabase/tests/*.sql を pgTAP で実行
 --
 -- 役割の切り替えは Supabase の流儀に合わせ、`set local role` と `request.jwt.claims`（auth.uid() の元）で行う。
 -- テスト用のデータは固定の UUID で作り、最後に rollback するので seed には影響しない。
---
--- 対象外（単一セッションの pgTAP では再現できないもの）:
---   同時回答・承認と cron の競合（SPEC §9.13.7）。関数はスポット行 → 依頼行の順に for update でロックし、
---   ロック後に状態を再検査する設計にしてある。検証には2つ以上の接続を使う別のテストが必要。
+-- 同時回答・承認と cron の競合（SPEC §9.13.7・§9.13.8）は、2接続を使う supabase/tests/0006_concurrency.sql で検証する。
 
 begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(42);
+select plan(64);
 
 -- =========================================================
 -- テストデータ（postgres として作成）
 --   街: T1（投稿先）, T2（別の街）
---   利用者: A（T1・投稿者）, B / C（T1・同じ街）, D（T2・別の街）
+--   利用者: A（T1・投稿者）, B / C（T1・同じ街。スポットなし）, D（T2・別の街。スポットなし）,
+--           E（T1。expired のスポットだけ）, F（T2。T2 の pending スポットだけ）
 -- =========================================================
 insert into cities (id, slug, name, name_kana, is_port, center_lat, center_lng) values
   ('aaaa0000-0000-4000-8000-000000000001', 'test-city-1', 'テスト街1', 'てすとまち1', false, 43.06, 141.35),
@@ -36,28 +34,36 @@ insert into auth.users (
   ('11110000-0000-4000-8000-00000000000a', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'test-a@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
   ('11110000-0000-4000-8000-00000000000b', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'test-b@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
   ('11110000-0000-4000-8000-00000000000c', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'test-c@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
-  ('11110000-0000-4000-8000-00000000000d', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'test-d@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false);
+  ('11110000-0000-4000-8000-00000000000d', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'test-d@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
+  ('11110000-0000-4000-8000-00000000000e', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'test-e@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
+  ('11110000-0000-4000-8000-00000000000f', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'test-f@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false);
 
 insert into users (id, display_name, home_city_id, area_name, resident_years, lantern_points) values
   ('11110000-0000-4000-8000-00000000000a', 'テストA', 'aaaa0000-0000-4000-8000-000000000001', '北', 10, 0),
   ('11110000-0000-4000-8000-00000000000b', 'テストB', 'aaaa0000-0000-4000-8000-000000000001', '南', 5, 0),
   ('11110000-0000-4000-8000-00000000000c', 'テストC', 'aaaa0000-0000-4000-8000-000000000001', '東', 3, 0),
-  ('11110000-0000-4000-8000-00000000000d', 'テストD', 'aaaa0000-0000-4000-8000-000000000002', '西', 7, 0);
+  ('11110000-0000-4000-8000-00000000000d', 'テストD', 'aaaa0000-0000-4000-8000-000000000002', '西', 7, 0),
+  ('11110000-0000-4000-8000-00000000000e', 'テストE', 'aaaa0000-0000-4000-8000-000000000001', '中央', 2, 0),
+  ('11110000-0000-4000-8000-00000000000f', 'テストF', 'aaaa0000-0000-4000-8000-000000000002', '港', 4, 0);
 
--- スポット（すべて A の投稿・T1）
---   S1: pending（今作成）          → 承認の流れ
---   S2: pending（30日+1時間前に作成）→ 期限切れ承認の拒否・cron で expired
---   S3: published、open 依頼 R3 は期限前（now + 90日）
---   S4: published、open 依頼 R4 は期限到来済み（now - 1日）
---   S5: dormant、missed 依頼 R5old（古い）と R5new（最新）
---   S6: pending（31日前に作成）、期限内に2人の承認済み → cron が後でも公開
+-- スポット
+--   S1: A の pending（今作成）          → 承認の流れ
+--   S2: A の pending（30日+1時間前に作成）→ 期限切れ承認の拒否・cron で expired
+--   S3: A の published、open 依頼 R3 は期限前（now + 90日）
+--   S4: A の published、open 依頼 R4 は期限到来済み（now - 1日）
+--   S5: A の dormant、missed 依頼 R5old（古い）と R5new（最新）
+--   S6: A の pending（31日前に作成）、期限内に2人の承認済み → cron が後でも公開
+--   S7: E の expired（T1）
+--   S8: F の pending（T2）
 insert into spots (id, city_id, name, reason, visit_frequency, location, author_id, status, created_at, published_at) values
   ('22220000-0000-4000-8000-000000000001', 'aaaa0000-0000-4000-8000-000000000001', 'S1', '理由', 'weekly', 'SRID=4326;POINT(141.35 43.06)', '11110000-0000-4000-8000-00000000000a', 'pending',   now(), null),
   ('22220000-0000-4000-8000-000000000002', 'aaaa0000-0000-4000-8000-000000000001', 'S2', '理由', 'weekly', 'SRID=4326;POINT(141.35 43.06)', '11110000-0000-4000-8000-00000000000a', 'pending',   now() - interval '30 days 1 hour', null),
   ('22220000-0000-4000-8000-000000000003', 'aaaa0000-0000-4000-8000-000000000001', 'S3', '理由', 'weekly', 'SRID=4326;POINT(141.35 43.06)', '11110000-0000-4000-8000-00000000000a', 'published', now() - interval '100 days', now() - interval '95 days'),
   ('22220000-0000-4000-8000-000000000004', 'aaaa0000-0000-4000-8000-000000000001', 'S4', '理由', 'weekly', 'SRID=4326;POINT(141.35 43.06)', '11110000-0000-4000-8000-00000000000a', 'published', now() - interval '100 days', now() - interval '95 days'),
   ('22220000-0000-4000-8000-000000000005', 'aaaa0000-0000-4000-8000-000000000001', 'S5', '理由', 'weekly', 'SRID=4326;POINT(141.35 43.06)', '11110000-0000-4000-8000-00000000000a', 'dormant',   now() - interval '600 days', now() - interval '590 days'),
-  ('22220000-0000-4000-8000-000000000006', 'aaaa0000-0000-4000-8000-000000000001', 'S6', '理由', 'weekly', 'SRID=4326;POINT(141.35 43.06)', '11110000-0000-4000-8000-00000000000a', 'pending',   now() - interval '31 days', null);
+  ('22220000-0000-4000-8000-000000000006', 'aaaa0000-0000-4000-8000-000000000001', 'S6', '理由', 'weekly', 'SRID=4326;POINT(141.35 43.06)', '11110000-0000-4000-8000-00000000000a', 'pending',   now() - interval '31 days', null),
+  ('22220000-0000-4000-8000-000000000007', 'aaaa0000-0000-4000-8000-000000000001', 'S7', '理由', 'weekly', 'SRID=4326;POINT(141.35 43.06)', '11110000-0000-4000-8000-00000000000e', 'expired',   now() - interval '60 days', null),
+  ('22220000-0000-4000-8000-000000000008', 'aaaa0000-0000-4000-8000-000000000002', 'S8', '理由', 'weekly', 'SRID=4326;POINT(140.99 43.19)', '11110000-0000-4000-8000-00000000000f', 'pending',   now(), null);
 
 insert into verification_requests (id, spot_id, user_id, due_at, status, created_at) values
   ('33330000-0000-4000-8000-000000000003', '22220000-0000-4000-8000-000000000003', '11110000-0000-4000-8000-00000000000a', now() + interval '90 days', 'open',   now() - interval '1 day'),
@@ -72,6 +78,193 @@ insert into endorsements (spot_id, user_id, created_at) values
 insert into verifications (spot_id, user_id, answer, created_at) values
   ('22220000-0000-4000-8000-000000000005', '11110000-0000-4000-8000-00000000000a', 'quiet', now() - interval '500 days');
 
+-- バッジ（seed で入っていれば再利用）: A（公開中スポットの投稿者）と B（スポットなし）に keeper
+insert into badges (slug, glyph, label) values ('keeper', '灯', 'テスト用')
+on conflict (slug) do nothing;
+insert into user_badges (user_id, badge_id)
+select u.id, b.id
+from badges b
+cross join (values
+  ('11110000-0000-4000-8000-00000000000a'::uuid),
+  ('11110000-0000-4000-8000-00000000000b'::uuid)
+) as u(id)
+where b.slug = 'keeper'
+on conflict do nothing;
+
+-- =========================================================
+-- 権限表（SPEC §9.13.8。postgres として has_*_privilege で検査）
+-- =========================================================
+select is_empty(
+  $$
+    with roles(role_name) as (values ('public'), ('anon'), ('authenticated'), ('service_role')),
+    objects(obj) as (values
+      ('public.cities'), ('public.tags'), ('public.badges'), ('public.spots'), ('public.spot_tags'),
+      ('public.endorsements'), ('public.verifications'), ('public.users'), ('public.public_profiles'),
+      ('public.user_badges'), ('public.verification_requests'), ('public.lantern_events'), ('public.bookmarks')
+    ),
+    privs(priv) as (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')),
+    expected as (
+      select r.role_name, o.obj, p.priv,
+        case r.role_name
+          when 'anon' then
+            p.priv = 'SELECT'
+            and o.obj not in ('public.verification_requests', 'public.lantern_events', 'public.bookmarks')
+          when 'authenticated' then
+            p.priv = 'SELECT'
+            or (o.obj = 'public.bookmarks' and p.priv in ('INSERT', 'UPDATE', 'DELETE'))
+          when 'service_role' then
+            (o.obj = 'public.public_profiles' and p.priv = 'SELECT')
+            or (o.obj <> 'public.public_profiles' and p.priv in ('SELECT', 'INSERT', 'UPDATE', 'DELETE'))
+          else false
+        end as allowed
+      from roles r cross join objects o cross join privs p
+    )
+    select role_name, obj, priv, allowed
+    from expected
+    where has_table_privilege(role_name, obj, priv) <> allowed
+  $$,
+  '権限表: 表・ビューの権限が PUBLIC / anon / authenticated / service_role ごとに期待どおり'
+);
+
+select is_empty(
+  $$
+    with roles(role_name) as (values ('public'), ('anon'), ('authenticated'), ('service_role')),
+    cols(col) as (values
+      ('id'), ('display_name'), ('avatar_url'), ('home_city_id'), ('resident_years'),
+      ('lantern_points'), ('area_name'), ('created_at')
+    ),
+    privs(priv) as (values ('INSERT'), ('UPDATE')),
+    expected as (
+      select r.role_name, c.col, p.priv,
+        case r.role_name
+          when 'authenticated' then
+            (p.priv = 'INSERT' and c.col in ('id', 'display_name', 'avatar_url', 'home_city_id', 'resident_years'))
+            or (p.priv = 'UPDATE' and c.col in ('display_name', 'avatar_url', 'home_city_id', 'resident_years'))
+          when 'service_role' then true
+          else false
+        end as allowed
+      from roles r cross join cols c cross join privs p
+    )
+    select role_name, col, priv, allowed
+    from expected
+    where has_column_privilege(role_name, 'public.users', col, priv) <> allowed
+  $$,
+  '権限表: users の列単位の insert / update（lantern_points・area_name・created_at は利用者に不可）'
+);
+
+select is_empty(
+  $$
+    with fns(fn, anon_ok, auth_ok, service_ok) as (values
+      ('public.create_spot(uuid, text, text, double precision, double precision, text)', false, true, false),
+      ('public.endorse_spot(uuid)', false, true, false),
+      ('public.answer_verification(uuid, text, text)', false, true, false),
+      ('public.run_verification_cron()', false, false, true),
+      ('public.is_profile_visible(uuid)', true, true, true),
+      ('public.award_lantern_points(uuid, text, uuid, integer)', false, false, false),
+      ('public.publish_pending_spot(uuid, timestamp with time zone)', false, false, false)
+    )
+    select f.fn, e.role_name, e.allowed
+    from fns f
+    cross join lateral (values
+      ('public', false), ('anon', f.anon_ok), ('authenticated', f.auth_ok), ('service_role', f.service_ok)
+    ) as e(role_name, allowed)
+    where has_function_privilege(e.role_name, f.fn, 'EXECUTE') <> e.allowed
+  $$,
+  '権限表: DB 関数の EXECUTE がロールごとに期待どおり（内部関数は誰にも不可）'
+);
+
+select is_empty(
+  $$
+    select p.oid::regprocedure::text
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.prokind in ('f', 'p')
+      and not exists (
+        select 1 from pg_depend d
+        where d.classid = 'pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e'
+      )
+      and p.proname not in (
+        'create_spot', 'endorse_spot', 'answer_verification', 'run_verification_cron',
+        'is_profile_visible', 'award_lantern_points', 'publish_pending_spot'
+      )
+      and (
+        has_function_privilege('public', p.oid, 'EXECUTE')
+        or has_function_privilege('anon', p.oid, 'EXECUTE')
+        or has_function_privilege('authenticated', p.oid, 'EXECUTE')
+      )
+  $$,
+  '権限表: 一覧に無い public の関数は PUBLIC / anon / authenticated から実行できない'
+);
+
+select is_empty(
+  $$
+    select c.oid::regclass::text
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relkind in ('r', 'p', 'v', 'm', 'f', 'S')
+      and not exists (
+        select 1 from pg_depend d
+        where d.classid = 'pg_class'::regclass and d.objid = c.oid and d.deptype = 'e'
+      )
+      and c.relname not in (
+        'cities', 'tags', 'badges', 'spots', 'spot_tags', 'endorsements', 'verifications', 'users',
+        'public_profiles', 'user_badges', 'verification_requests', 'lantern_events', 'bookmarks'
+      )
+      and (
+        has_table_privilege('public', c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+        or has_table_privilege('anon', c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+        or has_table_privilege('authenticated', c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+      )
+  $$,
+  '権限表: 一覧に無い public の表・ビューは PUBLIC / anon / authenticated から使えない'
+);
+
+select is_empty(
+  $$
+    select role_name
+    from (values ('public'), ('anon'), ('authenticated')) as v(role_name)
+    where has_schema_privilege(role_name, 'public', 'CREATE')
+  $$,
+  '権限表: public スキーマへの CREATE は PUBLIC / anon / authenticated に無い'
+);
+
+select ok(
+  (select 'security_barrier=true' = any(coalesce(c.reloptions, '{}'::text[]))
+   from pg_class c where c.oid = 'public.public_profiles'::regclass),
+  'public_profiles は security_barrier のビュー'
+);
+
+select is_empty(
+  $$
+    select p.oid::regprocedure::text
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.prokind in ('f', 'p')
+      and not exists (
+        select 1 from pg_depend d
+        where d.classid = 'pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e'
+      )
+      and not coalesce(
+        'search_path=""' = any(p.proconfig) or 'search_path=' = any(p.proconfig),
+        false
+      )
+  $$,
+  'DB 関数はすべて search_path = '''' で固定されている'
+);
+
+select ok(
+  position(
+    format('%I.st_makepoint(', (
+      select n.nspname from pg_extension e join pg_namespace n on n.oid = e.extnamespace where e.extname = 'postgis'
+    ))
+    in pg_get_functiondef('public.create_spot(uuid, text, text, double precision, double precision, text)'::regprocedure)
+  ) > 0,
+  'create_spot は PostGIS を実際のスキーマで修飾している'
+);
+
 -- =========================================================
 -- 匿名（anon）
 -- =========================================================
@@ -82,12 +275,37 @@ select is((select count(*)::int from users), 0, '匿名: users の行は1件も�
 select is(
   (select count(*)::int from public_profiles where id = '11110000-0000-4000-8000-00000000000a'),
   1,
-  '匿名: 表示用ビュー public_profiles は読める'
+  '匿名: 公開中スポットの投稿者は public_profiles で読める'
 );
 select throws_ok(
   $$ select lantern_points from public_profiles $$,
   '42703', null,
   '匿名: public_profiles に lantern_points 列は無い'
+);
+select is(
+  (select count(*)::int from public_profiles where id = '11110000-0000-4000-8000-00000000000b'),
+  0,
+  '匿名: スポットを持たない利用者は public_profiles に出ない'
+);
+select is(
+  (select count(*)::int from public_profiles where id = '11110000-0000-4000-8000-00000000000e'),
+  0,
+  '匿名: dormant / expired だけの投稿者は public_profiles に出ない'
+);
+select is(
+  (select count(*)::int from public_profiles where id = '11110000-0000-4000-8000-00000000000f'),
+  0,
+  '匿名: pending だけの投稿者は public_profiles に出ない'
+);
+select is(
+  (select count(*)::int from user_badges where user_id = '11110000-0000-4000-8000-00000000000a'),
+  1,
+  '匿名: 公開中スポットの投稿者のバッジは読める'
+);
+select is(
+  (select count(*)::int from user_badges where user_id = '11110000-0000-4000-8000-00000000000b'),
+  0,
+  '匿名: スポットを持たない利用者のバッジは読めない'
 );
 select is(
   (select count(*)::int from spots where id = '22220000-0000-4000-8000-000000000001'),
@@ -173,7 +391,7 @@ select throws_ok(
 select isnt(
   create_spot('aaaa0000-0000-4000-8000-000000000001', '新しい店', '理由', 43.06, 141.35, 'monthly'),
   null,
-  '投稿者: 住んでいる街には create_spot できる'
+  '投稿者: 住んでいる街には create_spot できる（PostGIS の解決を含む）'
 );
 select throws_ok(
   $$ select endorse_spot('22220000-0000-4000-8000-000000000001') $$,
@@ -232,6 +450,36 @@ select throws_ok(
   '同じ街: endorsements へ直接 insert できない（created_at の偽装）'
 );
 select is(
+  (select count(*)::int from public_profiles where id = '11110000-0000-4000-8000-00000000000a'),
+  1,
+  '同じ街 B: 公開中スポットの投稿者 A は public_profiles に出る'
+);
+select is(
+  (select count(*)::int from public_profiles where id = '11110000-0000-4000-8000-00000000000b'),
+  1,
+  '同じ街 B: 本人は public_profiles に出る'
+);
+select is(
+  (select count(*)::int from public_profiles where id = '11110000-0000-4000-8000-00000000000c'),
+  0,
+  '同じ街 B: スポットを持たない他人 C は public_profiles に出ない'
+);
+select is(
+  (select count(*)::int from public_profiles where id = '11110000-0000-4000-8000-00000000000e'),
+  0,
+  '同じ街 B: expired だけの投稿者 E は public_profiles に出ない'
+);
+select is(
+  (select count(*)::int from public_profiles where id = '11110000-0000-4000-8000-00000000000f'),
+  0,
+  '同じ街 B: 別の街の pending の投稿者 F は public_profiles に出ない'
+);
+select is(
+  (select count(*)::int from user_badges where user_id = '11110000-0000-4000-8000-00000000000b'),
+  1,
+  '同じ街 B: 本人のバッジは読める'
+);
+select is(
   endorse_spot('22220000-0000-4000-8000-000000000001') ->> 'status',
   'pending',
   '同じ街: 1人目の承認ではまだ pending'
@@ -257,6 +505,16 @@ select throws_ok(
   $$ select endorse_spot('22220000-0000-4000-8000-000000000001') $$,
   '42501', null,
   '別の街: 承認できない'
+);
+select is(
+  (select count(*)::int from public_profiles where id = '11110000-0000-4000-8000-00000000000f'),
+  1,
+  '別の街 D: 自分の街の pending の投稿者 F は public_profiles に出る'
+);
+select is(
+  (select count(*)::int from public_profiles where id = '11110000-0000-4000-8000-00000000000b'),
+  0,
+  '別の街 D: スポットを持たない利用者 B は public_profiles に出ない'
 );
 
 set local request.jwt.claims to '{"sub":"11110000-0000-4000-8000-00000000000c","role":"authenticated"}';

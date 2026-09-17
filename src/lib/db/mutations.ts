@@ -23,6 +23,7 @@ import { POINTS_PER_PUBLISHED_SPOT, POINTS_PER_VERIFICATION } from "../domain/la
 import { planCronActions, type CronSpotInput, type CronVerificationRequestInput } from "../domain/verification-cron";
 import { isSupabaseConfigured } from "../supabase/env";
 import { createClient, createServiceRoleClient } from "../supabase/server";
+import { callWithSingleTransactionRetry } from "./retry";
 import { getSpot } from "./spots";
 import {
   FIXTURE_BOOKMARKS,
@@ -323,6 +324,8 @@ export interface VerificationCronResult {
   changed: number;
   missedRequestCount: number;
   createdRequestCount: number;
+  /** 回答・承認がロック中だったため今回は飛ばし、次回の cron に回したスポットの数（Spec §9.13.8） */
+  skippedLockedCount: number;
 }
 
 const cronResultSchema = z.object({
@@ -330,6 +333,7 @@ const cronResultSchema = z.object({
   changed: z.number().int(),
   missedRequestCount: z.number().int(),
   createdRequestCount: z.number().int(),
+  skippedLockedCount: z.number().int(),
 });
 
 /**
@@ -408,12 +412,14 @@ export async function runVerificationCron(now: Date): Promise<VerificationCronRe
       changed += 1;
     }
 
-    return { checked: spots.length, changed, missedRequestCount, createdRequestCount };
+    // フィクスチャは同時実行が無いので、ロック中で飛ばすスポットは常に0
+    return { checked: spots.length, changed, missedRequestCount, createdRequestCount, skippedLockedCount: 0 };
   }
 
   // service-role はここ（cron）だけで使う。DB 関数は service_role にしか EXECUTE を与えていない。
+  // デッドロック（40P01）・直列化失敗（40001）のときだけ1回再実行する（Spec §9.13.8）。
   const supabase = createServiceRoleClient();
-  const { data, error } = await supabase.rpc("run_verification_cron");
+  const { data, error } = await callWithSingleTransactionRetry(() => supabase.rpc("run_verification_cron"));
   if (error) throw rpcError("確認の定期処理", error);
   const parsed = cronResultSchema.safeParse(data);
   if (!parsed.success) throw new Error("確認の定期処理の結果を読み取れませんでした");
