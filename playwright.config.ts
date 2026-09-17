@@ -34,7 +34,9 @@ export default defineConfig({
     // では起動時に例外になる。`next build` / `next start` は NODE_ENV=production で動くため、
     // E2E は開発サーバー（`next dev`、predev で地図の Worker も配置される）をデモモードで起動する。
     command: `npm run dev -- --port ${PORT}`,
-    env: { URASUPO_DEMO_MODE: "1" },
+    // ポート3100で動く別の dev サーバー（同じ .next ロックファイル）と競合しないよう、
+    // このE2E専用のdistDirを使う（next.config.ts の NEXT_DIST_DIR）。
+    env: { URASUPO_DEMO_MODE: "1", NEXT_DIST_DIR: ".next-e2e" },
     // アプリ本体のデータ取得とは独立して常に200を返す /styleguide で起動完了を判定する。
     url: `${BASE_URL}/styleguide`,
     // インメモリのデモデータを毎回初期状態から検証する。

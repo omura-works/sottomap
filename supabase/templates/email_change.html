@@ -1,0 +1,45 @@
+<!--
+  ウラスポ: メールアドレス変更の確認メール（Supabase Auth email_change）。
+  色はデザイントークン（src/app/globals.css）の値を直書き（メールでは CSS 変数が使えないため）。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+  <body style="margin:0;padding:0;background:#eee7db;font-family:'Hiragino Sans','Yu Gothic',sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eee7db;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%;background:#f5ead8;border-radius:16px;padding:32px;">
+            <tr>
+              <td style="font-size:13px;letter-spacing:0.08em;color:#8c491a;text-transform:uppercase;padding-bottom:8px;">
+                ウラスポ
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:20px;font-weight:900;color:#201e1d;padding-bottom:16px;">
+                メールアドレスの変更を確認します
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:14px;line-height:1.7;color:#201e1d;padding-bottom:24px;">
+                {{ .Email }} から {{ .NewEmail }} への変更のご依頼を受け付けました。下のボタンから変更を確定できます。このメールにお心当たりがない場合は、無視していただいて構いません。
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-bottom:24px;">
+                <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#8c491a;color:#f5ead8;font-weight:700;font-size:14px;text-decoration:none;padding:12px 28px;border-radius:999px;">
+                  メールアドレスの変更を確定する
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:12px;line-height:1.7;color:#645c50;">
+                ボタンが押せない場合は、次のリンクをブラウザに貼り付けてください。<br />
+                {{ .ConfirmationURL }}
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

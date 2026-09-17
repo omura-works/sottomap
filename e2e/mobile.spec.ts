@@ -72,7 +72,9 @@ test.describe("モバイル導線", () => {
     for (let i = 0; i < 10; i += 1) {
       const removeButton = page.getByRole("button", { name: /を栞から外す$/ }).first();
       if (!(await removeButton.isVisible().catch(() => false))) break;
+      // ConfirmRemoveButton: 押すとその場で確定パネル（外す／やめる）が開く。「外す」で確定する。
       await removeButton.tap();
+      await page.getByRole("button", { name: "外す", exact: true }).first().tap();
       await page.waitForTimeout(50);
     }
 

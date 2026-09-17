@@ -13,7 +13,9 @@ test.describe("デモモードの主要導線", () => {
     await page.goto("/bookmarks");
     const removeExisting = page.getByRole("button", { name: "札幌ザンギ本舗を栞から外す" });
     if (await removeExisting.isVisible()) {
+      // ConfirmRemoveButton: 押すとその場で確定パネル（外す／やめる）が開く。「外す」で確定する。
       await removeExisting.click();
+      await page.getByRole("button", { name: "外す", exact: true }).click();
       await expect(page.getByText("札幌ザンギ本舗", { exact: true })).toBeHidden();
     }
 

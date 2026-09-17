@@ -7,3 +7,5 @@ export * from "./Segment";
 export * from "./Dialog";
 export * from "./Divider";
 export * from "./LoadingScreen";
+export * from "./AnimatedCounter";
+export * from "./ConfirmRemoveButton";

@@ -6,7 +6,7 @@ import { getProfileStats, getUserProfile, listCities, listSpotsByAuthor } from "
 import { resolveBadges } from "@/lib/domain/lantern";
 import { quietnessLabel } from "@/lib/domain/quietness";
 import type { Quietness, SpotStatus } from "@/lib/db/types";
-import { Card, Divider, Tag } from "@/components/ui";
+import { AnimatedCounter, Card, Divider, Tag } from "@/components/ui";
 import { Disclaimer } from "@/components/profile/Disclaimer";
 
 /**
@@ -155,7 +155,7 @@ function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="px-2 py-3" style={{ borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}>
       <p className="m-0 text-2xl" style={{ fontFamily: "var(--font-heading)", fontWeight: 900 }}>
-        {value}
+        <AnimatedCounter value={value} />
       </p>
       <p className="m-0 text-muted text-xs">{label}</p>
     </div>

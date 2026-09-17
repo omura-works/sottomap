@@ -4,6 +4,7 @@ import { useOptimistic, useState, useTransition } from "react";
 import Link from "next/link";
 import { unstable_rethrow } from "next/navigation";
 import { removeBookmarkAction } from "@/app/actions/bookmark-actions";
+import { ConfirmRemoveButton } from "@/components/ui";
 
 export interface BookmarkListItem {
   id: string;
@@ -32,7 +33,7 @@ type ListAction =
  * （SPEC §9.14-4: 表示件数と渡す件数を一致させる）。
  */
 export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[] }) {
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [items, dispatch] = useOptimistic(initialItems, (state: BookmarkListItem[], action: ListAction) => {
     if (action.type === "remove") {
@@ -102,15 +103,10 @@ export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[
                 <p className="m-0 truncate">{item.spotName}</p>
                 <p className="m-0 text-muted text-xs">{item.meta}</p>
               </div>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => handleRemove(item, index)}
-                disabled={isPending}
-                aria-label={`${item.spotName}を栞から外す`}
-              >
-                外す
-              </button>
+              <ConfirmRemoveButton
+                label={`${item.spotName}を栞から外す`}
+                onConfirm={() => handleRemove(item, index)}
+              />
             </li>
           );
         })}

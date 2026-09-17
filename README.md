@@ -46,6 +46,20 @@ DBは `supabase/migrations/` のSQLを番号順（`0001` → `0006`）に適用�
   - 承認時刻: `endorsements.created_at` が利用者に指定された値でないか。pending の期限判定（`created_at + 30日`）に使います。
 - 0006 は `alter default privileges for role postgres` で、今後 postgres が作るオブジェクトに anon / authenticated への既定権限が付かないようにします（関数の PUBLIC への EXECUTE は全スキーマ分）。マイグレーションを実行するロールがこれを変更できない環境では警告を出して続行します。その場合も、0006 が明示した GRANT / REVOKE は有効です。
 
+### 認証メールの日本語化（本番）
+
+ローカルは `supabase/config.toml` の `[auth.email.template.*]` と `supabase/templates/*.html` で日本語のメールを送ります。本番の Supabase プロジェクトはダッシュボードの Authentication → Email Templates から、テンプレートごとに件名と本文を貼ってください（`content_path` の設定は本番には反映されません）。
+
+| テンプレート | 件名 | 本文ファイル |
+| --- | --- | --- |
+| Magic Link | ウラスポにログインする | `supabase/templates/magic_link.html` |
+| Confirm signup | ウラスポのメールアドレスを確認する | `supabase/templates/confirmation.html` |
+| Change Email Address | ウラスポのメールアドレス変更を確認する | `supabase/templates/email_change.html` |
+| Reauthentication | ウラスポの確認コード | `supabase/templates/reauthentication.html` |
+| Invite user | ウラスポにご招待します | `supabase/templates/invite.html` |
+
+各ファイルの中身（HTML）をそのままダッシュボードの本文欄に貼れば反映されます。色はデザイントークンの値を直書きしているため、`src/app/globals.css` のトークンを変えた場合はメールのHTMLも合わせて直してください。
+
 ### 実DBでの検証（本番公開前に必須）
 
 RLS・権限表・DB 関数・同時実行は、ローカルの Supabase で pgTAP テスト（`supabase/tests/*.sql`）を流して確かめます。**本番公開の前に必ず実行してください。**

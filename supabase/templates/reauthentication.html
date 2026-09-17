@@ -1,0 +1,39 @@
+<!--
+  ウラスポ: 確認コード（Supabase Auth reauthentication）。リンクではなくコードを画面に入力する。
+  色はデザイントークン（src/app/globals.css）の値を直書き（メールでは CSS 変数が使えないため）。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+  <body style="margin:0;padding:0;background:#eee7db;font-family:'Hiragino Sans','Yu Gothic',sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eee7db;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%;background:#f5ead8;border-radius:16px;padding:32px;">
+            <tr>
+              <td style="font-size:13px;letter-spacing:0.08em;color:#8c491a;text-transform:uppercase;padding-bottom:8px;">
+                ウラスポ
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:20px;font-weight:900;color:#201e1d;padding-bottom:16px;">
+                確認コードをお送りします
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:14px;line-height:1.7;color:#201e1d;padding-bottom:16px;">
+                次のコードを画面に入力してください。このメールにお心当たりがない場合は、無視していただいて構いません。
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-bottom:16px;">
+                <span style="display:inline-block;background:#ebddc5;color:#201e1d;font-weight:900;font-size:28px;letter-spacing:0.2em;padding:12px 28px;border-radius:16px;">
+                  {{ .Token }}
+                </span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

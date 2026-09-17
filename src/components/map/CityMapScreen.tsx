@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { City, Spot } from "@/lib/db/types";
 import { daysSince } from "@/lib/domain/lifecycle";
-import { Card } from "@/components/ui";
+import { AnimatedCounter, Card } from "@/components/ui";
 import { AddBookmarkButton } from "@/components/bookmark/AddBookmarkButton";
 import { FilterChips, SpotListItem } from "@/components/spot-list";
 import { splitByQuietness } from "@/lib/domain/ordering";
@@ -138,7 +138,9 @@ export function CityMapScreen({
           <h1 className="mb-1" style={{ fontSize: 30 }}>
             {cityHeading}
           </h1>
-          <p className="text-muted text-sm">地元が確認したまま静かな店、{quietCount}軒。</p>
+          <p className="text-muted text-sm">
+            地元が確認したまま静かな店、<AnimatedCounter value={quietCount} />軒。
+          </p>
           <Link href={`/${city.slug}/spots/new#pending-spots`} className="text-xs" style={{ color: "var(--color-accent-700)" }}>
             承認待ちのピンを見る
           </Link>
@@ -210,7 +212,9 @@ export function CityMapScreen({
             <h1 className="m-0" style={{ fontFamily: "var(--font-heading)", fontWeight: 900, fontSize: 15 }}>
               {cityHeading}
             </h1>
-            <div className="text-xs text-muted">静かなまま、{quietCount}軒</div>
+            <div className="text-xs text-muted">
+              静かなまま、<AnimatedCounter value={quietCount} />軒
+            </div>
             <Link href={`/${city.slug}/spots/new#pending-spots`} className="text-xs" style={{ color: "var(--color-accent-700)" }}>
               承認待ちのピンを見る
             </Link>
