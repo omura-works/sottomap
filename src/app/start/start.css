@@ -1,0 +1,42 @@
+/* S1 トップ画面（SPEC §9.15 案B）専用のスタイル */
+@keyframes start-light-glow {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.start-screen .start-light {
+  animation: start-light-glow 4.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .start-screen .start-light {
+    animation: none;
+    opacity: 0.8;
+  }
+}
+
+/* SPEC §9.14-14: 当たり判定は透明なボタン全体（44px 以上）。見た目のチップは中の span */
+.start-screen .start-city-chip {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.start-screen .start-city-chip:focus-visible {
+  outline: none;
+}
+
+.start-screen .start-city-chip:focus-visible > span {
+  outline: 2px solid var(--color-accent-600);
+  outline-offset: 2px;
+}
