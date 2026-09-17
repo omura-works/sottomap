@@ -5,6 +5,8 @@ import type { ChangeEvent } from "react";
 import { Button, Card, Field, Segment } from "@/components/ui";
 import type { City } from "@/lib/db/types";
 import { createSpotAction, type NewSpotActionState } from "@/app/actions/spot-create";
+import { MapCanvas } from "@/components/map";
+import type { MapPin } from "@/components/map";
 import { REASON_MAX_LENGTH, VISIT_FREQUENCY_OPTIONS } from "./schema";
 
 export interface NewSpotFormProps {
@@ -16,60 +18,85 @@ const initialState: NewSpotActionState = null;
 /**
  * S5「ピンを立てる」フォーム。
  *
- * 位置選択について: 本来は地図ミニプレビュー（Task 3 所有の
- * `src/components/map/MapCanvas`）で選ぶ想定（SPEC §4 S5）。実装時点で
- * MapCanvas 自体は存在するが、`import maplibregl from "maplibre-gl"`（デフォルト
- * エクスポート無し）で `npm run build` が失敗する状態だったため、これに依存すると
- * 本タスクのページごとビルドが壊れてしまう。そのため一旦、緯度・経度を直接入力する
- * フォールバックのみにしている。Task 3 側の import 修正後、MapCanvas による
- * ミニプレビューに差し替えること（詳細は task-4-report.md）。
+ * SPEC §9.14-2: 位置は `MapCanvas` のミニ地図で選ぶ。街の中心をそのまま送らせないため、
+ * 利用者が地図をクリック／タップして一度も位置を選んでいない間は送信できない。
+ * 緯度・経度の入力欄はキーボード・支援技術向けの代替として残し、地図のピンと双方向に同期する。
  */
 export function NewSpotForm({ city }: NewSpotFormProps) {
   const [name, setName] = useState("");
   const [reason, setReason] = useState("");
   const [visitFrequency, setVisitFrequency] = useState<string>(VISIT_FREQUENCY_OPTIONS[0].value);
-  const [lat, setLat] = useState(city.centerLat);
-  const [lng, setLng] = useState(city.centerLng);
+  // 街の中心はあくまで地図の初期表示位置。ピンの位置（lat/lng）は
+  // 利用者が地図をクリックするか、緯度・経度欄に入力するまで null のまま。
+  const [lat, setLat] = useState<string>("");
+  const [lng, setLng] = useState<string>("");
 
   const boundAction = createSpotAction.bind(null, city.slug);
   const [state, formAction, isPending] = useActionState(boundAction, initialState);
 
-  const handleNumberChange = (setter: (value: number) => void) => (event: ChangeEvent<HTMLInputElement>) => {
-    const value = Number(event.target.value);
-    if (!Number.isNaN(value)) setter(value);
+  const parsedLat = Number(lat);
+  const parsedLng = Number(lng);
+  const hasPosition = lat !== "" && lng !== "" && Number.isFinite(parsedLat) && Number.isFinite(parsedLng);
+
+  const pins: MapPin[] = hasPosition
+    ? [{ id: "new-spot", lat: parsedLat, lng: parsedLng, quietness: "quiet", label: "ここに立てる" }]
+    : [];
+
+  const handleMapClick = ({ lat: clickedLat, lng: clickedLng }: { lat: number; lng: number }) => {
+    setLat(clickedLat.toFixed(6));
+    setLng(clickedLng.toFixed(6));
   };
+
+  const handleLatChange = (event: ChangeEvent<HTMLInputElement>) => setLat(event.target.value);
+  const handleLngChange = (event: ChangeEvent<HTMLInputElement>) => setLng(event.target.value);
 
   return (
     <form action={formAction} className="space-y-6">
       <div className="space-y-1">
         <p className="text-muted text-sm">地元の人だけ / ピンを立てる</p>
-        <h2>まだ知られていない店を、一軒</h2>
+        <h1 style={{ fontSize: 30 }}>まだ知られていない店を、一軒</h1>
       </div>
 
-      <Card kicker="位置を選ぶ" title="地図でのピン選択は準備中です">
-        <p className="text-muted text-sm">
-          いまは緯度・経度を直接入力してください（{city.name}の中心をデフォルト値にしています）。
+      <Card kicker="位置を選ぶ" title="地図をタップしてピンを置く">
+        <p className="text-muted text-sm m-0">
+          地図をクリック（タップ）すると、その場所にピンが立ちます。{city.name}の中心のままでは送信できません。
         </p>
+        <div style={{ height: 240, borderRadius: "var(--radius-md)", overflow: "hidden" }}>
+          <MapCanvas
+            center={{ lat: city.centerLat, lng: city.centerLng }}
+            zoom={city.defaultZoom}
+            pins={pins}
+            onBackgroundClick={handleMapClick}
+            className="relative w-full h-full"
+          />
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <Field
             label="緯度"
             name="lat"
             type="number"
             step="0.000001"
-            value={String(lat)}
-            onChange={handleNumberChange(setLat)}
+            value={lat}
+            onChange={handleLatChange}
             required
+            hint={state?.fieldErrors?.lat}
           />
           <Field
             label="経度"
             name="lng"
             type="number"
             step="0.000001"
-            value={String(lng)}
-            onChange={handleNumberChange(setLng)}
+            value={lng}
+            onChange={handleLngChange}
             required
+            hint={state?.fieldErrors?.lng}
           />
         </div>
+        {!hasPosition ? (
+          <p className="text-sm m-0" style={{ color: "var(--color-accent-700)" }}>
+            地図をタップするか、緯度・経度を入力すると送信できます。
+          </p>
+        ) : null}
       </Card>
 
       <Field
@@ -115,7 +142,7 @@ export function NewSpotForm({ city }: NewSpotFormProps) {
         </p>
       ) : null}
 
-      <Button type="submit" variant="primary" block disabled={isPending}>
+      <Button type="submit" variant="primary" block disabled={isPending || !hasPosition}>
         ピンを立てる
       </Button>
     </form>

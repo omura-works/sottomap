@@ -46,4 +46,13 @@ describe("Field", () => {
     render(<Field label="店の名前" value="南樽市場" onChange={() => {}} />);
     expect(screen.queryByText(/\/\d+/)).not.toBeInTheDocument();
   });
+
+  it("SPEC §9.14-16: hint（エラー文）を aria-describedby / aria-invalid で入力欄に結び付ける", () => {
+    render(<Field label="緯度" value="" onChange={() => {}} hint="緯度は-90から90の範囲で入力してください" />);
+    const input = screen.getByLabelText("緯度");
+    const hint = screen.getByRole("alert");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input.getAttribute("aria-describedby")).toBe(hint.id);
+    expect(hint).toHaveTextContent("緯度は-90から90の範囲で入力してください");
+  });
 });

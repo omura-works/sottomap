@@ -8,15 +8,22 @@ import { daysSince } from "@/lib/domain/lifecycle";
 import { Card } from "@/components/ui";
 import { AddBookmarkButton } from "@/components/bookmark/AddBookmarkButton";
 import { FilterChips, SpotListItem } from "@/components/spot-list";
+import { splitByQuietness } from "@/lib/domain/ordering";
 import { MapCanvas } from "./index";
 import type { MapPin, MapPoint } from "./index";
-import { buildDistanceMap, mostCommonAreaName, useOrigin, walkingLabel } from "./geo";
+import { buildDistanceMap, useOrigin, walkingLabel } from "./geo";
 
 export interface CityMapScreenProps {
   city: City;
   /** status='published' の店（listSpots が sortSpots を通した順で返す）。 */
   spots: Spot[];
   quietCount: number;
+  /**
+   * 見出し「{街}・{エリア}」の後半部分（無ければ市区町村名のみ）。
+   * SPEC §9.14-8: quietCount と同じ範囲（featuredArea優先→最頻エリア名）で
+   * サーバー側（`/[city]/page.tsx`）が計算した値をそのまま使う。
+   */
+  featuredArea: string | null;
   /** URL `filters` を parseFiltersParam したもの。表示・トグルの単一の情報源。 */
   activeFilters: string[];
   /** `?spots=id1,id2,...`（栞の「N軒を地図にまとめる」からの受け口）。無ければ null。 */
@@ -35,6 +42,7 @@ export function CityMapScreen({
   city,
   spots,
   quietCount,
+  featuredArea,
   activeFilters,
   focusedSpotIds,
   bookmarkedSpotIds,
@@ -71,10 +79,15 @@ export function CityMapScreen({
   }, [spots, focusedSpotIds]);
 
   const distances = useMemo(() => buildDistanceMap(visibleSpots, origin), [visibleSpots, origin]);
-  // SPEC §9.12-7: City 側に代表エリア（featuredArea）があればそれを使い、
-  // 無ければ従来どおり表示中スポットの最頻エリア名で代替する。
-  const featuredArea = city.featuredArea ?? mostCommonAreaName(visibleSpots);
+  // SPEC §9.14-8: featuredArea はサーバー側（/[city]/page.tsx）が quietCount と同じ範囲で
+  // 計算した値をそのまま使う（見出しと件数のスコープを一致させる）。
   const cityHeading = featuredArea ? `${city.name}・${featuredArea}` : city.name;
+
+  // SPEC §9.14-5: 「まだ静か」ON時は quiet を上、crowding/touristy を「混みはじめた店」の下にまとめる。
+  const quietNowActive = activeFilters.includes("quiet-now");
+  const { quiet: quietSpots, crowded: crowdedSpots } = useMemo(() => splitByQuietness(visibleSpots), [visibleSpots]);
+  const topSpots = quietNowActive ? quietSpots : visibleSpots;
+  const bottomSpots = quietNowActive ? crowdedSpots : [];
 
   const selectedSpot = visibleSpots.find((s) => s.id === selectedId) ?? null;
   const hoveredSpot = hover ? (visibleSpots.find((s) => s.id === hover.id) ?? null) : null;
@@ -104,25 +117,58 @@ export function CityMapScreen({
         style={{ background: "var(--color-bg)", borderRight: "1px solid var(--color-divider)" }}
       >
         <div>
-          <h2 className="mb-1">{cityHeading}</h2>
+          {/* SPEC §9.14-11: ページの意味上のh1（見た目は原本のh2相当30px）。
+              モバイル側見出し（下記）とはCSSの hidden/lg:hidden で排他表示のため、
+              アクセシビリティツリー上のh1は常に1つ。 */}
+          <h1 className="mb-1" style={{ fontSize: 30 }}>
+            {cityHeading}
+          </h1>
           <p className="text-muted text-sm">地元が確認したまま静かな店、{quietCount}軒。</p>
-          <Link href={`/${city.slug}/spots/new#pending-spots`} className="text-xs" style={{ color: "var(--color-accent)" }}>
+          <Link href={`/${city.slug}/spots/new#pending-spots`} className="text-xs" style={{ color: "var(--color-accent-700)" }}>
             承認待ちのピンを見る
           </Link>
         </div>
         <FilterChips active={activeFilters} onToggle={toggleFilter} />
-        <ul className="flex flex-col gap-1 list-none m-0 p-0">
-          {visibleSpots.map((spot) => (
-            <SpotListItem
-              key={spot.id}
-              spot={spot}
-              distanceMeters={distances[spot.id]}
-              selected={spot.id === selectedId}
-              onSelect={setSelectedId}
-              description={spot.reason}
-            />
-          ))}
-        </ul>
+        {visibleSpots.length === 0 ? (
+          <div className="space-y-2">
+            <p className="text-muted text-sm m-0">条件に合う店が見つかりませんでした。</p>
+            <Link href={`/${city.slug}/spots/new`} className="btn btn-secondary">
+              ピンを立てる
+            </Link>
+          </div>
+        ) : (
+          <>
+            <ul className="flex flex-col gap-1 list-none m-0 p-0">
+              {topSpots.map((spot) => (
+                <SpotListItem
+                  key={spot.id}
+                  spot={spot}
+                  distanceMeters={distances[spot.id]}
+                  selected={spot.id === selectedId}
+                  onSelect={setSelectedId}
+                  description={spot.reason}
+                />
+              ))}
+            </ul>
+            {bottomSpots.length > 0 ? (
+              <div className="space-y-1">
+                <h4 className="text-sm text-muted m-0">混みはじめた店</h4>
+                <ul className="flex flex-col gap-1 list-none m-0 p-0">
+                  {bottomSpots.map((spot) => (
+                    <SpotListItem
+                      key={spot.id}
+                      spot={spot}
+                      distanceMeters={distances[spot.id]}
+                      selected={spot.id === selectedId}
+                      onSelect={setSelectedId}
+                      description={spot.reason}
+                    />
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </>
+        )}
       </aside>
 
       {/* 地図（モバイルは全面、PCは右ペイン） */}
@@ -133,11 +179,23 @@ export function CityMapScreen({
             className="flex-1"
             style={{ background: "var(--color-bg)", borderRadius: "var(--radius-md)", padding: "8px 14px", boxShadow: "var(--shadow-md)" }}
           >
-            <div style={{ fontFamily: "var(--font-heading)", fontWeight: 900, fontSize: 15 }}>{cityHeading}</div>
+            {/* SPEC §9.14-11: モバイル側の意味上のh1（デスクトップ側のh1とはCSSで排他表示）。 */}
+            <h1 className="m-0" style={{ fontFamily: "var(--font-heading)", fontWeight: 900, fontSize: 15 }}>
+              {cityHeading}
+            </h1>
             <div className="text-xs text-muted">静かなまま、{quietCount}軒</div>
-            <Link href={`/${city.slug}/spots/new#pending-spots`} className="text-xs" style={{ color: "var(--color-accent)" }}>
+            <Link href={`/${city.slug}/spots/new#pending-spots`} className="text-xs" style={{ color: "var(--color-accent-700)" }}>
               承認待ちのピンを見る
             </Link>
+            {/* SPEC §9.14-15: モバイルでも0件のとき投稿への導線を出す。 */}
+            {visibleSpots.length === 0 ? (
+              <p className="text-xs text-muted m-0">
+                まだ店がありません。
+                <Link href={`/${city.slug}/spots/new`} style={{ color: "var(--color-accent-700)" }}>
+                  ピンを立てる
+                </Link>
+              </p>
+            ) : null}
           </div>
           <Link
             href="/bookmarks"

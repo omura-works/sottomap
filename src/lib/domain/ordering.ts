@@ -48,3 +48,15 @@ export function sortSpots(
 ): Spot[] {
   return [...spots].sort((a, b) => compareSpots(a, b, distances));
 }
+
+/**
+ * SPEC §9.14-5: 「まだ静か」チップON時の表示分割。
+ * quiet の店と、crowding/touristy（「混みはじめた店」の下にまとめる分）に分ける。
+ * spots は既に sortSpots を通した順のため、各グループ内の相対順は保たれる。
+ */
+export function splitByQuietness(spots: Spot[]): { quiet: Spot[]; crowded: Spot[] } {
+  return {
+    quiet: spots.filter((s) => s.quietness === "quiet"),
+    crowded: spots.filter((s) => s.quietness !== "quiet"),
+  };
+}

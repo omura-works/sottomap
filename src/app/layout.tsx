@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Zen_Kaku_Gothic_New, Zen_Maru_Gothic } from "next/font/google";
 import { AppShell } from "@/components/layout/AppShell";
 import { isDemoMode } from "@/lib/supabase/env";
+import { getCurrentUserId } from "@/lib/auth";
+import { getUserProfile, listCities } from "@/lib/db/spots";
 import "./globals.css";
 
 // 見出し用フォント（Spec §5: 見出しは "Zen Maru Gothic"）。--font-heading に割り当てる。
@@ -38,8 +40,27 @@ function shouldShowDemoBanner(): boolean {
   }
 }
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+/**
+ * SPEC §9.14-3: 「地図」「さがす」の既定行き先に使う利用者の居住街slug。
+ * 未ログイン・居住街未設定・データ取得失敗（設定不整合等）のいずれでも null にし、
+ * nav-items.ts 側の既定（札幌）へ委ねる（レイアウトはこの判定で例外を投げない）。
+ */
+async function resolveHomeCitySlug(): Promise<string | null> {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return null;
+    const profile = await getUserProfile(userId);
+    if (!profile?.homeCityId) return null;
+    const cities = await listCities();
+    return cities.find((city) => city.id === profile.homeCityId)?.slug ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export default async function RootLayout({ children }: LayoutProps<"/">) {
   const showDemoBanner = shouldShowDemoBanner();
+  const homeCitySlug = await resolveHomeCitySlug();
   return (
     <html lang="ja" className={`${zenMaruGothic.variable} ${zenKakuGothicNew.variable}`}>
       <body className="min-h-screen">
@@ -48,7 +69,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             デモモード（保存されません）
           </p>
         ) : null}
-        <AppShell>{children}</AppShell>
+        <AppShell homeCitySlug={homeCitySlug}>{children}</AppShell>
       </body>
     </html>
   );

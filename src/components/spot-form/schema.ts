@@ -29,8 +29,14 @@ export const newSpotSchema = z.object({
   visitFrequency: z.enum(["weekly", "monthly", "yearly"], {
     error: "頻度を選んでください",
   }),
-  lat: z.coerce.number().min(-90).max(90),
-  lng: z.coerce.number().min(-180).max(180),
+  lat: z.coerce
+    .number({ error: "地図でピンの位置を選んでください" })
+    .min(-90, "緯度は-90から90の範囲で入力してください")
+    .max(90, "緯度は-90から90の範囲で入力してください"),
+  lng: z.coerce
+    .number({ error: "地図でピンの位置を選んでください" })
+    .min(-180, "経度は-180から180の範囲で入力してください")
+    .max(180, "経度は-180から180の範囲で入力してください"),
 });
 
 export type NewSpotInput = z.infer<typeof newSpotSchema>;

@@ -6,3 +6,4 @@ export * from "./Field";
 export * from "./Segment";
 export * from "./Dialog";
 export * from "./Divider";
+export * from "./LoadingScreen";

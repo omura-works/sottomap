@@ -37,7 +37,7 @@ export function SpotListItem({ spot, distanceMeters, selected = false, onSelect,
         style={{
           background: selected ? "var(--color-accent-100)" : "transparent",
           border: "1px solid",
-          borderColor: selected ? "var(--color-accent)" : "transparent",
+          borderColor: selected ? "var(--color-accent-600)" : "transparent",
           color: "var(--color-text)",
           textDecoration: "none",
         }}

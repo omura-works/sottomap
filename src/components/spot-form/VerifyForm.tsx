@@ -6,6 +6,7 @@ import type { Badge, Quietness, Verification } from "@/lib/db/types";
 import { quietnessLabel } from "@/lib/domain/quietness";
 import { formatTokyoYearMonth } from "@/lib/format/date-time";
 import { submitVerification } from "@/app/actions/spot-verify";
+import { Disclaimer } from "@/components/profile/Disclaimer";
 import { useShowRewardsSetting } from "./reward-settings";
 import { VERIFY_ANSWER_OPTIONS } from "./verify-schema";
 
@@ -14,6 +15,8 @@ export interface VerifyFormProps {
   spotName: string;
   daysSinceLast: number;
   history: Verification[];
+  /** 回答前のスポットの状態が dormant だったか。復帰時の「地図に戻りました。」表示に使う。 */
+  wasDormant?: boolean;
 }
 
 /** SPEC §9.8: 「2025年12月 / 静かなまま」のように年月とラベルを "/" で区切る。 */
@@ -22,12 +25,16 @@ function formatHistoryEntry(v: Verification): string {
 }
 
 /** S6「確認」画面のフォーム＋回答後の灯り演出。 */
-export function VerifyForm({ requestId, spotName, daysSinceLast, history }: VerifyFormProps) {
+export function VerifyForm({ requestId, spotName, daysSinceLast, history, wasDormant = false }: VerifyFormProps) {
   const [showRewards, setShowRewards] = useShowRewardsSetting();
   const [answered, setAnswered] = useState<Quietness | null>(null);
   const [pointsAwarded, setPointsAwarded] = useState(0);
   const [badges, setBadges] = useState<Badge[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // SPEC §9.14-1: 下層が accepted:false を返す（同じ依頼への二重送信）場合は、
+  // 成功演出を出さず「この確認は回答済みです。」に切り替える。
+  const [alreadyAnswered, setAlreadyAnswered] = useState(false);
+  const [returnedToMap, setReturnedToMap] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const handleAnswer = (answer: Quietness) => {
@@ -38,9 +45,15 @@ export function VerifyForm({ requestId, spotName, daysSinceLast, history }: Veri
         setError(result.error);
         return;
       }
+      if (!result.accepted) {
+        setAlreadyAnswered(true);
+        return;
+      }
       setAnswered(answer);
       setPointsAwarded(result.pointsAwarded);
       setBadges(result.badges);
+      // SPEC §9.14-1: dormant → published の復帰時だけ「地図に戻りました。」を添える。
+      setReturnedToMap(wasDormant && result.status === "published");
     });
   };
 
@@ -50,22 +63,29 @@ export function VerifyForm({ requestId, spotName, daysSinceLast, history }: Veri
     <div className="space-y-6">
       <div className="space-y-1">
         <p className="text-muted text-sm">地元の人へ / 90日ごとの確認</p>
-        <h2>この店は、まだ隠れていますか</h2>
+        <h1 style={{ fontSize: 30 }}>この店は、まだ隠れていますか</h1>
       </div>
 
       <Card title={spotName} meta={`前回の確認から${daysSinceLast}日`} />
 
-      {answered ? (
+      {alreadyAnswered ? (
+        <Card title="この確認は回答済みです。" />
+      ) : answered ? (
         <Card kicker="ありがとうございます" title={quietnessLabel(answered)}>
           {showRewards ? (
             <div className="space-y-1">
-              <p className="text-lg font-bold" style={{ color: "var(--color-accent)" }}>
+              <p className="text-lg font-bold" style={{ color: "var(--color-accent-700)" }}>
                 +{pointsAwarded}
               </p>
               {/* SPEC §9.8: S6 の報酬説明。原本の文言を一字一句そのまま実装する。 */}
               <p className="text-sm text-muted m-0">確認を続けた人だけが、次の街を先に見られます。</p>
               {keeperBadge && !keeperBadge.earned ? <p className="text-sm">灯りの番人 あと{keeperBadge.remaining}件</p> : null}
             </div>
+          ) : null}
+          {returnedToMap ? (
+            <p className="text-sm m-0" role="status" aria-live="polite">
+              地図に戻りました。
+            </p>
           ) : null}
         </Card>
       ) : (
@@ -108,6 +128,10 @@ export function VerifyForm({ requestId, spotName, daysSinceLast, history }: Veri
         <input type="checkbox" checked={showRewards} onChange={(event) => setShowRewards(event.target.checked)} />
         回答後の灯り演出（+5 など）を表示する
       </label>
+
+      {/* SPEC §9.14-13: メールリンク等から /verify に直接入る利用者にも、
+          架空データの注記に到達できる導線を必ず出す（この画面はナビ無しのフルスクリーン導線）。 */}
+      <Disclaimer />
     </div>
   );
 }

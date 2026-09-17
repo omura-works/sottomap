@@ -42,7 +42,7 @@ export interface MapCanvasProps {
   selectedId?: string | null;
   onSelectPin?: (id: string) => void;
   onHoverPin?: (id: string | null, point: MapPoint | null) => void;
-  onBackgroundClick?: () => void;
+  onBackgroundClick?: (point: { lat: number; lng: number }) => void;
   /** true の間、pins の緯度経度が収まるよう地図を自動でフィットする（栞からの「地図にまとめる」等）。 */
   fitToPins?: boolean;
   className?: string;
@@ -63,14 +63,18 @@ const QUIETNESS_STYLE: Record<Quietness, { bg: string; fg: string; glyph: string
   touristy: { bg: "var(--color-neutral-600)", fg: "var(--color-bg)", glyph: "観" },
 };
 
+// SPEC §9.14-14: ピンの見た目（30px）は変えず、タップ／クリックの当たり判定だけ
+// 透明な ::after（.map-pin-hit-area, globals.css）で44x44px以上に広げる。
 function createMarkerElement(pin: MapPin, selected: boolean): HTMLDivElement {
   const style = QUIETNESS_STYLE[pin.quietness];
   const el = document.createElement("div");
+  el.className = "map-pin-hit-area";
   el.setAttribute("role", "button");
   el.setAttribute("tabindex", "0");
   el.setAttribute("aria-label", `${pin.label}・${quietnessLabel(pin.quietness)}`);
   el.title = `${pin.label}（${quietnessLabel(pin.quietness)}）`;
   el.style.cssText = [
+    "position:relative",
     "display:flex",
     "align-items:center",
     "justify-content:center",
@@ -160,7 +164,7 @@ export function MapCanvas({
       // マーカー要素上のクリックは個別ハンドラで stopPropagation 済みなので、
       // ここに来るのは背景（地図そのもの）のクリックのみ。
       if (event.originalEvent.defaultPrevented) return;
-      callbacksRef.current.onBackgroundClick?.();
+      callbacksRef.current.onBackgroundClick?.({ lat: event.lngLat.lat, lng: event.lngLat.lng });
     });
 
     mapRef.current = map;

@@ -81,7 +81,7 @@ export default async function SpotDetailPage({
 
       <header className="space-y-2">
         <p className="text-muted text-xs tracking-wide uppercase">{kicker}</p>
-        <h2>{spot.name}</h2>
+        <h1 style={{ fontSize: 30 }}>{spot.name}</h1>
         <div className="flex flex-wrap gap-2">
           {spot.tags.map((tag) => (
             <Tag key={tag.id} kind={tag.kind}>

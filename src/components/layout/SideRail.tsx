@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_ITEMS, isNavItemActive } from "./nav-items";
+import { cityContextFromPathname, getNavItems, isNavItemActive } from "./nav-items";
+
+export interface SideRailProps {
+  /** 利用者の居住街slug（未ログイン・未設定なら null）。SPEC §9.14-3。 */
+  homeCitySlug?: string | null;
+}
 
 /**
  * デスクトップ（lg: 以上）用のナビゲーション骨格。
@@ -11,8 +16,10 @@ import { NAV_ITEMS, isNavItemActive } from "./nav-items";
  * ここは常設の細いナビレール（4タブを縦積み）で、中身は空でよい旨のとおり
  * 最小限の骨格のみを持つ。
  */
-export function SideRail() {
+export function SideRail({ homeCitySlug = null }: SideRailProps) {
   const pathname = usePathname();
+  const citySlug = cityContextFromPathname(pathname, homeCitySlug);
+  const navItems = getNavItems(citySlug);
 
   return (
     <aside
@@ -24,7 +31,7 @@ export function SideRail() {
         ウラスポ
       </div>
       <nav className="flex flex-col gap-1 px-2">
-        {NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const active = isNavItemActive(item, pathname);
           return (
             <Link
@@ -33,7 +40,7 @@ export function SideRail() {
               aria-current={active ? "page" : undefined}
               className="flex flex-col items-center gap-1 rounded-md py-2 text-[11px]"
               style={{
-                color: active ? "var(--color-accent)" : "var(--color-text)",
+                color: active ? "var(--color-accent-700)" : "var(--color-text)",
                 background: active ? "var(--color-accent-100)" : "transparent",
               }}
             >

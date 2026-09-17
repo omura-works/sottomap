@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { City, Spot } from "@/lib/db/types";
 import { Input } from "@/components/ui";
 import { buildDistanceMap, useOrigin } from "@/components/map/geo";
+import { splitByQuietness } from "@/lib/domain/ordering";
 import { FilterChips } from "./FilterChips";
 import { SpotListItem } from "./SpotListItem";
 import { SortNote } from "./SortNote";
@@ -28,6 +30,7 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
 
   const [inputValue, setInputValue] = useState(query);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -46,7 +49,10 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
           params.set(key, value);
         }
       }
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      // SPEC §9.14-7: 検索の遷移中は aria-busy と待機表示を出す。
+      startTransition(() => {
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      });
     },
     [pathname, router, searchParams],
   );
@@ -83,6 +89,18 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
     [activeFilters, updateParams],
   );
 
+  const clearConditions = useCallback(() => {
+    setInputValue("");
+    updateParams({ q: null, filters: "none" });
+  }, [updateParams]);
+
+  // SPEC §9.14-5: 「まだ静か」ON時は quiet を上、crowding/touristy を「混みはじめた店」の下にまとめる。
+  // OFF時は §9.5 の順のまま区切りなしで表示する。
+  const quietNowActive = activeFilters.includes("quiet-now");
+  const { quiet, crowded } = useMemo(() => splitByQuietness(spots), [spots]);
+  const topList = quietNowActive ? quiet : spots;
+  const bottomList = quietNowActive ? crowded : [];
+
   return (
     <div className="mx-auto max-w-xl lg:max-w-2xl px-4 py-4 lg:py-8 space-y-4">
       <Input
@@ -100,14 +118,39 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
         <FilterChips active={activeFilters} onToggle={toggleFilter} />
       </div>
 
-      <div className="space-y-2">
-        <h3>近い順に{spots.length}軒</h3>
+      <div className="space-y-2" aria-busy={isPending}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.5 }}>近い順に{spots.length}軒</h1>
+        {isPending ? <p className="text-muted text-sm m-0">読み込み中…</p> : null}
         <ul className="flex flex-col gap-1 list-none m-0 p-0">
-          {spots.map((spot) => (
+          {topList.map((spot) => (
             <SpotListItem key={spot.id} spot={spot} distanceMeters={distances[spot.id]} />
           ))}
         </ul>
-        {spots.length === 0 ? <p className="text-muted text-sm">条件に合う店が見つかりませんでした。</p> : null}
+
+        {bottomList.length > 0 ? (
+          <div className="space-y-2 mt-2">
+            <h4 className="text-sm text-muted m-0">混みはじめた店</h4>
+            <ul className="flex flex-col gap-1 list-none m-0 p-0">
+              {bottomList.map((spot) => (
+                <SpotListItem key={spot.id} spot={spot} distanceMeters={distances[spot.id]} />
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {spots.length === 0 ? (
+          <div className="space-y-2">
+            <p className="text-muted text-sm m-0">条件に合う店が見つかりませんでした。</p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="btn btn-secondary" onClick={clearConditions}>
+                絞り込みを解除する
+              </button>
+              <Link href={`/${city.slug}/spots/new`} className="btn btn-secondary">
+                ピンを立てる
+              </Link>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <SortNote />

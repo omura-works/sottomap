@@ -14,8 +14,19 @@ export default defineConfig({
   },
   projects: [
     {
+      // user-flows.spec.ts はデモの単一インメモリDBを serial で書き換えていくため、
+      // このファイルは chromium プロジェクトだけで実行する（mobile と共有DBのため）。
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+      testMatch: ["**/smoke.spec.ts", "**/user-flows.spec.ts"],
+    },
+    {
+      // SPEC §9.14-12: モバイル（390×844）で主要導線を検証する。
+      // chromium と同じインメモリDBを共有するため、user-flows.spec.ts が使う対象
+      // （札幌ザンギ本舗・北24条の小さな喫茶店・確認依頼...008等）とは別データを使う。
+      name: "mobile",
+      use: { ...devices["Pixel 7"], viewport: { width: 390, height: 844 } },
+      testMatch: ["**/smoke.spec.ts", "**/mobile.spec.ts"],
     },
   ],
   webServer: {

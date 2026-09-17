@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { unstable_rethrow, useRouter } from "next/navigation";
 import { Button, Segment, Tag } from "@/components/ui";
 import { Disclaimer } from "@/components/profile/Disclaimer";
 import { saveHomeCityAction } from "@/app/actions/start";
@@ -47,6 +47,7 @@ export function StartScreen({
   const [selectedSlug, setSelectedSlug] = useState(defaultCitySlug);
   const [timeOfDay, setTimeOfDay] = useState("day");
   const [isStarting, startTransition] = useTransition();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const selectedCity = useMemo(
     () => cities.find((city) => city.slug === selectedSlug) ?? cities[0],
@@ -118,14 +119,25 @@ export function StartScreen({
           block
           disabled={isStarting}
           onClick={() => {
+            setErrorMessage(null);
             startTransition(async () => {
-              await saveHomeCityAction(selectedSlug);
-              router.push(`/${selectedSlug}`);
+              try {
+                await saveHomeCityAction(selectedSlug);
+                router.push(`/${selectedSlug}`);
+              } catch (error) {
+                unstable_rethrow(error);
+                setErrorMessage("街を保存できませんでした。もう一度お試しください。");
+              }
             });
           }}
         >
           歩きはじめる
         </Button>
+        {errorMessage ? (
+          <p role="alert" className="text-sm" style={{ color: "var(--color-accent-700)" }}>
+            {errorMessage}
+          </p>
+        ) : null}
         <Disclaimer />
       </footer>
     </div>

@@ -145,7 +145,7 @@ p {
   margin: 0 0 var(--space-3);
 }
 a {
-  color: var(--color-accent);
+  color: var(--color-accent-700);
   text-underline-offset: 3px;
 }
 img {
@@ -161,13 +161,13 @@ figcaption {
   color: color-mix(in srgb, var(--color-text) 55%, transparent);
 }
 .text-muted {
-  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  color: var(--color-neutral-700);
 }
 :focus {
   outline: none;
 }
 :focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent-600);
   outline-offset: 2px;
 }
 ::selection {
@@ -212,14 +212,14 @@ figcaption {
   cursor: not-allowed;
 }
 .btn-primary {
-  background: var(--color-accent);
+  background: var(--color-accent-700);
   color: var(--color-bg);
 }
 .btn-primary:hover {
-  background: var(--color-accent-600);
+  background: var(--color-accent-800);
 }
 .btn-primary:active {
-  background: var(--color-accent-700);
+  background: var(--color-accent-900);
 }
 .btn-secondary {
   border-color: var(--color-divider);
@@ -231,7 +231,7 @@ figcaption {
   background: color-mix(in srgb, var(--color-text) 14%, transparent);
 }
 .btn-ghost {
-  color: var(--color-accent);
+  color: var(--color-accent-700);
   padding-inline: var(--space-1);
 }
 .btn-ghost:hover {
@@ -241,9 +241,16 @@ figcaption {
   background: color-mix(in srgb, var(--color-accent) 18%, transparent);
 }
 .btn-icon {
+  position: relative;
   width: 36px;
   height: 36px;
   padding: 0;
+}
+/* SPEC §9.14-14: 見た目（36px）を保ったまま、タップ領域だけ44x44pxに広げる。 */
+.btn-icon::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
 }
 .btn-block {
   width: 100%;
@@ -261,12 +268,12 @@ figcaption {
   font-size: 11px;
   margin-top: 4px;
   text-align: right;
-  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+  color: var(--color-neutral-700);
 }
 .field-hint {
   font-size: 12px;
   margin-top: 4px;
-  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  color: var(--color-neutral-700);
 }
 .input {
   width: 100%;
@@ -284,7 +291,7 @@ figcaption {
   border-color: color-mix(in srgb, var(--color-text) 45%, transparent);
 }
 .input:focus-visible {
-  border-color: var(--color-accent);
+  border-color: var(--color-accent-600);
   outline-offset: 0;
 }
 textarea.input {
@@ -314,15 +321,15 @@ textarea.input {
   border: 1.5px solid var(--color-divider);
 }
 .radio:hover .dot {
-  border-color: var(--color-accent);
+  border-color: var(--color-accent-600);
 }
 .radio input:checked + .dot {
-  border-color: var(--color-accent);
-  background: var(--color-accent);
+  border-color: var(--color-accent-600);
+  background: var(--color-accent-600);
   box-shadow: inset 0 0 0 4px var(--color-bg);
 }
 .radio input:focus-visible + .dot {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent-600);
   outline-offset: 2px;
 }
 .seg {
@@ -343,14 +350,14 @@ textarea.input {
   border-left: 1px solid var(--color-divider);
 }
 .seg-opt:has(input:checked) {
-  background: var(--color-accent);
+  background: var(--color-accent-700);
   color: var(--color-bg);
 }
 .seg-opt:not(:has(input:checked)):hover {
   background: color-mix(in srgb, var(--color-text) 7%, transparent);
 }
 .seg-opt:has(input:focus-visible) {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent-600);
   outline-offset: -2px;
 }
 
@@ -367,7 +374,7 @@ textarea.input {
   font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--color-accent);
+  color: var(--color-accent-700);
 }
 .card-title {
   font-family: var(--font-heading), system-ui, sans-serif;
@@ -386,7 +393,7 @@ textarea.input {
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+  color: var(--color-neutral-700);
 }
 .elev-sm {
   box-shadow: var(--shadow-sm);
@@ -407,6 +414,16 @@ textarea.input {
   padding: 3px 10px;
   border-radius: calc(var(--radius-md) * 0.75);
 }
+/* SPEC §9.14-14: タグを button（as="button"）で使う場合だけ、見た目を保ったまま
+   タップ領域を44x44px以上に広げる（span のタグは非対話なので対象外）。 */
+button.tag {
+  position: relative;
+}
+button.tag::after {
+  content: "";
+  position: absolute;
+  inset: -11px;
+}
 .tag-accent {
   background: var(--color-accent-100);
   color: var(--color-accent-800);
@@ -420,13 +437,22 @@ textarea.input {
   color: var(--color-neutral-800);
 }
 .tag-outline {
-  border: 1px solid var(--color-accent);
-  color: var(--color-accent);
+  border: 1px solid var(--color-accent-600);
+  color: var(--color-accent-700);
 }
 /* .tag-selected は CONTRACT の Tag `selected` prop 用に追加した拡張クラス
    （原本 design-tokens.css には無い）。kind の見た目の上から選択状態を示す。 */
 .tag-selected {
-  box-shadow: 0 0 0 1.5px var(--color-accent) inset;
+  box-shadow: 0 0 0 1.5px var(--color-accent-600) inset;
+}
+
+/* — map — */
+/* SPEC §9.14-14: 地図ピン（見た目30px）のタップ領域を44x44px以上に広げる
+   （src/components/map/MapCanvas.tsx の createMarkerElement が付与）。 */
+.map-pin-hit-area::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
 }
 
 /* — navigation — */
@@ -450,7 +476,7 @@ textarea.input {
 }
 .nav a:hover,
 .nav a[aria-current="page"] {
-  color: var(--color-accent);
+  color: var(--color-accent-700);
 }
 
 /* — tables — */

@@ -114,10 +114,12 @@ function tagFilterSlugs(filters: string[] | undefined): string[] {
   return (filters ?? []).filter((f) => f !== "quiet-now" && f !== "within-10min");
 }
 
+/**
+ * SPEC §9.14-5: 「まだ静か」チップは結果を除外しない（表示側で並べ替え・見出し分けするだけ）。
+ * このため 'quiet-now' はここでは絞り込み条件として扱わない。
+ */
 function matchesFilter(spot: Spot, filter: string, origin?: LatLng): boolean {
   switch (filter) {
-    case "quiet-now":
-      return spot.quietness === "quiet";
     case "within-10min":
       if (!origin) return true; // 現在地が無ければ絞り込みをスキップ
       return haversineMeters(origin, { lat: spot.lat, lng: spot.lng }) <= WITHIN_10MIN_METERS;
@@ -164,8 +166,10 @@ function applySpotQuery(spots: Spot[], query: SpotQuery, cityCenter: LatLng): Sp
   if (needle) {
     result = result.filter((spot) => matchesQuery(spot, needle));
   }
-  if (query.filters && query.filters.length > 0) {
-    result = result.filter((spot) => query.filters!.every((f) => matchesFilter(spot, f, query.origin)));
+  // SPEC §9.14-5: 'quiet-now' は絞り込み（除外）には使わない。表示側の並べ替え専用。
+  const activeExcludeFilters = (query.filters ?? []).filter((f) => f !== "quiet-now");
+  if (activeExcludeFilters.length > 0) {
+    result = result.filter((spot) => activeExcludeFilters.every((f) => matchesFilter(spot, f, query.origin)));
   }
 
   const origin = query.origin ?? cityCenter;
@@ -581,9 +585,7 @@ export async function listSpots(query: SpotQuery): Promise<Spot[]> {
   if (needle) {
     builder = builder.or(buildIlikeOrFilter(needle));
   }
-  if (query.filters?.includes("quiet-now")) {
-    builder = builder.eq("quietness", "quiet");
-  }
+  // SPEC §9.14-5: 'quiet-now' はDB側の絞り込み（除外）には使わない。表示側の並べ替え専用。
   const { data, error } = await builder;
   if (error) throw error;
 

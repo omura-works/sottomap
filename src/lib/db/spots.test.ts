@@ -57,10 +57,11 @@ describe("listSpots", () => {
     expect(await listSpots({ citySlug: "otaru", q: "   " })).toHaveLength(3);
   });
 
-  it("filters: quiet-now で crowding/touristy を除外する", async () => {
+  it("filters: quiet-now は絞り込まない（SPEC §9.14-5: 表示側の並べ替え専用）", async () => {
     const { listSpots } = await import("./spots");
     const spots = await listSpots({ citySlug: "sapporo", filters: ["quiet-now"] });
-    expect(spots.every((s) => s.quietness === "quiet")).toBe(true);
+    expect(spots.some((s) => s.quietness === "crowding")).toBe(true);
+    expect(spots).toHaveLength(5);
   });
 
   it("q で名前・理由を検索できる", async () => {

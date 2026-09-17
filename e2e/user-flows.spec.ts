@@ -22,8 +22,9 @@ test.describe("デモモードの主要導線", () => {
     await page.getByRole("button", { name: "歩きはじめる" }).click();
     await expect(page).toHaveURL(/\/sapporo(?:\?.*)?$/);
 
-    await page.getByRole("link", { name: /札幌ザンギ本舗/ }).click();
-    await expect(page).toHaveURL(/\/sapporo\/spots\/d0000000-0000-4000-8000-000000000002$/);
+    // 店リンクは D1（lg:以上）のサイドバーにしかないため、モバイル幅でも安定させるため
+    // 既知のスポットIDへ直接遷移する（S2/D1どちらでも同じ詳細ページに到達する導線の検証）。
+    await page.goto("/sapporo/spots/d0000000-0000-4000-8000-000000000002");
     await page.getByRole("button", { name: "栞に挟む" }).click();
     await expect(page.getByText("栞に挟みました。", { exact: true })).toBeVisible();
 
@@ -39,8 +40,10 @@ test.describe("デモモードの主要導線", () => {
     await pendingCard.getByRole("button", { name: "行ったことがある", exact: true }).click();
     await expect(page.getByText("2人目の承認で地図に公開されました。", { exact: true })).toBeVisible();
 
+    // 地図ピン（role="button"）はモバイル（全面地図）・デスクトップ（右ペイン）どちらでも
+    // 常に描画される。D1サイドバーのリンク（lg:以上のみ）ではなくピンで公開を確認する。
     await page.goto("/sapporo");
-    await expect(page.getByRole("link", { name: /北24条の小さな喫茶店/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /北24条の小さな喫茶店/ })).toBeVisible();
   });
 
   test("期限前の確認依頼には回答フォームを出さず、確認待ちにも数えない", async ({ page }) => {
@@ -54,6 +57,19 @@ test.describe("デモモードの主要導線", () => {
     await expect(page.getByRole("heading", { name: "確認待ちが1件あります" })).toBeVisible();
   });
 
+  test("SPEC §9.14-3: 「地図」「さがす」は街のページではその街、それ以外では居住街を指す", async ({ page }) => {
+    await page.goto("/otaru");
+    await page.getByRole("link", { name: "さがす" }).click();
+    await expect(page).toHaveURL(/\/otaru\/search(?:\?.*)?$/);
+
+    await page.getByRole("link", { name: "栞" }).click();
+    await expect(page).toHaveURL(/\/bookmarks$/);
+
+    // /bookmarks は街のページではないため、居住街（デモ利用者Aさんは札幌）へ戻る。
+    await page.getByRole("link", { name: "地図", exact: true }).click();
+    await expect(page).toHaveURL(/\/sapporo(?:\?.*)?$/);
+  });
+
   test("同じ確認依頼への再回答ではポイントを加算しない", async ({ browser }) => {
     const context = await browser.newContext();
     const firstPage = await context.newPage();
@@ -65,7 +81,8 @@ test.describe("デモモードの主要導線", () => {
     await expect(firstPage.getByText("+5", { exact: true })).toBeVisible();
 
     await stalePage.getByRole("button", { name: "静かなまま" }).click();
-    await expect(stalePage.getByText("+0", { exact: true })).toBeVisible();
+    await expect(stalePage.getByText("この確認は回答済みです。", { exact: true })).toBeVisible();
+    await expect(stalePage.getByText("+0", { exact: true })).toHaveCount(0);
     await context.close();
   });
 });

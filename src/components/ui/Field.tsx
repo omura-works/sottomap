@@ -16,18 +16,31 @@ export interface FieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
 export function Field({ label, maxLength, value, hint, id, className, ...props }: FieldProps) {
   const autoId = useId();
   const inputId = id ?? autoId;
+  const hintId = `${inputId}-hint`;
   const length = value?.length ?? 0;
 
   return (
     <div className={cn("field", className)}>
       <label htmlFor={inputId}>{label}</label>
-      <input id={inputId} className="input" maxLength={maxLength} value={value} {...props} />
+      <input
+        id={inputId}
+        className="input"
+        maxLength={maxLength}
+        value={value}
+        aria-invalid={hint ? true : undefined}
+        aria-describedby={hint ? hintId : undefined}
+        {...props}
+      />
       {typeof maxLength === "number" ? (
         <div className="field-counter">
           {length}/{maxLength}
         </div>
       ) : null}
-      {hint ? <div className="field-hint">{hint}</div> : null}
+      {hint ? (
+        <div id={hintId} className="field-hint" role="alert">
+          {hint}
+        </div>
+      ) : null}
     </div>
   );
 }

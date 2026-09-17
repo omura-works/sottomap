@@ -5,7 +5,7 @@ import { getCurrentUserId } from "@/lib/auth";
 import { getProfileStats, getUserProfile, listCities, listSpotsByAuthor } from "@/lib/db/spots";
 import { resolveBadges } from "@/lib/domain/lantern";
 import { quietnessLabel } from "@/lib/domain/quietness";
-import type { Quietness } from "@/lib/db/types";
+import type { Quietness, SpotStatus } from "@/lib/db/types";
 import { Card, Divider, Tag } from "@/components/ui";
 import { Disclaimer } from "@/components/profile/Disclaimer";
 
@@ -14,9 +14,20 @@ import { Disclaimer } from "@/components/profile/Disclaimer";
  * 「静かなまま」とは別の画面固有コピー「静か」を使う。quiet 以外は原本に
  * 指定が無いため、通常の `quietnessLabel()` にフォールバックする。
  */
-function authoredSpotStatusLabel(quietness: Quietness): string {
+function authoredSpotQuietnessLabel(quietness: Quietness): string {
   return quietness === "quiet" ? "静か" : quietnessLabel(quietness);
 }
+
+/**
+ * SPEC §9.14-6: 投稿一覧はライフサイクル状態（承認待ち／公開中／確認切れ／期限切れ）を
+ * 主表示にする。静けさのラベルは公開中の店にだけ併記する。
+ */
+const LIFECYCLE_LABEL: Record<SpotStatus, string> = {
+  pending: "承認待ち",
+  published: "公開中",
+  dormant: "確認切れ",
+  expired: "期限切れ",
+};
 
 /**
  * S7「プロフィール」`/me`。認証ユーザーのプロフィール・集計・投稿を表示する。
@@ -46,7 +57,9 @@ export default async function ProfilePage() {
       <header className="flex items-center gap-4">
         <Avatar avatarUrl={profile?.avatarUrl ?? null} displayName={displayName} />
         <div>
-          <h2 className="m-0">{displayName}</h2>
+          <h1 className="m-0" style={{ fontSize: 30 }}>
+            {displayName}
+          </h1>
           <p className="text-muted m-0">
             {[homeCity?.name, profile?.areaName].filter(Boolean).join("・")}
             {profile?.residentYears !== null && profile?.residentYears !== undefined
@@ -91,22 +104,36 @@ export default async function ProfilePage() {
 
       <section className="space-y-3">
         <h3>あなたが書いた店</h3>
-        <ul className="space-y-2">
-          {authoredSpots.map((spot) => (
-            <li
-              key={spot.id}
-              className="flex items-center justify-between px-3 py-2"
-              style={{ borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}
-            >
-              <span>{spot.name}</span>
-              <Tag kind="accent2">{authoredSpotStatusLabel(spot.quietness)}</Tag>
-            </li>
-          ))}
-        </ul>
+        {authoredSpots.length === 0 ? (
+          <div className="space-y-2">
+            <p className="text-muted text-sm m-0">まだ投稿した店がありません。</p>
+            <Link href={`/${homeCity?.slug ?? "sapporo"}/spots/new`} className="btn btn-secondary">
+              ピンを立てる
+            </Link>
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {authoredSpots.map((spot) => (
+              <li
+                key={spot.id}
+                className="flex items-center justify-between px-3 py-2"
+                style={{ borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}
+              >
+                <span>{spot.name}</span>
+                <span className="flex gap-1">
+                  <Tag kind="accent2">{LIFECYCLE_LABEL[spot.status]}</Tag>
+                  {spot.status === "published" ? (
+                    <Tag kind="neutral">{authoredSpotQuietnessLabel(spot.quietness)}</Tag>
+                  ) : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
         {/* SPEC §9.12-6: 承認待ち一覧（S2地図の下部にも同じ導線を追加済み）への
             導線を /me からも開けるようにする。 */}
         <p className="text-sm m-0">
-          <Link href={`/${homeCity?.slug ?? "sapporo"}/spots/new#pending-spots`} style={{ color: "var(--color-accent)" }}>
+          <Link href={`/${homeCity?.slug ?? "sapporo"}/spots/new#pending-spots`} style={{ color: "var(--color-accent-700)" }}>
             承認待ちのピンを見る →
           </Link>
         </p>

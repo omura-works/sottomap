@@ -5,6 +5,7 @@ import { getLatestMissedRequestId, getSpot, getVerificationRequest, listVerifica
 import { answerEligibility, daysSince } from "@/lib/domain/lifecycle";
 import { formatTokyoMonthDay } from "@/lib/format/date-time";
 import { VerifyForm } from "@/components/spot-form/VerifyForm";
+import { Disclaimer } from "@/components/profile/Disclaimer";
 import { Card } from "@/components/ui";
 
 interface VerifyPageProps {
@@ -42,7 +43,13 @@ export default async function VerifyPage({ params }: VerifyPageProps) {
     );
     return (
       <div className="mx-auto max-w-xl px-4 py-8 lg:py-12">
-        <VerifyForm requestId={request.id} spotName={spot.name} daysSinceLast={daysSinceLast} history={history} />
+        <VerifyForm
+          requestId={request.id}
+          spotName={spot.name}
+          daysSinceLast={daysSinceLast}
+          history={history}
+          wasDormant={spot.status === "dormant"}
+        />
       </div>
     );
   }
@@ -51,7 +58,7 @@ export default async function VerifyPage({ params }: VerifyPageProps) {
     <div className="mx-auto max-w-xl px-4 py-8 lg:py-12 space-y-6">
       <div className="space-y-1">
         <p className="text-muted text-sm">地元の人へ / 90日ごとの確認</p>
-        <h2>この店は、まだ隠れていますか</h2>
+        <h1 style={{ fontSize: 30 }}>この店は、まだ隠れていますか</h1>
       </div>
       {eligibility === "not-due" ? (
         <Card title={spot.name} meta={`前回の確認から${daysSinceLast}日`}>
@@ -64,6 +71,7 @@ export default async function VerifyPage({ params }: VerifyPageProps) {
           meta={`前回の確認から${daysSinceLast}日`}
         />
       )}
+      <Disclaimer />
     </div>
   );
 }

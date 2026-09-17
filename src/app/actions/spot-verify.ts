@@ -5,7 +5,7 @@
 
 import { redirect } from "next/navigation";
 import { getCurrentUserId } from "@/lib/auth";
-import type { Badge, Quietness } from "@/lib/db/types";
+import type { Badge, Quietness, SpotStatus } from "@/lib/db/types";
 import {
   getProfileStats,
   getUserProfile,
@@ -17,9 +17,12 @@ import { verifyAnswerSchema } from "@/components/spot-form/verify-schema";
 
 export interface SubmitVerificationResult {
   ok: true;
+  /** SPEC §9.14-1: 同じ依頼への二重送信は false（記録・加算はしない）。 */
+  accepted: boolean;
   pointsAwarded: number;
   totalPoints: number;
   badges: Badge[];
+  status: SpotStatus;
 }
 
 export interface SubmitVerificationError {
@@ -41,6 +44,20 @@ export async function submitVerification(
 
   try {
     const result = await answerVerification(parsed.data.requestId, userId, parsed.data.answer);
+
+    // SPEC §9.14-1 / §9.13.3: 二重送信は accepted:false。成功演出（+N・バッジ）は出さず、
+    // 呼び出し元（VerifyForm）に「回答済み」への切り替えだけを伝える。
+    if (!result.accepted) {
+      return {
+        ok: true,
+        accepted: false,
+        pointsAwarded: 0,
+        totalPoints: 0,
+        badges: [],
+        status: result.status,
+      };
+    }
+
     const [profile, stats, authoredSpots] = await Promise.all([
       getUserProfile(userId),
       getProfileStats(userId),
@@ -57,9 +74,11 @@ export async function submitVerification(
 
     return {
       ok: true,
+      accepted: true,
       pointsAwarded: result.pointsAwarded,
       totalPoints: profile?.lanternPoints ?? result.pointsAwarded,
       badges,
+      status: result.status,
     };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "確認の記録に失敗しました" };

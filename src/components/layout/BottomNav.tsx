@@ -2,11 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_ITEMS, isNavItemActive } from "./nav-items";
+import { cityContextFromPathname, getNavItems, isNavItemActive } from "./nav-items";
+
+export interface BottomNavProps {
+  /** 利用者の居住街slug（未ログイン・未設定なら null）。SPEC §9.14-3。 */
+  homeCitySlug?: string | null;
+}
 
 /** モバイル下部タブ（地図・さがす・栞・自分）。lg: 以上では非表示。 */
-export function BottomNav() {
+export function BottomNav({ homeCitySlug = null }: BottomNavProps) {
   const pathname = usePathname();
+  const citySlug = cityContextFromPathname(pathname, homeCitySlug);
+  const navItems = getNavItems(citySlug);
 
   return (
     <nav
@@ -18,7 +25,7 @@ export function BottomNav() {
         paddingBottom: "env(safe-area-inset-bottom)",
       }}
     >
-      {NAV_ITEMS.map((item) => {
+      {navItems.map((item) => {
         const active = isNavItemActive(item, pathname);
         return (
           <Link
@@ -26,7 +33,7 @@ export function BottomNav() {
             href={item.href}
             aria-current={active ? "page" : undefined}
             className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[11px]"
-            style={{ color: active ? "var(--color-accent)" : "var(--color-text)" }}
+            style={{ color: active ? "var(--color-accent-700)" : "var(--color-text)" }}
           >
             <span>{item.label}</span>
           </Link>
