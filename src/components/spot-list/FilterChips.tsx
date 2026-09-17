@@ -15,7 +15,12 @@ export interface FilterChipsProps {
  */
 export function FilterChips({ active, onToggle, className }: FilterChipsProps) {
   return (
-    <div className={className} role="group" aria-label="絞り込み" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+    <div
+      className={className ? `chip-group ${className}` : "chip-group"}
+      role="group"
+      aria-label="絞り込み"
+      style={{ display: "flex", flexWrap: "wrap", gap: 6 }}
+    >
       {FILTER_OPTIONS.map((option) => {
         const isActive = active.includes(option.slug);
         return (

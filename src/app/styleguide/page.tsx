@@ -127,7 +127,7 @@ export default function StyleguidePage() {
           maxLength={60}
           value={reason}
           onChange={(event) => setReason(event.target.value)}
-          hint="正直な理由を一言で。"
+          description="正直な理由を一言で。"
         />
       </section>
 

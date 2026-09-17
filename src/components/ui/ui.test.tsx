@@ -47,12 +47,21 @@ describe("Field", () => {
     expect(screen.queryByText(/\/\d+/)).not.toBeInTheDocument();
   });
 
-  it("SPEC §9.14-16: hint（エラー文）を aria-describedby / aria-invalid で入力欄に結び付ける", () => {
-    render(<Field label="緯度" value="" onChange={() => {}} hint="緯度は-90から90の範囲で入力してください" />);
+  it("SPEC §9.14-16: error（エラー文）を aria-describedby / aria-invalid で入力欄に結び付ける", () => {
+    render(<Field label="緯度" value="" onChange={() => {}} error="緯度は-90から90の範囲で入力してください" />);
     const input = screen.getByLabelText("緯度");
     const hint = screen.getByRole("alert");
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(input.getAttribute("aria-describedby")).toBe(hint.id);
     expect(hint).toHaveTextContent("緯度は-90から90の範囲で入力してください");
+  });
+
+  it("SPEC §9.14-16: description（補足）は aria-invalid も role=alert も付けない", () => {
+    render(<Field label="なぜここへ行くのか" value="" onChange={() => {}} description="正直な理由を一言で。" />);
+    const input = screen.getByLabelText("なぜここへ行くのか");
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("正直な理由を一言で。")).toBeInTheDocument();
+    expect(input.getAttribute("aria-describedby")).toBe(screen.getByText("正直な理由を一言で。").id);
   });
 });

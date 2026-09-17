@@ -36,7 +36,17 @@ export function NewSpotForm({ city }: NewSpotFormProps) {
 
   const parsedLat = Number(lat);
   const parsedLng = Number(lng);
-  const hasPosition = lat !== "" && lng !== "" && Number.isFinite(parsedLat) && Number.isFinite(parsedLng);
+  // SPEC §9.14-14: 範囲外の緯度・経度は MapLibre がエラーを投げるため、
+  // 範囲内のときだけピンを生成・送信可能にする。
+  const hasPosition =
+    lat !== "" &&
+    lng !== "" &&
+    Number.isFinite(parsedLat) &&
+    Number.isFinite(parsedLng) &&
+    parsedLat >= -90 &&
+    parsedLat <= 90 &&
+    parsedLng >= -180 &&
+    parsedLng <= 180;
 
   const pins: MapPin[] = hasPosition
     ? [{ id: "new-spot", lat: parsedLat, lng: parsedLng, quietness: "quiet", label: "ここに立てる" }]
@@ -59,7 +69,7 @@ export function NewSpotForm({ city }: NewSpotFormProps) {
 
       <Card kicker="位置を選ぶ" title="地図をタップしてピンを置く">
         <p className="text-muted text-sm m-0">
-          地図をクリック（タップ）すると、その場所にピンが立ちます。{city.name}の中心のままでは送信できません。
+          地図をクリック（タップ）すると、その場所にピンが立ちます。初期表示のままでは送信できません。
         </p>
         <div style={{ height: 240, borderRadius: "var(--radius-md)", overflow: "hidden" }}>
           <MapCanvas
@@ -76,25 +86,29 @@ export function NewSpotForm({ city }: NewSpotFormProps) {
             name="lat"
             type="number"
             step="0.000001"
+            min={-90}
+            max={90}
             value={lat}
             onChange={handleLatChange}
             required
-            hint={state?.fieldErrors?.lat}
+            error={state?.fieldErrors?.lat}
           />
           <Field
             label="経度"
             name="lng"
             type="number"
             step="0.000001"
+            min={-180}
+            max={180}
             value={lng}
             onChange={handleLngChange}
             required
-            hint={state?.fieldErrors?.lng}
+            error={state?.fieldErrors?.lng}
           />
         </div>
         {!hasPosition ? (
           <p className="text-sm m-0" style={{ color: "var(--color-accent-700)" }}>
-            地図をタップするか、緯度・経度を入力すると送信できます。
+            地図で位置を選ぶか、緯度・経度を入力してください
           </p>
         ) : null}
       </Card>
@@ -105,7 +119,7 @@ export function NewSpotForm({ city }: NewSpotFormProps) {
         value={name}
         onChange={(event) => setName(event.target.value)}
         required
-        hint={state?.fieldErrors?.name}
+        error={state?.fieldErrors?.name}
       />
 
       <Field
@@ -115,7 +129,7 @@ export function NewSpotForm({ city }: NewSpotFormProps) {
         maxLength={REASON_MAX_LENGTH}
         onChange={(event) => setReason(event.target.value)}
         required
-        hint={state?.fieldErrors?.reason}
+        error={state?.fieldErrors?.reason}
       />
 
       <div className="space-y-2">

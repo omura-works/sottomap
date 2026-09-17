@@ -424,6 +424,12 @@ button.tag::after {
   position: absolute;
   inset: -11px;
 }
+/* SPEC §9.14-16: FilterChips は gap:6px で隙間が狭く、-11px の拡張だと隣接チップの
+   タップ領域が重なる（折返し行の後続チップがタップを奪う恐れがある）。
+   `.chip-group` 内だけ拡張量を gap の半分以下に抑え、重ならないようにする。 */
+.chip-group button.tag::after {
+  inset: -3px;
+}
 .tag-accent {
   background: var(--color-accent-100);
   color: var(--color-accent-800);

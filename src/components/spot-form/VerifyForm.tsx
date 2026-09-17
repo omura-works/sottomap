@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { unstable_rethrow } from "next/navigation";
 import { Button, Card } from "@/components/ui";
 import type { Badge, Quietness, Verification } from "@/lib/db/types";
 import { quietnessLabel } from "@/lib/domain/quietness";
@@ -40,20 +41,29 @@ export function VerifyForm({ requestId, spotName, daysSinceLast, history, wasDor
   const handleAnswer = (answer: Quietness) => {
     setError(null);
     startTransition(async () => {
-      const result = await submitVerification(requestId, answer);
-      if (!result.ok) {
-        setError(result.error);
-        return;
+      // SPEC §9.14-14: サーバー側の try/catch では捕まえられない通信断
+      // （Server Action の Promise 自体が reject する場合）もここで拾い、
+      // インラインの role="alert" で知らせる。
+      try {
+        const result = await submitVerification(requestId, answer);
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        if (!result.accepted) {
+          setAlreadyAnswered(true);
+          return;
+        }
+        setAnswered(answer);
+        setPointsAwarded(result.pointsAwarded);
+        setBadges(result.badges);
+        // SPEC §9.14-1: dormant → published の復帰時だけ「地図に戻りました。」を添える。
+        setReturnedToMap(wasDormant && result.status === "published");
+      } catch (error) {
+        // 未ログイン時の Server Action redirect は Next.js に処理させる。
+        unstable_rethrow(error);
+        setError("確認の記録に失敗しました");
       }
-      if (!result.accepted) {
-        setAlreadyAnswered(true);
-        return;
-      }
-      setAnswered(answer);
-      setPointsAwarded(result.pointsAwarded);
-      setBadges(result.badges);
-      // SPEC §9.14-1: dormant → published の復帰時だけ「地図に戻りました。」を添える。
-      setReturnedToMap(wasDormant && result.status === "published");
     });
   };
 

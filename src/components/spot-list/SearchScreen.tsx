@@ -33,7 +33,23 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
   const [isPending, startTransition] = useTransition();
 
   const [inputValue, setInputValue] = useState(query);
+  // SPEC §9.14-14: ブラウザの戻る操作などでURLの`query`が入力欄と無関係に変わったときは、
+  // 入力欄をその値に同期する。effect ではなく、レンダー中に前回の`query`と比較して
+  // 同期する（React公式の「propsが変わったときにstateを調整する」パターン）。
+  const [prevQuery, setPrevQuery] = useState(query);
+  if (query !== prevQuery) {
+    setPrevQuery(query);
+    setInputValue(query);
+  }
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // SPEC §9.14-14: デバウンスのタイマーが発火した時点の最新の URL を必ず読むための ref。
+  // `updateParams` の依存に `searchParams` を含めると、直前の入力で作られたタイマーの
+  // クロージャが古い `searchParams`（チップ操作前の状態）を閉じ込め、後から発火したときに
+  // チップの条件を消してしまう。
+  const searchParamsRef = useRef(searchParams);
+  useEffect(() => {
+    searchParamsRef.current = searchParams;
+  }, [searchParams]);
 
   const fallbackCenter = useMemo(() => ({ lat: city.centerLat, lng: city.centerLng }), [city.centerLat, city.centerLng]);
   const { origin, resolved } = useOrigin(fallbackCenter);
@@ -41,7 +57,7 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
 
   const updateParams = useCallback(
     (updates: Record<string, string | null>) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(searchParamsRef.current.toString());
       for (const [key, value] of Object.entries(updates)) {
         if (value === null || value === "") {
           params.delete(key);
@@ -54,7 +70,7 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
         router.replace(`${pathname}?${params.toString()}`, { scroll: false });
       });
     },
-    [pathname, router, searchParams],
+    [pathname, router],
   );
 
   // 現在地解決 → lat/lng をURLへ（街の中心からの距離で代替する場合も含む）。
@@ -103,6 +119,9 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
 
   return (
     <div className="mx-auto max-w-xl lg:max-w-2xl px-4 py-4 lg:py-8 space-y-4">
+      {/* SPEC §9.14-9: 検索画面の見出しはDOMの先頭にh1を置き、下位見出しはh2に整理する（見た目は現状維持）。 */}
+      <h1 style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.5 }}>近い順に{spots.length}軒</h1>
+
       <Input
         type="search"
         value={inputValue}
@@ -112,14 +131,13 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
       />
 
       <div className="space-y-2">
-        <h3 className="text-sm text-muted" style={{ fontFamily: "var(--font-body)", fontWeight: 700 }}>
+        <h2 className="text-sm text-muted" style={{ fontFamily: "var(--font-body)", fontWeight: 700 }}>
           絞る
-        </h3>
+        </h2>
         <FilterChips active={activeFilters} onToggle={toggleFilter} />
       </div>
 
       <div className="space-y-2" aria-busy={isPending}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.5 }}>近い順に{spots.length}軒</h1>
         {isPending ? <p className="text-muted text-sm m-0">読み込み中…</p> : null}
         <ul className="flex flex-col gap-1 list-none m-0 p-0">
           {topList.map((spot) => (
@@ -129,7 +147,9 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
 
         {bottomList.length > 0 ? (
           <div className="space-y-2 mt-2">
-            <h4 className="text-sm text-muted m-0">混みはじめた店</h4>
+            <h2 className="text-sm text-muted m-0" style={{ fontWeight: 700 }}>
+              混みはじめた店
+            </h2>
             <ul className="flex flex-col gap-1 list-none m-0 p-0">
               {bottomList.map((spot) => (
                 <SpotListItem key={spot.id} spot={spot} distanceMeters={distances[spot.id]} />

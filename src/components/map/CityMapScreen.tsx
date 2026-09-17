@@ -7,7 +7,7 @@ import type { City, Spot } from "@/lib/db/types";
 import { daysSince } from "@/lib/domain/lifecycle";
 import { Card } from "@/components/ui";
 import { AddBookmarkButton } from "@/components/bookmark/AddBookmarkButton";
-import { FilterChips, SpotListItem } from "@/components/spot-list";
+import { DEFAULT_ACTIVE_FILTERS, FilterChips, SpotListItem } from "@/components/spot-list";
 import { splitByQuietness } from "@/lib/domain/ordering";
 import { MapCanvas } from "./index";
 import type { MapPin, MapPoint } from "./index";
@@ -89,6 +89,13 @@ export function CityMapScreen({
   const topSpots = quietNowActive ? quietSpots : visibleSpots;
   const bottomSpots = quietNowActive ? crowdedSpots : [];
 
+  // SPEC §9.14-16: 条件（絞り込みチップ・栞からの絞り込み）付きの0件と、
+  // 街に本当に店が無い0件とで空状態の文言を分ける。
+  const isDefaultFilters =
+    activeFilters.length === DEFAULT_ACTIVE_FILTERS.length &&
+    activeFilters.every((slug) => DEFAULT_ACTIVE_FILTERS.includes(slug));
+  const hasConditions = !isDefaultFilters || focusedSpotIds !== null;
+
   const selectedSpot = visibleSpots.find((s) => s.id === selectedId) ?? null;
   const hoveredSpot = hover ? (visibleSpots.find((s) => s.id === hover.id) ?? null) : null;
 
@@ -106,6 +113,15 @@ export function CityMapScreen({
     },
     [activeFilters, pathname, router, searchParams],
   );
+
+  // SPEC §9.14-16: 絞り込みチップを既定に戻し、栞からの絞り込み（`?spots=`）も外す。
+  const clearConditions = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("filters");
+    params.delete("spots");
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
 
   return (
     <div className="relative h-[calc(100dvh-4rem)] lg:h-screen lg:flex">
@@ -131,10 +147,19 @@ export function CityMapScreen({
         <FilterChips active={activeFilters} onToggle={toggleFilter} />
         {visibleSpots.length === 0 ? (
           <div className="space-y-2">
-            <p className="text-muted text-sm m-0">条件に合う店が見つかりませんでした。</p>
-            <Link href={`/${city.slug}/spots/new`} className="btn btn-secondary">
-              ピンを立てる
-            </Link>
+            <p className="text-muted text-sm m-0">
+              {hasConditions ? "条件に合う店が見つかりませんでした。" : "まだ店がありません。"}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {hasConditions ? (
+                <button type="button" className="btn btn-secondary" onClick={clearConditions}>
+                  絞り込みを解除する
+                </button>
+              ) : null}
+              <Link href={`/${city.slug}/spots/new`} className="btn btn-secondary">
+                ピンを立てる
+              </Link>
+            </div>
           </div>
         ) : (
           <>
@@ -187,11 +212,22 @@ export function CityMapScreen({
             <Link href={`/${city.slug}/spots/new#pending-spots`} className="text-xs" style={{ color: "var(--color-accent-700)" }}>
               承認待ちのピンを見る
             </Link>
-            {/* SPEC §9.14-15: モバイルでも0件のとき投稿への導線を出す。 */}
+            {/* SPEC §9.14-15/16: モバイルでも0件のとき投稿への導線を出す。
+                条件（絞り込みチップ・栞からの絞り込み）付きの0件は文言を分け、解除導線も出す。 */}
             {visibleSpots.length === 0 ? (
               <p className="text-xs text-muted m-0">
-                まだ店がありません。
-                <Link href={`/${city.slug}/spots/new`} style={{ color: "var(--color-accent-700)" }}>
+                {hasConditions ? "条件に合う店が見つかりませんでした。" : "まだ店がありません。"}
+                {hasConditions ? (
+                  <button
+                    type="button"
+                    onClick={clearConditions}
+                    className="ml-1"
+                    style={{ color: "var(--color-accent-700)", background: "none", border: "none", padding: 0, textDecoration: "underline" }}
+                  >
+                    絞り込みを解除する
+                  </button>
+                ) : null}
+                <Link href={`/${city.slug}/spots/new`} className="ml-1" style={{ color: "var(--color-accent-700)" }}>
                   ピンを立てる
                 </Link>
               </p>

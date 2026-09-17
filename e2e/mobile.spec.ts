@@ -23,6 +23,22 @@ test.describe("モバイル導線", () => {
     await expect(page).toHaveURL(/\/sapporo(?:\?.*)?$/);
   });
 
+  test("SPEC §9.14-16: 実際の地図ピンをタップすると、モバイル相当のホバーカード（下部カード）が開く", async ({
+    page,
+  }) => {
+    await page.goto("/sapporo");
+    const pin = page.getByRole("button", { name: /シハチ鮮魚店 北24条店/ });
+    await expect(pin).toBeVisible();
+    await pin.tap();
+
+    // S2: ピン選択時の下部カード。ホバーカードと同じ情報（店名・一言説明・行動導線）を出す。
+    const readLink = page.getByRole("link", { name: "この店を読む" });
+    await expect(readLink).toBeVisible();
+    const bottomCard = readLink.locator("xpath=ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' card ')]");
+    await expect(bottomCard.getByText("シハチ鮮魚店 北24条店", { exact: true })).toBeVisible();
+    await expect(bottomCard.getByText("魚屋の直営。地元の値段のまま、海鮮丼になって出てくる。", { exact: true })).toBeVisible();
+  });
+
   test("SPEC §9.14-4/14: タップで栞に挟むと、複数都市それぞれの「地図にまとめる」ボタンに分かれる", async ({
     page,
   }) => {
