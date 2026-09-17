@@ -83,6 +83,11 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
     const nextLat = origin.lat.toFixed(4);
     const nextLng = origin.lng.toFixed(4);
     if (searchParams.get("lat") === nextLat && searchParams.get("lng") === nextLng) return;
+    // 現在地が得られず街の中心のままなら、サーバーの既定（街の中心）と同じ結果なので取り直さない。
+    // 取り直しの router.replace は、読み込み直後に押した別の画面への遷移を上書きすることがあるため。
+    const isCityCenter =
+      nextLat === city.centerLat.toFixed(4) && nextLng === city.centerLng.toFixed(4);
+    if (isCityCenter && !searchParams.has("lat") && !searchParams.has("lng")) return;
     updateParams({ lat: nextLat, lng: nextLng });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolved, origin.lat, origin.lng]);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { City, Spot } from "@/lib/db/types";
@@ -8,7 +8,7 @@ import { daysSince } from "@/lib/domain/lifecycle";
 import { AnimatedCounter, Card } from "@/components/ui";
 import { AddBookmarkButton } from "@/components/bookmark/AddBookmarkButton";
 import { FilterChips, SpotListItem } from "@/components/spot-list";
-import { splitByQuietness } from "@/lib/domain/ordering";
+import { sortSpots, splitByQuietness } from "@/lib/domain/ordering";
 import { MapCanvas } from "./index";
 import type { MapPin, MapPoint } from "./index";
 import { buildDistanceMap, useOrigin, walkingLabel } from "./geo";
@@ -55,22 +55,10 @@ export function CityMapScreen({
   const [hover, setHover] = useState<{ id: string; point: MapPoint } | null>(null);
 
   const fallbackCenter = useMemo(() => ({ lat: city.centerLat, lng: city.centerLng }), [city.centerLat, city.centerLng]);
-  const { origin, resolved } = useOrigin(fallbackCenter);
+  const { origin } = useOrigin(fallbackCenter);
 
-  // 現在地が解決したら URL の lat/lng を同期する。これにより次回の listSpots(origin) が
-  // サーバー側で正しい距離を計算し、Spec §2.4「距離が近い順」の並びで返ってくる。
-  useEffect(() => {
-    if (!resolved) return;
-    const nextLat = origin.lat.toFixed(4);
-    const nextLng = origin.lng.toFixed(4);
-    if (searchParams.get("lat") === nextLat && searchParams.get("lng") === nextLng) return;
-
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("lat", nextLat);
-    params.set("lng", nextLng);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolved, origin.lat, origin.lng]);
+  // 現在地は URL に書き込まない。書き込み（router.replace や履歴 API）は、読み込み直後に押した
+  // 「さがす」などの遷移を後から上書きしてしまうため。地図の並びは下で現在地の距離を使って付け直す。
 
   const visibleSpots = useMemo(() => {
     if (!focusedSpotIds) return spots;
@@ -85,8 +73,10 @@ export function CityMapScreen({
 
   // SPEC §9.14-5: 「まだ静か」ON時は quiet を上、crowding/touristy を「混みはじめた店」の下にまとめる。
   const quietNowActive = activeFilters.includes("quiet-now");
-  const { quiet: quietSpots, crowded: crowdedSpots } = useMemo(() => splitByQuietness(visibleSpots), [visibleSpots]);
-  const topSpots = quietNowActive ? quietSpots : visibleSpots;
+  // Spec §9.5 の順（距離は現在地から）をクライアント側でも付け直す（上の URL 更新はサーバーへ取り直さないため）。
+  const sortedSpots = useMemo(() => sortSpots(visibleSpots, distances), [visibleSpots, distances]);
+  const { quiet: quietSpots, crowded: crowdedSpots } = useMemo(() => splitByQuietness(sortedSpots), [sortedSpots]);
+  const topSpots = quietNowActive ? quietSpots : sortedSpots;
   const bottomSpots = quietNowActive ? crowdedSpots : [];
 
   // SPEC §9.14-16: 条件（絞り込みチップ・栞からの絞り込み）付きの0件と、
