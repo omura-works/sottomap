@@ -34,7 +34,10 @@ export default async function BookmarksPage() {
     <div className="mx-auto max-w-2xl px-4 py-6 lg:py-10 space-y-6">
       <header className="space-y-2">
         <p className="text-muted text-xs tracking-wide uppercase">栞</p>
-        <h1 style={{ fontSize: 30 }}>挟んだ店</h1>
+        {/* Codex R8 重要3: 栞を外した行の前後どちらも無いときのフォーカス先（BookmarkList側から参照）。 */}
+        <h1 id="bookmarks-heading" tabIndex={-1} style={{ fontSize: 30 }}>
+          挟んだ店
+        </h1>
         <p className="text-muted">{items.length}軒。旅のあいだ、地図の上でも光ります。</p>
       </header>
 

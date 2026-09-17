@@ -5,8 +5,8 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { City, Spot } from "@/lib/db/types";
 import { Input } from "@/components/ui";
-import { buildDistanceMap, useOrigin } from "@/components/map/geo";
-import { splitByQuietness } from "@/lib/domain/ordering";
+import { buildDistanceMap, useOrigin, WITHIN_10MIN_METERS } from "@/components/map/geo";
+import { sortSpots, splitByQuietness } from "@/lib/domain/ordering";
 import { FilterChips } from "./FilterChips";
 import { parseFiltersParam } from "./filters";
 import { SpotListItem } from "./SpotListItem";
@@ -14,18 +14,22 @@ import { SortNote } from "./SortNote";
 
 export interface SearchScreenProps {
   city: City;
-  /** listSpots が絞り込み・並び順・件数上限（近い順に3軒）まで適用済みで返す。 */
+  /** listSpots が検索語・タグの絞り込みまで適用済みで返す（並び順・現在地依存の絞り込み・件数上限はクライアント側）。 */
   spots: Spot[];
   activeFilters: string[];
   query: string;
 }
 
 const SEARCH_DEBOUNCE_MS = 300;
+/** 「近い順に」表示件数。SPEC §4 S3 の原本表示に合わせ、上位3軒までに絞る。 */
+const SEARCH_RESULT_LIMIT = 3;
 
 /**
  * S3「検索」`/[city]/search`。
- * 検索語・絞り込みチップは URL クエリ（q / filters / lat / lng）で管理し、
- * サーバー側の `listSpots` を通して結果を取得し直す（並び順は必ず sortSpots 経由）。
+ * 検索語・絞り込みチップは URL クエリ（q / filters）で管理し、サーバー側の `listSpots` を
+ * 通して結果を取得し直す。現在地に依存する処理（「徒歩10分」の絞り込み・距離順・上位3軒）は
+ * `useOrigin` の現在地（取れなければ街の中心）を使ってクライアント側で行う
+ * （重要1・2: 現在地を URL に書き込むと、直前に始めた別画面への遷移を上書きしてしまうため）。
  */
 export function SearchScreen({ city, spots, activeFilters, query }: SearchScreenProps) {
   const router = useRouter();
@@ -55,7 +59,7 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
   }, [searchParams]);
 
   const fallbackCenter = useMemo(() => ({ lat: city.centerLat, lng: city.centerLng }), [city.centerLat, city.centerLng]);
-  const { origin, resolved } = useOrigin(fallbackCenter);
+  const { origin } = useOrigin(fallbackCenter);
   const distances = useMemo(() => buildDistanceMap(spots, origin), [spots, origin]);
 
   const updateParams = useCallback(
@@ -76,21 +80,6 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
     },
     [pathname, router],
   );
-
-  // 現在地解決 → lat/lng をURLへ（街の中心からの距離で代替する場合も含む）。
-  useEffect(() => {
-    if (!resolved) return;
-    const nextLat = origin.lat.toFixed(4);
-    const nextLng = origin.lng.toFixed(4);
-    if (searchParams.get("lat") === nextLat && searchParams.get("lng") === nextLng) return;
-    // 現在地が得られず街の中心のままなら、サーバーの既定（街の中心）と同じ結果なので取り直さない。
-    // 取り直しの router.replace は、読み込み直後に押した別の画面への遷移を上書きすることがあるため。
-    const isCityCenter =
-      nextLat === city.centerLat.toFixed(4) && nextLng === city.centerLng.toFixed(4);
-    if (isCityCenter && !searchParams.has("lat") && !searchParams.has("lng")) return;
-    updateParams({ lat: nextLat, lng: nextLng });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolved, origin.lat, origin.lng]);
 
   // 検索語はデバウンスしてURLへ反映。
   useEffect(() => {
@@ -121,17 +110,30 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
     updateParams({ q: null, filters: "none" });
   }, [updateParams]);
 
+  // 重要1: 「徒歩10分」はクライアントの現在地（取れなければ街の中心）からの距離で絞り込む
+  // （サーバーは origin を渡されないため、この絞り込みはここで行う）。
+  const withinTenMinActive = activeFilters.includes("within-10min");
+  const nearbySpots = useMemo(() => {
+    if (!withinTenMinActive) return spots;
+    return spots.filter((spot) => (distances[spot.id] ?? Infinity) <= WITHIN_10MIN_METERS);
+  }, [spots, distances, withinTenMinActive]);
+  // 並び順は必ず sortSpots を通し、見出し「近い順に{N}軒」は絞り込み・上位3軒切りの後の件数。
+  const visibleSpots = useMemo(
+    () => sortSpots(nearbySpots, distances).slice(0, SEARCH_RESULT_LIMIT),
+    [nearbySpots, distances],
+  );
+
   // SPEC §9.14-5: 「まだ静か」ON時は quiet を上、crowding/touristy を「混みはじめた店」の下にまとめる。
   // OFF時は §9.5 の順のまま区切りなしで表示する。
   const quietNowActive = activeFilters.includes("quiet-now");
-  const { quiet, crowded } = useMemo(() => splitByQuietness(spots), [spots]);
-  const topList = quietNowActive ? quiet : spots;
+  const { quiet, crowded } = useMemo(() => splitByQuietness(visibleSpots), [visibleSpots]);
+  const topList = quietNowActive ? quiet : visibleSpots;
   const bottomList = quietNowActive ? crowded : [];
 
   return (
     <div className="mx-auto max-w-xl lg:max-w-2xl px-4 py-4 lg:py-8 space-y-4">
       {/* SPEC §9.14-9: 検索画面の見出しはDOMの先頭にh1を置き、下位見出しはh2に整理する（見た目は現状維持）。 */}
-      <h1 style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.5 }}>近い順に{spots.length}軒</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.5 }}>近い順に{visibleSpots.length}軒</h1>
 
       <Input
         type="search"
@@ -169,7 +171,7 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
           </div>
         ) : null}
 
-        {spots.length === 0 ? (
+        {visibleSpots.length === 0 ? (
           <div className="space-y-2">
             <p className="text-muted text-sm m-0">条件に合う店が見つかりませんでした。</p>
             <div className="flex flex-wrap gap-2">

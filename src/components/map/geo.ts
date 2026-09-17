@@ -6,46 +6,26 @@
 
 import { useEffect, useState } from "react";
 import type { Spot } from "@/lib/db/types";
+import { computeWalkMinutes, haversineMeters, WITHIN_10MIN_METERS } from "@/lib/domain/geo";
+import type { LatLng } from "@/lib/domain/geo";
 
-export interface LatLng {
-  lat: number;
-  lng: number;
-}
-
-/** 分速80m（時速4.8km相当）を徒歩の目安速度とする。 */
-const WALK_METERS_PER_MINUTE = 80;
+export type { LatLng } from "@/lib/domain/geo";
 
 /** 現在地取得のタイムアウト（これを超えたら街の中心へフォールバックする）。 */
 const GEOLOCATION_TIMEOUT_MS = 4000;
 
-const EARTH_RADIUS_M = 6371000;
-
-/** 2点間の距離（メートル）。ヒュベニの公式ではなく簡易な球面距離（Haversine）で十分な精度とする。 */
-export function distanceMeters(a: LatLng, b: LatLng): number {
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-
-  const sinDLat = Math.sin(dLat / 2);
-  const sinDLng = Math.sin(dLng / 2);
-  const h = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
-  const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-  return EARTH_RADIUS_M * c;
-}
+/** 2点間の距離（メートル）。 */
+export const distanceMeters = haversineMeters;
 
 /** メートル距離を「徒歩N分」ラベルに変換する（切り上げ、最低1分）。 */
-export function walkingMinutes(meters: number): number {
-  return Math.max(1, Math.ceil(meters / WALK_METERS_PER_MINUTE));
-}
+export const walkingMinutes = computeWalkMinutes;
 
 export function walkingLabel(meters: number): string {
   return `徒歩${walkingMinutes(meters)}分`;
 }
 
-/** 絞り込みチップ「徒歩10分」の判定に使う距離しきい値（メートル）。 */
-export const WITHIN_10MIN_METERS = 10 * WALK_METERS_PER_MINUTE;
+/** 絞り込みチップ「徒歩10分」の判定に使う距離しきい値（メートル）。サーバー（db/spots.ts）と共通。 */
+export { WITHIN_10MIN_METERS };
 
 /**
  * 現在地（Geolocation API）を取得し、失敗・拒否・タイムアウト時は

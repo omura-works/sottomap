@@ -22,6 +22,30 @@
   }
 }
 
+/* Codex R8 重要4: 「動きを止める」ボタンで灯りの明滅を止める（手順の巡回はJS側のタイマーで止める）。 */
+.start-screen .motion-paused .start-light {
+  animation-play-state: paused;
+  opacity: 0.8;
+}
+
+/* 見た目は控えめ（縁取りのみの小さな文字）だが、当たり判定は44px以上（SPEC §9.14-14）。 */
+.start-screen .start-motion-toggle {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--color-neutral-100) 35%, transparent);
+  background: color-mix(in srgb, var(--color-neutral-900) 55%, transparent);
+  color: var(--color-neutral-300);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.start-screen .start-motion-toggle:focus-visible {
+  outline: 2px solid var(--color-accent-300);
+  outline-offset: 2px;
+}
+
 /* SPEC §9.14-14: 当たり判定は透明なボタン全体（44px 以上）。見た目のチップは中の span */
 .start-screen .start-city-chip {
   min-width: 44px;

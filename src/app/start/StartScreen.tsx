@@ -59,7 +59,10 @@ export function StartScreen({
   const [selectedSlug, setSelectedSlug] = useState(defaultCitySlug);
   const [isStarting, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const activeStep = useCycle(STEPS.length, STEP_INTERVAL_MS);
+  // Codex R8 重要4・軽微1: 灯りの明滅・手順の巡回はどちらも5秒を超える自動運動のため、
+  // 止める手段が必要（WCAG 2.2.2）。既定は prefers-reduced-motion に従い、表示中の変更にも追従する。
+  const [motionPaused, setMotionPaused] = useMotionPreference();
+  const activeStep = useCycle(STEPS.length, STEP_INTERVAL_MS, motionPaused);
 
   const selectedCity = cities.find((city) => city.slug === selectedSlug) ?? cities[0];
   const selectedData = dataBySlug[selectedSlug] ?? { publishedCount: 0, recentlyVerified: [] };
@@ -90,7 +93,17 @@ export function StartScreen({
           color: "var(--color-neutral-100)",
         }}
       >
-        <div aria-hidden className="absolute inset-0">
+        {/* Codex R8 重要4: 灯りの明滅・下の手順巡回を両方止められる切り替え（44px以上、控えめな見た目）。 */}
+        <button
+          type="button"
+          aria-pressed={motionPaused}
+          onClick={() => setMotionPaused((paused) => !paused)}
+          className="start-motion-toggle absolute right-3 top-3 z-10"
+        >
+          {motionPaused ? "動きを再開する" : "動きを止める"}
+        </button>
+
+        <div aria-hidden className={`absolute inset-0${motionPaused ? " motion-paused" : ""}`}>
           {LIGHTS.map((light, i) => (
             <span
               key={i}
@@ -138,7 +151,9 @@ export function StartScreen({
             住んでいる人が残した店だけを見せます。まだ静かなところから。
           </p>
 
-          <p className="m-0 mt-10 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          {/* 軽微1: 街を切り替えたときに件数の文章全体を読み上げる（AnimatedCounterのsr-only数字と
+              二重にならないよう、この文の外側だけに aria-live を付ける）。 */}
+          <p className="m-0 mt-10 flex flex-wrap items-baseline gap-x-3 gap-y-1" aria-live="polite" aria-atomic="true">
             <span className="text-sm" style={{ color: "var(--color-neutral-300)" }}>
               {selectedCity.name}には、地元が確認したピンが
             </span>
@@ -295,13 +310,44 @@ export function StartScreen({
   );
 }
 
-/** 一定間隔で 0..n-1 を巡回する（動きを減らす設定では最初の手順のまま止める）。 */
-function useCycle(n: number, intervalMs: number) {
+/**
+ * 一定間隔で 0..n-1 を巡回する（`paused` の間は最後に止まった手順のまま止める）。
+ * Codex R8 重要4: 「動きを止める」ボタン・`prefers-reduced-motion` のどちらでも止められるよう、
+ * 判定は呼び出し側（`useMotionPreference`）にまとめ、ここでは単純な bool だけ受け取る。
+ */
+function useCycle(n: number, intervalMs: number, paused: boolean) {
   const [index, setIndex] = useState(0);
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (paused) return;
     const id = window.setInterval(() => setIndex((i) => (i + 1) % n), intervalMs);
     return () => window.clearInterval(id);
-  }, [n, intervalMs]);
+  }, [n, intervalMs, paused]);
   return index;
+}
+
+/**
+ * 「動きを止める」トグルの状態。既定は `prefers-reduced-motion: reduce` に従い、
+ * 表示中に OS 側の設定が変わっても追従する（Codex R8 重要4）。
+ * SSRとの不整合を避けるため、初期値は常に false（マウント後の effect で実際の設定に合わせる）。
+ */
+function useMotionPreference(): [boolean, (update: boolean | ((prev: boolean) => boolean)) => void] {
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let cancelled = false;
+    // effect本体で同期的に setState しない（react-hooks/set-state-in-effect）。
+    // マイクロタスクへずらして、change イベント経由の更新と同じ経路に揃える。
+    queueMicrotask(() => {
+      if (!cancelled) setPaused(mql.matches);
+    });
+    const handleChange = (event: MediaQueryListEvent) => setPaused(event.matches);
+    mql.addEventListener("change", handleChange);
+    return () => {
+      cancelled = true;
+      mql.removeEventListener("change", handleChange);
+    };
+  }, []);
+
+  return [paused, setPaused];
 }

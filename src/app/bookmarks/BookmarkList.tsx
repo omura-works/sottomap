@@ -1,10 +1,13 @@
 "use client";
 
-import { useOptimistic, useState, useTransition } from "react";
+import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { unstable_rethrow } from "next/navigation";
 import { removeBookmarkAction } from "@/app/actions/bookmark-actions";
 import { ConfirmRemoveButton } from "@/components/ui";
+
+/** ページ側（`/bookmarks`）の見出し。行の前後どちらも無いときのフォーカス先（Codex R8 重要3）。 */
+const BOOKMARKS_HEADING_ID = "bookmarks-heading";
 
 export interface BookmarkListItem {
   id: string;
@@ -31,10 +34,19 @@ type ListAction =
  * 「N軒を地図にまとめる」は、栞が単一の街だけなら「N軒を地図にまとめる」のまま。
  * 複数の街にまたがるときは街ごとにボタンを分け、「{街名}のN軒を地図にまとめる」とする
  * （SPEC §9.14-4: 表示件数と渡す件数を一致させる）。
+ *
+ * Codex R8 重要3: 「外す」確定で行自体がアンマウントされるため、`ConfirmRemoveButton` 内蔵の
+ * ライブリージョンではなく、行が消えても残るこの一覧レベルのライブリージョンで
+ * 「栞から外しました。」「そのままにしました。」を知らせる。フォーカスは、外した直後は
+ * 次の行→無ければ前の行→どちらも無ければ一覧の見出しへ、ロールバック時は復元した行の
+ * 「外す」ボタンへ移す。
  */
 export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[] }) {
   const [, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [liveMessage, setLiveMessage] = useState("");
+  const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
+  const triggerRefs = useRef(new Map<string, HTMLButtonElement | null>());
   const [items, dispatch] = useOptimistic(initialItems, (state: BookmarkListItem[], action: ListAction) => {
     if (action.type === "remove") {
       return state.filter((item) => item.id !== action.id);
@@ -47,10 +59,34 @@ export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[
     return state;
   });
 
+  // ロールバックで復元された行が再マウントされ、ref が登録されてから初めてフォーカスできる。
+  useEffect(() => {
+    if (!pendingFocusId) return;
+    const target = triggerRefs.current.get(pendingFocusId);
+    if (target) {
+      target.focus();
+      setPendingFocusId(null);
+    }
+  }, [pendingFocusId, items]);
+
+  function focusNeighborOrHeading(nextId: string | undefined, prevId: string | undefined) {
+    const target =
+      (nextId && triggerRefs.current.get(nextId)) || (prevId && triggerRefs.current.get(prevId)) || null;
+    if (target) {
+      target.focus();
+    } else {
+      document.getElementById(BOOKMARKS_HEADING_ID)?.focus();
+    }
+  }
+
   function handleRemove(item: BookmarkListItem, index: number) {
+    const nextId = items[index + 1]?.id;
+    const prevId = index > 0 ? items[index - 1]?.id : undefined;
     setErrorMessage(null);
+    setLiveMessage("栞から外しました。");
     startTransition(async () => {
       dispatch({ type: "remove", id: item.id });
+      focusNeighborOrHeading(nextId, prevId);
       try {
         await removeBookmarkAction(item.spotId);
       } catch (error) {
@@ -58,8 +94,13 @@ export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[
         unstable_rethrow(error);
         dispatch({ type: "restore", item, index });
         setErrorMessage("栞から外せませんでした。");
+        setPendingFocusId(item.id);
       }
     });
+  }
+
+  function handleCancel() {
+    setLiveMessage("そのままにしました。");
   }
 
   if (items.length === 0) {
@@ -78,6 +119,11 @@ export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[
 
   return (
     <div className="space-y-4">
+      {/* 行が消えても残るライブリージョン（Codex R8 重要3）。ConfirmRemoveButton 側は持たない。 */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {liveMessage}
+      </p>
+
       <ul className="space-y-2">
         {items.map((item) => {
           const index = items.indexOf(item);
@@ -106,6 +152,10 @@ export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[
               <ConfirmRemoveButton
                 label={`${item.spotName}を栞から外す`}
                 onConfirm={() => handleRemove(item, index)}
+                onCancel={handleCancel}
+                onTriggerRef={(node) => {
+                  triggerRefs.current.set(item.id, node);
+                }}
               />
             </li>
           );

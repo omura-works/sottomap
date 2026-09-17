@@ -11,7 +11,7 @@ import { FilterChips, SpotListItem } from "@/components/spot-list";
 import { sortSpots, splitByQuietness } from "@/lib/domain/ordering";
 import { MapCanvas } from "./index";
 import type { MapPin, MapPoint } from "./index";
-import { buildDistanceMap, useOrigin, walkingLabel } from "./geo";
+import { buildDistanceMap, useOrigin, walkingLabel, WITHIN_10MIN_METERS } from "./geo";
 
 export interface CityMapScreenProps {
   city: City;
@@ -73,8 +73,15 @@ export function CityMapScreen({
 
   // SPEC §9.14-5: 「まだ静か」ON時は quiet を上、crowding/touristy を「混みはじめた店」の下にまとめる。
   const quietNowActive = activeFilters.includes("quiet-now");
+  // 重要1: 「徒歩10分」はクライアントの現在地（取れなければ街の中心）からの距離で絞り込む
+  // （サーバーは origin を渡されないため、この絞り込みはここで行う）。
+  const withinTenMinActive = activeFilters.includes("within-10min");
+  const filteredSpots = useMemo(() => {
+    if (!withinTenMinActive) return visibleSpots;
+    return visibleSpots.filter((s) => (distances[s.id] ?? Infinity) <= WITHIN_10MIN_METERS);
+  }, [visibleSpots, distances, withinTenMinActive]);
   // Spec §9.5 の順（距離は現在地から）をクライアント側でも付け直す（上の URL 更新はサーバーへ取り直さないため）。
-  const sortedSpots = useMemo(() => sortSpots(visibleSpots, distances), [visibleSpots, distances]);
+  const sortedSpots = useMemo(() => sortSpots(filteredSpots, distances), [filteredSpots, distances]);
   const { quiet: quietSpots, crowded: crowdedSpots } = useMemo(() => splitByQuietness(sortedSpots), [sortedSpots]);
   const topSpots = quietNowActive ? quietSpots : sortedSpots;
   const bottomSpots = quietNowActive ? crowdedSpots : [];
@@ -85,12 +92,12 @@ export function CityMapScreen({
   const hasExcludingFilter = activeFilters.some((slug) => slug !== "quiet-now");
   const hasConditions = hasExcludingFilter || focusedSpotIds !== null;
 
-  const selectedSpot = visibleSpots.find((s) => s.id === selectedId) ?? null;
-  const hoveredSpot = hover ? (visibleSpots.find((s) => s.id === hover.id) ?? null) : null;
+  const selectedSpot = filteredSpots.find((s) => s.id === selectedId) ?? null;
+  const hoveredSpot = hover ? (filteredSpots.find((s) => s.id === hover.id) ?? null) : null;
 
   const pins: MapPin[] = useMemo(
-    () => visibleSpots.map((s) => ({ id: s.id, lat: s.lat, lng: s.lng, quietness: s.quietness, label: s.name })),
-    [visibleSpots],
+    () => filteredSpots.map((s) => ({ id: s.id, lat: s.lat, lng: s.lng, quietness: s.quietness, label: s.name })),
+    [filteredSpots],
   );
 
   const toggleFilter = useCallback(
@@ -136,7 +143,7 @@ export function CityMapScreen({
           </Link>
         </div>
         <FilterChips active={activeFilters} onToggle={toggleFilter} />
-        {visibleSpots.length === 0 ? (
+        {sortedSpots.length === 0 ? (
           <div className="space-y-2">
             <p className="text-muted text-sm m-0">
               {hasConditions ? "条件に合う店が見つかりませんでした。" : "まだ店がありません。"}
@@ -210,7 +217,7 @@ export function CityMapScreen({
             </Link>
             {/* SPEC §9.14-15/16: モバイルでも0件のとき投稿への導線を出す。
                 条件（絞り込みチップ・栞からの絞り込み）付きの0件は文言を分け、解除導線も出す。 */}
-            {visibleSpots.length === 0 ? (
+            {sortedSpots.length === 0 ? (
               <p className="text-xs text-muted m-0">
                 {hasConditions ? "条件に合う店が見つかりませんでした。" : "まだ店がありません。"}
                 {hasConditions ? (

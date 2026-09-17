@@ -10,6 +10,10 @@
 // - 確定・取り消しの丸ボタンは見た目28pxのまま、当たり判定だけ44×44px以上に広げた
 //   （SPEC §9.14-14）。パネル幅もそれに合わせて広げた。
 // - `cn` の import元を `@/lib/utils` → `@/components/ui/cn` に変更。
+// - Codex R8 重要3: 確定（外す）で行自体がアンマウントされる呼び出し側（BookmarkList）では
+//   コンポーネント内蔵の状態読み上げが失われるため、内蔵の live region は削除し、
+//   `onTriggerRef` でトリガーの参照を呼び出し側に渡してフォーカス管理を委ねる形に変更。
+//   フォーカスの自動移動は「やめる」（行が残る）のときのみ内部で行う。
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -130,18 +134,29 @@ export type ConfirmRemoveButtonProps = Omit<
   label: string;
   onConfirm?: () => void;
   onCancel?: () => void;
+  /**
+   * トリガー（「外す」ボタン）の DOM ノードが変わるたびに呼び出し側にも渡す。
+   * 楽観的更新で行がアンマウントされてもフォーカス管理を続けられるよう、呼び出し側
+   * （`BookmarkList`）がトリガーの参照を保持するために使う（Codex R8 重要3）。
+   */
+  onTriggerRef?: (node: HTMLButtonElement | null) => void;
 };
 
 /**
  * 栞一覧の「外す」ボタン。押すとその場で確定パネル（外す／やめる）が開き、
  * 「外す」で確定、「やめる」または Escape で取り消す。実際の削除処理（楽観的更新・
  * ロールバック）は呼び出し側が `onConfirm` の中で行う（SPEC §9.14-7）。
+ *
+ * 状態の読み上げ（「栞から外しました。」「そのままにしました。」）とフォーカス移動は、
+ * 確定時に行自体がアンマウントされる呼び出し側（`BookmarkList`）が persistent なライブ
+ * リージョンで行う（Codex R8 重要3）。このコンポーネント自身は読み上げを持たない。
  */
 export function ConfirmRemoveButton({
   label,
   className,
   onConfirm,
   onCancel,
+  onTriggerRef,
   ...props
 }: ConfirmRemoveButtonProps) {
   const reduced = useReducedMotion() ?? false;
@@ -180,7 +195,9 @@ export function ConfirmRemoveButton({
   const resolve = (next: Exclude<Status, "idle">) => {
     setOpen(false);
     setStatus(next);
-    trigger.current?.focus();
+    // 「やめる」（行は残る）のときだけここでトリガーへフォーカスを戻す。
+    // 「外す」は行自体がアンマウントされるため、フォーカス移動は呼び出し側（BookmarkList）が行う。
+    if (next === "kept") trigger.current?.focus();
     (next === "deleted" ? onConfirm : onCancel)?.();
   };
 
@@ -198,7 +215,10 @@ export function ConfirmRemoveButton({
       {...props}
     >
       <motion.button
-        ref={trigger}
+        ref={(node: HTMLButtonElement | null) => {
+          trigger.current = node;
+          onTriggerRef?.(node);
+        }}
         type="button"
         aria-label={label}
         aria-expanded={open}
@@ -263,10 +283,6 @@ export function ConfirmRemoveButton({
           )}
         </AnimatePresence>
       </motion.button>
-
-      <span role="status" aria-live="polite" className="sr-only">
-        {status === "deleted" ? "栞から外しました。" : status === "kept" ? "そのままにしました。" : ""}
-      </span>
 
       <AnimatePresence>
         {open && (

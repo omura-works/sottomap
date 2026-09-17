@@ -18,7 +18,7 @@ export default defineConfig({
       // このファイルは chromium プロジェクトだけで実行する（mobile と共有DBのため）。
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
-      testMatch: ["**/smoke.spec.ts", "**/user-flows.spec.ts"],
+      testMatch: ["**/smoke.spec.ts", "**/user-flows.spec.ts", "**/geolocation.spec.ts"],
     },
     {
       // SPEC §9.14-12: モバイル（390×844）で主要導線を検証する。

@@ -15,6 +15,7 @@
 //   - 並び順の4キー（静けさ・距離・最終確認・id）は spots 行だけで決まるので、関連データを取る前に
 //     行だけで並べて件数を絞り、関連データは表示する行の分だけまとめて取る（N+1 にしない）。
 
+import { computeWalkMinutes, haversineMeters, WITHIN_10MIN_METERS } from "../domain/geo";
 import { countAnswerableRequests, latestMissedRequestId } from "../domain/lifecycle";
 import { isWinterMonth } from "../domain/lantern";
 import { sortSpots } from "../domain/ordering";
@@ -72,28 +73,6 @@ function throwIfError(context: string, error: { message: string } | null): void 
 // 検索語・タグフィルタ・距離ソート・距離/徒歩分の共通ロジック
 // （Supabase 経路・フィクスチャ経路の両方から使う）
 // =========================================================
-
-const EARTH_RADIUS_M = 6371000;
-
-function haversineMeters(a: LatLng, b: LatLng): number {
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-  const h =
-    Math.sin(dLat / 2) ** 2 + Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
-  return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)));
-}
-
-/** 徒歩10分の目安距離（分速80m換算）。'within-10min' フィルタに使う。 */
-const WITHIN_10MIN_METERS = 800;
-/** 「徒歩7分」表示用の換算（CONTRACT追補: 80m/分）。 */
-const WALK_METERS_PER_MINUTE = 80;
-
-function computeWalkMinutes(meters: number): number {
-  return Math.max(1, Math.ceil(meters / WALK_METERS_PER_MINUTE));
-}
 
 /**
  * origin（無ければ街の中心）からの distanceMeters/walkMinutes を1件の Spot に埋める。
