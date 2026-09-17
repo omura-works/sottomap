@@ -1,7 +1,38 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { City } from "@/lib/db/types";
+import type { City, Spot } from "@/lib/db/types";
 import { SearchScreen } from "./SearchScreen";
+
+function makeSpot(overrides: Partial<Spot> & Pick<Spot, "id" | "name">): Spot {
+  return {
+    cityId: "city-1",
+    citySlug: "sapporo",
+    cityName: "札幌",
+    areaName: null,
+    address: null,
+    category: null,
+    lat: 43.06,
+    lng: 141.35,
+    status: "published",
+    quietness: "quiet",
+    reason: "",
+    visitFrequency: "monthly",
+    authorId: "author-1",
+    authorLabel: null,
+    photoUrl: null,
+    tags: [],
+    endorsementCount: 2,
+    verifierCount: 1,
+    lastVerifiedAt: null,
+    nextVerificationAt: null,
+    publishedAt: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    distanceMeters: null,
+    walkMinutes: null,
+    openRequestId: null,
+    ...overrides,
+  };
+}
 
 // SPEC §9.14-14: デバウンスのタイマーが古い searchParams を閉じ込めないことを検証するため、
 // router.replace で更新した URL を useSearchParams が読み返すように、簡易な可変ストアを使う。
@@ -144,6 +175,47 @@ describe("SearchScreen", () => {
 
     expect(replaceMock).not.toHaveBeenCalled();
   });
+
+  // Codex R10 重要1: pathname ガードだけでは不十分（Next.js 16 は router state の
+  // コミット時にURLを更新するため、遷移が完了するまで pathname は検索画面のままになり得る）。
+  // 別画面へのリンクをクリックした「瞬間」にタイマーを取り消す必要がある。
+  it("重要1(R10): 別画面へのリンクをクリックした直後は、pathnameが未コミットでもデバウンス発火時にrouter.replaceしない", () => {
+    render(<SearchScreen city={CITY} spots={[]} activeFilters={["quiet-now"]} query="" />);
+
+    const anchor = document.createElement("a");
+    anchor.href = "/sapporo";
+    document.body.appendChild(anchor);
+
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "海鮮丼" } });
+    replaceMock.mockClear();
+
+    // pathname（usePathname / window.location.pathname）はまだ "/sapporo/search" のまま
+    // （Next.js 16のrouter stateコミット前を模す）で、リンクをクリックする。
+    fireEvent.click(anchor);
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(replaceMock).not.toHaveBeenCalled();
+    document.body.removeChild(anchor);
+  });
+
+  // Codex R10 重要1: ブラウザの戻る操作（popstate）でもタイマーを取り消す。
+  it("重要1(R10): popstateが起きた直後は、デバウンス発火時にrouter.replaceしない", () => {
+    render(<SearchScreen city={CITY} spots={[]} activeFilters={["quiet-now"]} query="" />);
+
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "海鮮丼" } });
+    replaceMock.mockClear();
+
+    window.dispatchEvent(new PopStateEvent("popstate"));
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("SearchScreen（Codex R9 重要2: 位置解決待ち）", () => {
@@ -158,5 +230,77 @@ describe("SearchScreen（Codex R9 重要2: 位置解決待ち）", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "現在地を確認しています…" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("現在地を確認しています…");
+  });
+});
+
+// Codex R10 重要2: 位置解決後の過剰なフォーカス移動・結果差し替えの再通知。
+describe("SearchScreen（Codex R10 重要2: 結果差し替え時のフォーカス・通知）", () => {
+  const SPOT_A = makeSpot({ id: "spot-a", name: "店A" });
+  const SPOT_B = makeSpot({ id: "spot-b", name: "店B" });
+  const SPOT_C = makeSpot({ id: "spot-c", name: "店C" });
+
+  beforeEach(() => {
+    replaceMock.mockClear();
+    nav.slow = false;
+    nav.reset();
+  });
+
+  afterEach(() => {
+    document.body.focus();
+  });
+
+  it("結果内にフォーカスが無ければ、結果が差し替わってもフォーカスを奪わない（bodyのままでも移さない）", () => {
+    const { rerender } = render(<SearchScreen city={CITY} spots={[SPOT_A]} activeFilters={[]} query="" />);
+    expect(document.activeElement).toBe(document.body);
+
+    rerender(<SearchScreen city={CITY} spots={[SPOT_B]} activeFilters={[]} query="" />);
+
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(document.activeElement).not.toBe(heading);
+  });
+
+  it("結果内の要素にフォーカスがあり、差し替えでその要素が消えたら見出しへフォーカスが移る", () => {
+    const { rerender } = render(<SearchScreen city={CITY} spots={[SPOT_A, SPOT_B]} activeFilters={[]} query="" />);
+    const linkA = screen.getByRole("link", { name: /店A/ });
+    linkA.focus();
+    expect(document.activeElement).toBe(linkA);
+
+    // SPOT_A が結果から消える（SPOT_C に差し替わる）。
+    rerender(<SearchScreen city={CITY} spots={[SPOT_B, SPOT_C]} activeFilters={[]} query="" />);
+
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(document.activeElement).toBe(heading);
+  });
+
+  it("フォーカスしていた要素が差し替え後も残っていれば、見出しへフォーカスを移さない", () => {
+    const { rerender } = render(<SearchScreen city={CITY} spots={[SPOT_A, SPOT_B]} activeFilters={[]} query="" />);
+    const linkA = screen.getByRole("link", { name: /店A/ });
+    linkA.focus();
+
+    // SPOT_A は残り、SPOT_B が SPOT_C に差し替わる。
+    rerender(<SearchScreen city={CITY} spots={[SPOT_A, SPOT_C]} activeFilters={[]} query="" />);
+
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(document.activeElement).not.toBe(heading);
+    expect(screen.getByRole("link", { name: /店A/ })).toBe(document.activeElement);
+  });
+
+  it("件数が同じでも結果のID並びが変われば、ライブリージョンの通知が再度読み上げられる（一度空にして次のティックで設定）", async () => {
+    vi.useFakeTimers();
+    const { rerender } = render(<SearchScreen city={CITY} spots={[SPOT_A, SPOT_B]} activeFilters={[]} query="" />);
+    expect(screen.getByRole("status")).toHaveTextContent("2軒見つかりました");
+
+    // 件数は変わらないが、内容（ID並び）が変わる。
+    rerender(<SearchScreen city={CITY} spots={[SPOT_A, SPOT_C]} activeFilters={[]} query="" />);
+
+    // 一度空になる（同じ文言でも読み上げ直させるため）。
+    expect(screen.getByRole("status")).toHaveTextContent("");
+
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+
+    expect(screen.getByRole("status")).toHaveTextContent("2軒見つかりました");
+    vi.useRealTimers();
   });
 });

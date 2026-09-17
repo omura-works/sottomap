@@ -24,7 +24,10 @@ export function walkingLabel(meters: number): string {
   return `徒歩${walkingMinutes(meters)}分`;
 }
 
-/** 絞り込みチップ「徒歩10分」の判定に使う距離しきい値（メートル）。サーバー（db/spots.ts）と共通。 */
+/**
+ * 絞り込みチップ「徒歩10分」の判定に使う距離しきい値（メートル）。
+ * Codex R9 重要1でサーバー側の距離絞り込みは撤去済みで、現在はクライアント側の判定でのみ使う。
+ */
 export { WITHIN_10MIN_METERS };
 
 /**

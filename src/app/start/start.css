@@ -15,17 +15,19 @@
   animation: start-light-glow 4.2s ease-in-out infinite;
 }
 
-/* JSがまだ実行されていない最初のレンダー（data-motion属性が付く前）だけの fallback。
-   Codex R9 重要4: 実行後は data-motion 側のルールがこれより優先される。 */
+/* Codex R10 重要3: SSR・利用者が未選択の間（data-motion="auto"）は既定で動く。
+   ただしOSの prefers-reduced-motion: reduce はここでも効かせる（JS無効でも初期描画に反映されるよう、
+   `[data-motion="auto"]` に一致させる。以前は `:not([data-motion])` を使っていたため、
+   SSRが常に "playing" を出力する実装と噛み合わず、JS実行前は動き続けていた）。 */
 @media (prefers-reduced-motion: reduce) {
-  .start-screen:not([data-motion]) .start-light {
+  .start-screen[data-motion="auto"] .start-light {
     animation: none;
     opacity: 0.8;
   }
 }
 
-/* Codex R9 重要4: 実効状態（userChoiceがあればそれ、無ければOS設定）は data-motion 属性で
-   表す。「動きを止める」ボタンで停止・再開のどちらでも、OS設定の reduce に関係なく反映する。 */
+/* Codex R9 重要4・R10 重要3: 実効状態（userChoiceがあればそれ、無ければOS設定）は data-motion
+   属性で表す。「動きを止める」ボタンで停止・再開のどちらでも、OS設定の reduce に関係なく反映する。 */
 .start-screen[data-motion="paused"] .start-light {
   animation: none;
   opacity: 0.8;

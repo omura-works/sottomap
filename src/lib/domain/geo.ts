@@ -22,7 +22,10 @@ export function haversineMeters(a: LatLng, b: LatLng): number {
 /** 分速80m（時速4.8km相当）を徒歩の目安速度とする（CONTRACT追補）。 */
 export const WALK_METERS_PER_MINUTE = 80;
 
-/** 「徒歩10分」の目安距離（メートル）。'within-10min' フィルタのしきい値はサーバー・クライアント共通でこの値を使う。 */
+/**
+ * 「徒歩10分」の目安距離（メートル）。'within-10min' フィルタのしきい値はこの値を使う。
+ * Codex R9 重要1でサーバー側の距離絞り込みは撤去済みで、現在はクライアント側（components/map/geo.ts）だけで判定する。
+ */
 export const WITHIN_10MIN_METERS = 10 * WALK_METERS_PER_MINUTE;
 
 /** メートル距離を「徒歩N分」に変換する（切り上げ、最低1分）。 */

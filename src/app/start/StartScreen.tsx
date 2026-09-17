@@ -59,12 +59,15 @@ export function StartScreen({
   const [selectedSlug, setSelectedSlug] = useState(defaultCitySlug);
   const [isStarting, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  // Codex R8 重要4・軽微1・Codex R9 重要4: 灯りの明滅・手順の巡回はどちらも5秒を超える自動運動のため、
-  // 止める手段が必要（WCAG 2.2.2）。既定は prefers-reduced-motion に従い、表示中の変更にも追従するが、
-  // 利用者が明示的に選んだ状態（userChoice）はOS設定の変化で上書きしない。
-  const { motionState, toggleMotion } = useMotionState();
+  // Codex R8 重要4・軽微1・Codex R9 重要4・Codex R10 重要3: 灯りの明滅・手順の巡回はどちらも
+  // 5秒を超える自動運動のため、止める手段が必要（WCAG 2.2.2）。既定は prefers-reduced-motion に
+  // 従い、表示中の変更にも追従するが、利用者が明示的に選んだ状態（userChoice）はOS設定の変化で
+  // 上書きしない。SSR・マウント直後（OS設定をまだ読んでいない間）は "auto"（既定=動く。ただし
+  // OS設定は CSS の media query 側で効く）を返し、ハイドレーション不一致を避ける。
+  const { motionState, effectivePaused, toggleMotion } = useMotionState();
+  // ボタンの見た目（止める/再開する）は実効停止状態にのみ従う（"auto" は "playing" と同じ扱い）。
   const motionPaused = motionState === "paused";
-  const activeStep = useCycle(STEPS.length, STEP_INTERVAL_MS, motionPaused);
+  const activeStep = useCycle(STEPS.length, STEP_INTERVAL_MS, effectivePaused);
 
   const selectedCity = cities.find((city) => city.slug === selectedSlug) ?? cities[0];
   const selectedData = dataBySlug[selectedSlug] ?? { publishedCount: 0, recentlyVerified: [] };
@@ -298,9 +301,9 @@ export function StartScreen({
                     style={{
                       width: on ? "100%" : "0%",
                       background: "var(--color-accent-500)",
-                      // Codex R9 重要4: 実効状態が停止なら幅アニメーションもしない
+                      // Codex R9 重要4・R10 重要3: 実効状態が停止なら幅アニメーションもしない
                       // （transitionを切り、途中の遷移で止まらないようにする）。
-                      transition: on && !motionPaused ? `width ${STEP_INTERVAL_MS}ms linear` : "none",
+                      transition: on && !effectivePaused ? `width ${STEP_INTERVAL_MS}ms linear` : "none",
                     }}
                   />
                 </li>
@@ -334,18 +337,26 @@ function useCycle(n: number, intervalMs: number, paused: boolean) {
 
 /**
  * 「動きを止める」トグルの実効状態。
- * Codex R9 重要4: OS設定（`prefers-reduced-motion`）と利用者の明示的な選択（userChoice）を
- * 別々に持ち、実効状態は「userChoiceがあればそれ、無ければOS設定」で決める。
+ * Codex R9 重要4・Codex R10 重要3: OS設定（`prefers-reduced-motion`）と利用者の明示的な選択
+ * （userChoice）を別々に持ち、実効状態は「userChoiceがあればそれ、無ければOS設定」で決める。
  * これにより、手動停止後にOS設定が reduce:false へ変わっても停止のまま維持され、
  * 逆にOSが reduce のままでも利用者が「動きを再開する」を押せば動く（WCAG 2.2.2の pause は
  * 利用者が再開を求めるまで再開しない状態のため）。
- * SSRとの不整合を避けるため、OS設定の初期値は常に false（マウント後の effect で合わせる）。
+ *
+ * SSR・マウント直後（`matchMedia` をまだ読んでいない間）は `osReduceMotion` を null に保ち、
+ * `motionState` は "auto" を返す。"auto" は「既定では動くが、OSの prefers-reduced-motion:
+ * reduce が効く」を意味し、CSS 側の media query がJS無効でも初期描画に反映できるようにする
+ * （R10 重要3: 以前は SSR で常に "playing" を出力していたため、JS実行前は reduced-motion
+ * 利用者でも灯りが動いていた）。
+ * `effectivePaused` は手順の自動巡回の開始判定にも使い、`osReduceMotion` が未確定（null）の間は
+ * 巡回を始めない（マウント後に `matchMedia` を読んでから開始する）。
  */
 function useMotionState(): {
-  motionState: "playing" | "paused";
+  motionState: "auto" | "playing" | "paused";
+  effectivePaused: boolean;
   toggleMotion: () => void;
 } {
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const [osReduceMotion, setOsReduceMotion] = useState<boolean | null>(null);
   const [userChoice, setUserChoice] = useState<"paused" | "playing" | null>(null);
 
   useEffect(() => {
@@ -354,10 +365,10 @@ function useMotionState(): {
     // effect本体で同期的に setState しない（react-hooks/set-state-in-effect）。
     // マイクロタスクへずらして、change イベント経由の更新と同じ経路に揃える。
     queueMicrotask(() => {
-      if (!cancelled) setReduceMotion(mql.matches);
+      if (!cancelled) setOsReduceMotion(mql.matches);
     });
-    // OS設定の変化は reduceMotion だけを更新し、userChoice は上書きしない。
-    const handleChange = (event: MediaQueryListEvent) => setReduceMotion(event.matches);
+    // OS設定の変化は osReduceMotion だけを更新し、userChoice は上書きしない。
+    const handleChange = (event: MediaQueryListEvent) => setOsReduceMotion(event.matches);
     mql.addEventListener("change", handleChange);
     return () => {
       cancelled = true;
@@ -365,10 +376,16 @@ function useMotionState(): {
     };
   }, []);
 
-  const motionState: "playing" | "paused" = userChoice ?? (reduceMotion ? "paused" : "playing");
+  const motionState: "auto" | "playing" | "paused" =
+    userChoice ?? (osReduceMotion === null ? "auto" : osReduceMotion ? "paused" : "playing");
+  // 巡回の開始判定用。userChoiceがあればそれに従い、無ければ「OS設定が読めるまでは止めておく」。
+  const effectivePaused = userChoice !== null ? userChoice === "paused" : osReduceMotion === null ? true : osReduceMotion;
+  // トグルは利用者に見えている状態（motionState）を反転させる（"auto" は見た目上「動いている」扱い）。
+  // effectivePausedは巡回開始の内部判定用のため、matchMedia解決前は基準が異なり、ボタンの
+  // 表示ラベルと食い違うことがある。
   const toggleMotion = () => {
     setUserChoice(motionState === "paused" ? "playing" : "paused");
   };
 
-  return { motionState, toggleMotion };
+  return { motionState, effectivePaused, toggleMotion };
 }

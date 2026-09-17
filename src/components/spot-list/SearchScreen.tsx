@@ -48,6 +48,11 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
     setInputValue(query);
   }
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Codex R10 重要1: pathname ガードだけでは不十分（Next.js 16 は router state のコミット時に
+  // URL を更新するため、遷移中も `usePathname`/`window.location.pathname` は検索画面のままになり得る）。
+  // 利用者が別画面への遷移を「始めた瞬間」（リンクのクリック・戻る操作）にこのフラグを立て、
+  // タイマーが発火してもデバウンス処理をしない。検索ページ内の操作（updateParams が呼ばれたとき）で戻す。
+  const navigatingAwayRef = useRef(false);
   // SPEC §9.14-14: デバウンスのタイマーが発火した時点の最新の URL を必ず読むための ref。
   // `updateParams` の依存に `searchParams` を含めると、直前の入力で作られたタイマーの
   // クロージャが古い `searchParams`（チップ操作前の状態）を閉じ込め、後から発火したときに
@@ -68,6 +73,9 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
 
   const updateParams = useCallback(
     (updates: Record<string, string | null>) => {
+      // Codex R10 重要1: 検索ページ内の操作（フィルタ操作・デバウンス正常発火）なので、
+      // 別画面への遷移中フラグをリセットする。
+      navigatingAwayRef.current = false;
       const params = new URLSearchParams(searchParamsRef.current);
       for (const [key, value] of Object.entries(updates)) {
         if (value === null || value === "") {
@@ -94,6 +102,8 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
+      // Codex R10 重要1: pathname ガードに加えて、利用者が別画面への遷移を始めていないかを見る。
+      if (navigatingAwayRef.current) return;
       if (typeof window !== "undefined" && window.location.pathname !== pathname) return;
       if (inputValue !== query) {
         updateParams({ q: inputValue || null });
@@ -104,6 +114,45 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputValue]);
+
+  // Codex R10 重要1: 利用者が別画面への遷移を「始めた瞬間」（同一オリジンの `<a href>` クリック・
+  // ブラウザの戻る操作）にデバウンスのタイマーを取り消す。Next.js 16 は router state のコミット時に
+  // URL を更新するため、遷移が完了するまで pathname は検索画面のままになり得る
+  // （タイマー発火時の pathname ガードだけでは間に合わない）。
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const anchor = target.closest("a[href]");
+      if (!(anchor instanceof HTMLAnchorElement)) return;
+      if (anchor.target && anchor.target !== "_self") return;
+      if (anchor.hasAttribute("download")) return;
+      let url: URL;
+      try {
+        url = new URL(anchor.href, window.location.href);
+      } catch {
+        return;
+      }
+      if (url.origin !== window.location.origin) return;
+      if (url.pathname === pathname) return;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      navigatingAwayRef.current = true;
+    };
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
+  }, [pathname]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      navigatingAwayRef.current = true;
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   const toggleFilter = useCallback(
     (slug: string) => {
@@ -151,17 +200,66 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
       ? `${visibleSpots.length}軒見つかりました`
       : "条件に合う店が見つかりませんでした。";
 
-  // Codex R9 重要2: 位置解決で表示が街中心基準→現在地基準へ差し替わったときなど、
-  // 表示中の一覧が変わってフォーカス中の要素が消えた場合は結果見出しへフォーカスを移す。
+  // Codex R10 重要2: 結果のID並びが変わったら、件数（文言）が同じでも再通知する。
+  // 栞（BookmarkList）と同じく、一度空にして次のティックで設定する
+  // （同期的に空→本文をまとめて設定すると、DOM上は本文しか変化せず、直前と同じ文言のときは
+  // 読み上げられない）。初回描画では即時に確定値を出す（テストや初期表示で待たせないため）。
+  const resultKey = visibleSpots.map((spot) => spot.id).join(",");
+  const [liveMessage, setLiveMessage] = useState(statusMessage);
+  const announceKeyRef = useRef(`${resultKey}|${statusMessage}`);
+  useEffect(() => {
+    const key = `${resultKey}|${statusMessage}`;
+    if (announceKeyRef.current === key) return;
+    announceKeyRef.current = key;
+    setLiveMessage("");
+    const id = setTimeout(() => setLiveMessage(statusMessage), 0);
+    return () => clearTimeout(id);
+  }, [resultKey, statusMessage]);
+
+  // Codex R10 重要2: 位置解決で表示が街中心基準→現在地基準へ差し替わったときなど、
+  // 表示中の一覧が変わったときに「結果内のどれかに実際にフォーカスがあり、かつその要素が
+  // 消えた（isConnected===false）」場合に限って結果見出しへフォーカスを移す。
+  // 結果内にフォーカスが無かった場合は何もしない（bodyでも移さない。以前は
+  // `document.activeElement === document.body` で判定していたため、初回の待機中→確定でも
+  // 常にフォーカスを奪ってしまっていた）。
   const headingRef = useRef<HTMLHeadingElement | null>(null);
+  const resultsContainerRef = useRef<HTMLDivElement | null>(null);
+  const lastFocusedRef = useRef<Element | null>(null);
   const previousVisibleIdsRef = useRef<string[] | null>(null);
+
+  useEffect(() => {
+    const container = resultsContainerRef.current;
+    if (!container) return;
+    const handleFocusIn = (event: FocusEvent) => {
+      if (event.target instanceof Element) {
+        lastFocusedRef.current = event.target;
+      }
+    };
+    const handleFocusOut = (event: FocusEvent) => {
+      const related = event.relatedTarget;
+      if (related instanceof Node && container.contains(related)) return; // 結果内で移動しただけ
+      if (related !== null) {
+        // 結果の外（検索欄など、まだ存在する要素）へ意図して移った場合は追跡をやめる。
+        lastFocusedRef.current = null;
+      }
+      // related === null（要素の削除などでフォーカス先が無い）の場合は isConnected 判定用に保持する。
+    };
+    container.addEventListener("focusin", handleFocusIn);
+    container.addEventListener("focusout", handleFocusOut);
+    return () => {
+      container.removeEventListener("focusin", handleFocusIn);
+      container.removeEventListener("focusout", handleFocusOut);
+    };
+  }, []);
+
   useEffect(() => {
     const currentIds = visibleSpots.map((spot) => spot.id);
     const previousIds = previousVisibleIdsRef.current;
     previousVisibleIdsRef.current = currentIds;
     if (previousIds === null) return; // 初回描画ではフォーカスを奪わない。
     if (previousIds.join(",") === currentIds.join(",")) return;
-    if (document.activeElement === document.body) {
+    const lastFocused = lastFocusedRef.current;
+    if (lastFocused && !lastFocused.isConnected) {
       headingRef.current?.focus();
     }
   }, [visibleSpots]);
@@ -174,9 +272,9 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
         {originPending ? "現在地を確認しています…" : `近い順に${visibleSpots.length}軒`}
       </h1>
 
-      {/* Codex R9 重要2: 結果が確定・変化したことを常設のライブリージョンで通知する。 */}
+      {/* Codex R9 重要2・R10 重要2: 結果が確定・変化したことを常設のライブリージョンで通知する。 */}
       <p role="status" aria-live="polite" className="sr-only">
-        {statusMessage}
+        {liveMessage}
       </p>
 
       <Input
@@ -194,7 +292,7 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
         <FilterChips active={activeFilters} onToggle={toggleFilter} />
       </div>
 
-      <div className="space-y-2" aria-busy={isPending}>
+      <div className="space-y-2" aria-busy={isPending} ref={resultsContainerRef}>
         {isPending ? <p className="text-muted text-sm m-0">読み込み中…</p> : null}
 
         {originPending ? (

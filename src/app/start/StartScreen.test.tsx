@@ -96,6 +96,47 @@ describe("StartScreen（SPEC §9.15 案B）", () => {
 
   // Codex R8 重要4・軽微1: 5秒を超える自動運動（灯り・手順巡回）を止める手段（WCAG 2.2.2）。
   describe("動きを止める", () => {
+    // Codex R10 重要3: SSR・マウント直後（matchMediaをまだ読んでいない間）は
+    // data-motion="auto" を出す（"paused"/"playing" は利用者が押したとき、または
+    // OS設定を読んだ後だけ）。ハイドレーション不一致・JS実行前の誤動作を避けるため。
+    it("マウント直後（matchMedia解決前）はdata-motion=autoで、ボタンは「動きを止める」表示", () => {
+      mockReducedMotion(false);
+      render(<StartScreen cities={CITIES} dataBySlug={DATA} defaultCitySlug="sapporo" />);
+
+      // queueMicrotaskでの解決前の同期的な初回描画を確認する。
+      expect(document.querySelector(".start-screen")).toHaveAttribute("data-motion", "auto");
+      expect(screen.getByRole("button", { name: "動きを止める" })).toHaveAttribute("aria-pressed", "false");
+    });
+
+    // Codex R10 重要3: OS設定を実際に false→true→false と変化させても、
+    // 手動停止した後はOS設定に関係なくずっと停止のまま。
+    it("OS設定がfalse→true→falseと変化しても、手動停止した後はずっと停止のまま", async () => {
+      const control = mockReducedMotion(false);
+      render(<StartScreen cities={CITIES} dataBySlug={DATA} defaultCitySlug="sapporo" />);
+
+      await screen.findByRole("button", { name: "動きを止める" });
+      expect(document.querySelector(".start-screen")).toHaveAttribute("data-motion", "playing");
+
+      act(() => {
+        control.setMatches(true);
+      });
+      expect(document.querySelector(".start-screen")).toHaveAttribute("data-motion", "paused");
+      expect(screen.getByRole("button", { name: "動きを再開する" })).toHaveAttribute("aria-pressed", "true");
+
+      // 利用者が明示的に停止を選ぶ。
+      fireEvent.click(screen.getByRole("button", { name: "動きを再開する" }));
+      expect(document.querySelector(".start-screen")).toHaveAttribute("data-motion", "playing");
+      fireEvent.click(screen.getByRole("button", { name: "動きを止める" }));
+      expect(document.querySelector(".start-screen")).toHaveAttribute("data-motion", "paused");
+
+      act(() => {
+        control.setMatches(false);
+      });
+      // OS設定がfalseに戻っても、利用者の選択（停止）が優先される。
+      expect(document.querySelector(".start-screen")).toHaveAttribute("data-motion", "paused");
+      expect(screen.getByRole("button", { name: "動きを再開する" })).toHaveAttribute("aria-pressed", "true");
+    });
+
     it("reduced motion では最初から止まった状態で表示される", async () => {
       mockReducedMotion(true);
       render(<StartScreen cities={CITIES} dataBySlug={DATA} defaultCitySlug="sapporo" />);
@@ -104,10 +145,15 @@ describe("StartScreen（SPEC §9.15 案B）", () => {
       expect(toggle).toHaveAttribute("aria-pressed", "true");
     });
 
-    it("ボタンで手順の巡回が止まる・再開する", () => {
+    it("ボタンで手順の巡回が止まる・再開する", async () => {
       mockReducedMotion(false);
       vi.useFakeTimers();
       render(<StartScreen cities={CITIES} dataBySlug={DATA} defaultCitySlug="sapporo" />);
+      // Codex R10 重要3: 手順の自動巡回はマウント後にmatchMediaを読んでから開始するため、
+      // その解決（マイクロタスク）を一度フラッシュしてから進める。
+      await act(async () => {
+        await Promise.resolve();
+      });
 
       const stepsList = screen.getByRole("heading", { name: "静けさは、こうして保たれます" }).closest("section")!;
       const steps = within(stepsList).getAllByRole("listitem");

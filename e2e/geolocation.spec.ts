@@ -99,9 +99,13 @@ test.describe("現在地の扱い（回帰）", () => {
     const shofutaishiOrigin = "lat=43.1937&lng=140.9989"; // 聖徳太子 飛鳥店自身の座標
     await page.goto(`/otaru/search?filters=within-10min&${shofutaishiOrigin}`);
     await expect(page.getByRole("link", { name: /聖徳太子 飛鳥店/ })).toBeVisible();
+    // Codex R10 軽微2: 閲覧者の現在地（南樽市場付近）側の店は、URL座標基準では除外される
+    // （現在地との積集合になっていないことの否定検証）。
+    await expect(page.getByRole("link", { name: /南樽市場/ })).toHaveCount(0);
 
     await page.goto(`/otaru?filters=within-10min&${shofutaishiOrigin}`);
     await expect(page.getByRole("link", { name: /聖徳太子 飛鳥店/ })).toBeVisible();
+    await expect(page.getByRole("link", { name: /南樽市場/ })).toHaveCount(0);
   });
 
   // Codex R9 重要2: 位置解決中は結果一覧の代わりに待機文言を出し、解決後に件数を通知する。
@@ -125,5 +129,33 @@ test.describe("現在地の扱い（回帰）", () => {
     await expect(page).toHaveURL(/\/otaru(?:\?.*)?$/);
     await page.waitForTimeout(1000);
     await expect(page).toHaveURL(/\/otaru(?:\?.*)?$/);
+  });
+
+  // Codex R10 重要1: pathnameガードだけでは不十分（Next.js 16 は router state のコミット時に
+  // URLを更新するため、遷移先の描画（RSCレスポンス）が遅れている間はpathnameが検索画面のまま
+  // になり得る）。300msのデバウンスを超えて遷移が未コミットのままでも、検索URLへ戻されない
+  // ことを、遷移先（地図）のRSCリクエストを1.5秒遅延させて検証する。
+  test("重要1(R10): 遷移先の描画が遅れても（300ms超）、検索入力直後の地図への遷移が検索URLへ戻されない", async ({ page }) => {
+    await page.goto("/otaru/search");
+
+    await page.route("**/*", async (route) => {
+      const request = route.request();
+      const headers = request.headers();
+      const url = new URL(request.url());
+      const isRscRequest = headers["rsc"] === "1" || url.searchParams.has("_rsc");
+      const isMapTarget = url.pathname === "/otaru";
+      if (isRscRequest && isMapTarget) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+      await route.continue();
+    });
+
+    await page.getByRole("searchbox", { name: "小樽の店をさがす" }).fill("市場");
+    await page.getByRole("link", { name: "地図", exact: true }).click();
+
+    await page.waitForTimeout(3000);
+    await expect(page).toHaveURL(/\/otaru(?:\?.*)?$/);
+    const url = new URL(page.url());
+    expect(url.searchParams.has("q")).toBe(false);
   });
 });
