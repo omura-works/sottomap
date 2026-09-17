@@ -69,21 +69,24 @@ on conflict (id) do nothing;
 -- =========================================================
 -- 4. auth.users + public.users（架空デモアカウント10件）
 -- =========================================================
+-- confirmation_token などのトークン列は、Supabase Auth（GoTrue）が NULL を読めない（「Database error finding user」になる）ため、
+-- 空文字で入れる。これでローカルでもシードの利用者でメールログインできる（npm run test:e2e:realdb が使う）。
 insert into auth.users (
   id, instance_id, aud, role, email, encrypted_password,
   email_confirmed_at, created_at, updated_at,
-  raw_app_meta_data, raw_user_meta_data, is_sso_user
+  raw_app_meta_data, raw_user_meta_data, is_sso_user,
+  confirmation_token, recovery_token, email_change_token_new, email_change
 ) values
-  ('b0000000-0000-4000-8000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-k@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
-  ('b0000000-0000-4000-8000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-m@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
-  ('b0000000-0000-4000-8000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-t@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
-  ('b0000000-0000-4000-8000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-sapporo-e1@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
-  ('b0000000-0000-4000-8000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-sapporo-e2@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
-  ('b0000000-0000-4000-8000-000000000006', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-s@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
-  ('b0000000-0000-4000-8000-000000000007', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-h@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
-  ('b0000000-0000-4000-8000-000000000008', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-r@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
-  ('b0000000-0000-4000-8000-000000000009', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-otaru-e1@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
-  ('b0000000-0000-4000-8000-00000000000a', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-otaru-e2@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false)
+  ('b0000000-0000-4000-8000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-k@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false, '', '', '', ''),
+  ('b0000000-0000-4000-8000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-m@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false, '', '', '', ''),
+  ('b0000000-0000-4000-8000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-t@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false, '', '', '', ''),
+  ('b0000000-0000-4000-8000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-sapporo-e1@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false, '', '', '', ''),
+  ('b0000000-0000-4000-8000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-sapporo-e2@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false, '', '', '', ''),
+  ('b0000000-0000-4000-8000-000000000006', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-s@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false, '', '', '', ''),
+  ('b0000000-0000-4000-8000-000000000007', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-h@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false, '', '', '', ''),
+  ('b0000000-0000-4000-8000-000000000008', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-r@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false, '', '', '', ''),
+  ('b0000000-0000-4000-8000-000000000009', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-otaru-e1@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false, '', '', '', ''),
+  ('b0000000-0000-4000-8000-00000000000a', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-otaru-e2@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false, '', '', '', '')
 on conflict (id) do nothing;
 
 insert into users (id, display_name, home_city_id, area_name, resident_years, avatar_url, lantern_points, created_at) values

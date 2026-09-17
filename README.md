@@ -56,8 +56,24 @@ RLS・権限表・DB 関数・同時実行は、ローカルの Supabase で pgT
 4. `npx supabase test db`
 
 - `0006_security.sql` は権限表（匿名・投稿者・同じ街・別の街・service_role）と DB 関数の規則を1接続で検査し、最後に rollback します。
-- `0006_concurrency.sql` は `dblink` 拡張で自分自身の DB に2接続を張り、cron と回答の交差、同じ依頼への同時回答、期限直前の承認と cron、同時承認を検査します。別接続から見えるようテストデータはコミットし、最後に削除します。cron は DB 全体を処理するので、seed のデータにも期限処理が反映されます（元に戻すには `npx supabase db reset`）。
-  - 接続文字列の既定は `host=127.0.0.1 port=<DBのport> dbname=<現在のDB> user=postgres password=postgres`（Supabase のローカル既定）です。違う場合は `alter database postgres set urasupo.test_dblink_connstr = '...';` で上書きしてください。
+- `0006_concurrency.sql` は `dblink` 拡張で自分自身の DB に2接続を張り、cron と回答の交差（旧実装で起きた循環待ち）、同じ依頼への同時回答、期限直前の承認と cron、同時承認を検査します。別接続から見えるようテストデータはコミットし、最後に削除します。cron は DB 全体を処理するので、seed のデータにも期限処理が反映されます（元に戻すには `npx supabase db reset`）。
+  - 各シナリオは、後から送った問い合わせが先の接続にブロックされてロック待ちに入ったこと（`pg_locks` の `granted = false`・`pg_blocking_pids`・`pg_stat_activity` の `wait_event_type = 'Lock'`）を最大10秒ポーリングで確かめてから、先の接続をコミットします。確かめられなければテストが失敗します。
+  - 期限境界のシナリオは、期限を「承認側トランザクションの開始時刻 + 2秒」に置き、DB の時計がそれを過ぎるまで待ちます（約2.5秒）。
+  - 接続文字列の既定は `host=<inet_server_addr()> port=<DBのport> dbname=<現在のDB> user=postgres password=postgres`（Supabase のローカル既定）です。postgres は非スーパーユーザーのため dblink はパスワード認証の接続しか使えず、ローカルの Supabase コンテナでは 127.0.0.1 が trust 認証になるので、セッションのサーバー側アドレス（`inet_server_addr()`。取れない・ループバックの場合だけ 127.0.0.1）へ接続します。違う場合は `alter database postgres set urasupo.test_dblink_connstr = '...';` で上書きしてください。
+- 2026-09-17 時点で、ローカル Supabase で `npx supabase db reset` → `npx supabase test db` を3回連続で実行し、すべて通過しています（`0006_security.sql` 66件・`0006_concurrency.sql` 28件）。
+
+### 実DBでのログイン済みE2E（ローカル専用）
+
+ローカル Supabase に接続した開発サーバーへ、Mailpit に届いたログイン用メールのリンクでログインし、`/start` での居住街の保存 → `/me` → 店の詳細で栞に挟む → `/bookmarks` → 確認依頼への回答 → 確認切れ（dormant）の店の復帰（「地図に戻りました。」と公開一覧への復帰）までを通します。通常の `npx playwright test`（デモモード）には含まれません。
+
+1. `npx supabase start`（起動済みならそのまま）
+2. `npx supabase db reset`（seed の状態にする）
+3. `npm run test:e2e:realdb`
+4. `npx supabase db reset`（テストが書き換えたデータを seed に戻す）
+
+- 設定は `playwright.realdb.config.ts`、テストは `e2e-realdb/` にあります。URL・anon key・service_role key は `npx supabase status -o env` から読み、`URASUPO_DEMO_MODE` なし・`NEXT_PUBLIC_SITE_URL=http://localhost:3200` で `next dev` を 3200 番で起動します（3200 番を空けておいてください）。
+- ログインする利用者は seed の Rさん（`demo-r@example.invalid`）です。seed の `auth.users` はトークン列を空文字で入れてあり、Supabase Auth でメールログインできます。確認切れの店と missed の依頼は、テストの中で service_role key を使って作ります。
+- ログイン用メールの戻り先 `http://localhost:3200/**` は `supabase/config.toml` の `additional_redirect_urls` に入れてありますが、反映には `npx supabase stop` → `npx supabase start` が必要です。反映前は Supabase Auth が `site_url` へ戻すため、テストは確認リンクの戻り先からコードを取り出し、アプリの `/auth/callback` へ渡します。
 
 ## テスト
 
@@ -70,7 +86,12 @@ npx playwright test
 
 - Vitest は `vitest.config.ts` で `URASUPO_DEMO_MODE=1` を渡し、フィクスチャ経路で動きます。フィクスチャ経路には DB 関数と同じ規則（回答できる時点、同じ依頼の二重受理の禁止、pending の期限、ポイント台帳）を実装してあり、その規則を検証します。
 - Playwright は `URASUPO_DEMO_MODE=1` で開発サーバー（`next dev`）を起動し、実際の画面導線を検証します。ブラウザの導入はPlaywrightの案内に従って別途行ってください。
-- `supabase/tests/*.sql` は RLS・権限表・DB 関数・同時実行を確かめる pgTAP テストです。手順は上の「実DBでの検証」を参照してください。**作成時の開発環境では Docker が動かなかったため、まだ一度も実行していません。**
+- `supabase/tests/*.sql` は RLS・権限表・DB 関数・同時実行を確かめる pgTAP テストです。手順と実行結果は上の「実DBでの検証」を参照してください。
+- `npm run test:e2e:realdb` は実DBに接続したログイン済みの導線を確かめる E2E です（ローカル専用）。手順は上の「実DBでのログイン済みE2E」を参照してください。
+
+## 既知の制約
+
+- 街の地図・一覧（`listSpots`）は、その街の公開スポットを全件取得してから、アプリ側で距離順に並べて件数を絞っています。1街あたり数百件までを想定した実装です。これを超える規模になったら、距離順と件数制限を PostGIS の DB 関数（RPC）に移してください。
 
 ## Vercel Cron
 
