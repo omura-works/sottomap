@@ -142,15 +142,16 @@ select is_empty(
     with roles(role_name) as (values ('public'), ('anon'), ('authenticated'), ('service_role')),
     cols(col) as (values
       ('id'), ('display_name'), ('avatar_url'), ('home_city_id'), ('resident_years'),
-      ('lantern_points'), ('area_name'), ('created_at')
+      ('lantern_points'), ('area_name'), ('created_at'), ('home_city_changed_at')
     ),
     privs(priv) as (values ('INSERT'), ('UPDATE')),
     expected as (
       select r.role_name, c.col, p.priv,
         case r.role_name
           when 'authenticated' then
-            (p.priv = 'INSERT' and c.col in ('id', 'display_name', 'avatar_url', 'home_city_id', 'resident_years'))
-            or (p.priv = 'UPDATE' and c.col in ('display_name', 'avatar_url', 'home_city_id', 'resident_years'))
+            -- 0007（§9.16）: home_city_id は set_home_city だけで変える（直接の insert / update は不可）。
+            (p.priv = 'INSERT' and c.col in ('id', 'display_name', 'avatar_url', 'resident_years'))
+            or (p.priv = 'UPDATE' and c.col in ('display_name', 'avatar_url', 'resident_years'))
           when 'service_role' then true
           else false
         end as allowed
@@ -160,7 +161,7 @@ select is_empty(
     from expected
     where has_column_privilege(role_name, 'public.users', col, priv) <> allowed
   $$,
-  '権限表: users の列単位の insert / update（lantern_points・area_name・created_at は利用者に不可）'
+  '権限表: users の列単位の insert / update（lantern_points・area_name・created_at・home_city_id・home_city_changed_at は利用者に不可）'
 );
 
 select is_empty(
@@ -172,7 +173,8 @@ select is_empty(
       ('public.run_verification_cron()', false, false, true),
       ('public.is_profile_visible(uuid)', true, true, true),
       ('public.award_lantern_points(uuid, text, uuid, integer)', false, false, false),
-      ('public.publish_pending_spot(uuid, timestamp with time zone)', false, false, false)
+      ('public.publish_pending_spot(uuid, timestamp with time zone)', false, false, false),
+      ('public.set_home_city(uuid)', false, true, false)
     )
     select f.fn, e.role_name, e.allowed
     from fns f
@@ -197,7 +199,7 @@ select is_empty(
       )
       and p.proname not in (
         'create_spot', 'endorse_spot', 'answer_verification', 'run_verification_cron',
-        'is_profile_visible', 'award_lantern_points', 'publish_pending_spot'
+        'is_profile_visible', 'award_lantern_points', 'publish_pending_spot', 'set_home_city'
       )
       and (
         has_function_privilege('public', p.oid, 'EXECUTE')

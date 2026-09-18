@@ -39,6 +39,7 @@ export interface UserProfile {
   id: string;
   displayName: string;       // 'Kさん'
   homeCityId: string | null;
+  homeCityChangedAt: string | null; // 住んでいる街を最後に変えた時刻（初回設定は数えない）。SPEC §9.16
   areaName: string | null;   // '北24条'
   residentYears: number | null;
   avatarUrl: string | null;

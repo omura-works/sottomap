@@ -506,6 +506,50 @@ describe("setUserHomeCity（デモモードでも居住街を実際に変える�
   });
 });
 
+describe("setUserHomeCity の90日制限（SPEC §9.16。set_home_city と同じ規則）", () => {
+  it("同じ街は何もしない（変更に数えない）", async () => {
+    const { setUserHomeCity } = await import("./mutations");
+    const { getUserProfile } = await import("./spots");
+
+    await expect(setUserHomeCity(K_SAN, SAPPORO_CITY_ID)).resolves.toBeNull();
+    expect((await getUserProfile(K_SAN))?.homeCityChangedAt).toBeNull();
+  });
+
+  it("別の街へ変えると時刻を記録し、90日以内の次の変更は次に変えられる日を添えて拒否する", async () => {
+    const { setUserHomeCity } = await import("./mutations");
+    const { getUserProfile } = await import("./spots");
+    // 東京 2026-09-18 10:00 に変える → 90日後は 2026-12-17 10:00 → 端数を切り上げて「2026年12月18日以降」
+    freezeAt(new Date("2026-09-18T01:00:00.000Z"));
+
+    await expect(setUserHomeCity(K_SAN, OTARU_CITY_ID)).resolves.toBe("2026-09-18T01:00:00.000Z");
+    expect((await getUserProfile(K_SAN))?.homeCityChangedAt).toBe("2026-09-18T01:00:00.000Z");
+
+    freezeAt(new Date("2026-12-17T00:59:59.000Z"));
+    await expect(setUserHomeCity(K_SAN, SAPPORO_CITY_ID)).rejects.toThrow(
+      "住んでいる街は90日に1回まで変えられます。次に変えられるのは2026年12月18日以降です。",
+    );
+    // 制限中でも同じ街は拒否しない
+    await expect(setUserHomeCity(K_SAN, OTARU_CITY_ID)).resolves.toBe("2026-09-18T01:00:00.000Z");
+    expect((await getUserProfile(K_SAN))?.homeCityId).toBe(OTARU_CITY_ID);
+  });
+
+  it("ちょうど90日経てば、また別の街へ変えられる", async () => {
+    const { setUserHomeCity } = await import("./mutations");
+    const { getUserProfile } = await import("./spots");
+    freezeAt(new Date("2026-09-18T01:00:00.000Z"));
+    await setUserHomeCity(K_SAN, OTARU_CITY_ID);
+
+    freezeAt(new Date(Date.parse("2026-09-18T01:00:00.000Z") + 90 * DAY_MS));
+    await expect(setUserHomeCity(K_SAN, SAPPORO_CITY_ID)).resolves.toBe("2026-12-17T01:00:00.000Z");
+    expect((await getUserProfile(K_SAN))?.homeCityId).toBe(SAPPORO_CITY_ID);
+  });
+
+  it("変更時刻もテスト間でリセットされる", async () => {
+    const { getUserProfile } = await import("./spots");
+    expect((await getUserProfile(K_SAN))?.homeCityChangedAt).toBeNull();
+  });
+});
+
 describe("createSpot の入力検証（create_spot と同じ規則・同じ文言）", () => {
   it.each([
     ["空の名前", { name: "   " }, "店の名前は80字以内で入力してください"],

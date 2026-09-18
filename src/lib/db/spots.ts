@@ -823,6 +823,7 @@ interface UserRow {
   id: string;
   display_name: string;
   home_city_id: string | null;
+  home_city_changed_at: string | null;
   area_name: string | null;
   resident_years: number | null;
   avatar_url: string | null;
@@ -835,6 +836,7 @@ function mapUserRow(row: UserRow): UserProfile {
     id: row.id,
     displayName: row.display_name,
     homeCityId: row.home_city_id,
+    homeCityChangedAt: row.home_city_changed_at ?? null,
     areaName: row.area_name,
     residentYears: row.resident_years,
     avatarUrl: row.avatar_url,

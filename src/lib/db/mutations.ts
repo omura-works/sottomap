@@ -538,18 +538,20 @@ export async function removeBookmark(userId: string, spotId: string): Promise<vo
 }
 
 /**
- * /start で選んだ街を、ログイン済みユーザーの居住街として保存する。
- * users の更新は列単位の権限（display_name / avatar_url / home_city_id / resident_years）の範囲で行う。
- * デモモードでもフィクスチャの居住街を実際に変える（以後の投稿・承認の「同じ街」判定に効く）。
+ * 住んでいる街を設定・変更する（SPEC §9.16）。
+ * Supabase 経路は DB 関数 set_home_city（0007_home_city_change_limit.sql）を本人のセッションで呼ぶだけ
+ * （authenticated は users.home_city_id を直接書き換えられない）。対象は常にログイン中の本人（auth.uid()）。
+ * デモモードはフィクスチャに同じ規則（初回は数えない・同じ街は何もしない・別の街は90日に1回まで）を再現する。
+ * 戻り値は記録された変更時刻（初回設定・未変更のままなら null）。
  */
-export async function setUserHomeCity(userId: string, cityId: string): Promise<void> {
+export async function setUserHomeCity(userId: string, cityId: string): Promise<string | null> {
   if (!isSupabaseConfigured()) {
-    setFixtureUserHomeCity(userId, cityId);
-    return;
+    return setFixtureUserHomeCity(userId, cityId);
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.from("users").update({ home_city_id: cityId }).eq("id", userId);
-  if (error) throw new Error(`居住街の保存に失敗しました: ${error.message}`);
+  const { data, error } = await supabase.rpc("set_home_city", { p_city_id: cityId });
+  if (error) throw rpcError("住んでいる街の保存", error);
+  return typeof data === "string" ? data : null;
 }
 

@@ -171,13 +171,19 @@ test.describe("実DB: ログイン済みの主要導線", () => {
     await prepareDormantSpot();
     const cleared = await admin.from("bookmarks").delete().eq("user_id", USER_ID).eq("spot_id", BOOKMARK_SPOT_ID);
     if (cleared.error) throw cleared.error;
+    // SPEC §9.16: 住んでいる街を seed の状態（小樽・未変更）に戻す（再実行できるように）。
+    const home = await admin
+      .from("users")
+      .update({ home_city_id: OTARU_ID, home_city_changed_at: null })
+      .eq("id", USER_ID);
+    if (home.error) throw home.error;
   });
 
   test.afterAll(async () => {
     await admin.from("spots").delete().eq("id", DORMANT_SPOT_ID);
   });
 
-  test("メールのリンクでログインし、居住街の保存・プロフィール・栞・確認・dormant 復帰まで通す", async ({
+  test("メールのリンクでログインし、住んでいる街の変更・プロフィール・栞・確認・dormant 復帰まで通す", async ({
     page,
     request,
   }) => {
@@ -185,21 +191,43 @@ test.describe("実DB: ログイン済みの主要導線", () => {
     await logInWithEmailLink(page, request, "/start");
     await expect(page.getByRole("heading", { name: "どの街を歩きますか" })).toBeVisible();
 
-    // 2. /start で居住街（札幌）を保存する
+    // 2. /start で札幌を選んで歩きはじめても、住んでいる街（小樽）は変わらない（SPEC §9.16: 見る街と住んでいる街を分ける）
     await page.getByRole("button", { name: "札幌", exact: true }).click();
     await page.getByRole("button", { name: "歩きはじめる" }).click();
     await expect(page).toHaveURL(/\/sapporo(?:\?.*)?$/);
-    await expect
-      .poll(async () => {
-        const { data } = await admin.from("users").select("home_city_id").eq("id", USER_ID).single();
-        return (data as { home_city_id: string } | null)?.home_city_id;
-      })
-      .toBe(SAPPORO_ID);
+    const readHomeCity = async () => {
+      const { data } = await admin
+        .from("users")
+        .select("home_city_id, home_city_changed_at")
+        .eq("id", USER_ID)
+        .single();
+      return data as { home_city_id: string; home_city_changed_at: string | null } | null;
+    };
+    expect((await readHomeCity())?.home_city_id).toBe(OTARU_ID);
 
     // 3. /me: 本人のプロフィール・投稿（確認切れ）・確認待ち（期限到来の open 1件 + 復帰対象の最新 missed 1件）
     await page.goto("/me");
     await expect(page.getByRole("heading", { name: USER_NAME, exact: true })).toBeVisible();
+    await expect(page.getByText("小樽・色内に10年", { exact: true })).toBeVisible();
+
+    // 3-1. /me で住んでいる街を札幌に変える（確認ダイアログ → 成功）。DB 関数 set_home_city 経由。
+    await page.getByRole("button", { name: "変更する" }).click();
+    await page.getByLabel("住んでいる街を選ぶ").selectOption({ label: "札幌" });
+    await page.getByRole("button", { name: "変える", exact: true }).click();
+    const confirmDialog = page.getByRole("dialog", { name: /^住んでいる街を札幌に変えますか。次に変えられるのは/ });
+    await confirmDialog.getByRole("button", { name: "変える", exact: true }).click();
+    await expect(page.getByRole("status").filter({ hasText: "住んでいる街を札幌に変えました。" })).toBeVisible();
+    await expect.poll(async () => (await readHomeCity())?.home_city_id).toBe(SAPPORO_ID);
+    expect((await readHomeCity())?.home_city_changed_at).not.toBeNull();
     await expect(page.getByText("札幌・色内に10年", { exact: true })).toBeVisible();
+
+    // 3-2. 続けてもう一度変えようとすると、90日の制限で拒否される（role="alert"）
+    await page.getByRole("button", { name: "変更する" }).click();
+    await page.getByLabel("住んでいる街を選ぶ").selectOption({ label: "小樽" });
+    await page.getByRole("button", { name: "変える", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "変える", exact: true }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "住んでいる街は90日に1回まで変えられます。" })).toBeVisible();
+    expect((await readHomeCity())?.home_city_id).toBe(SAPPORO_ID);
     const dormantRow = page.getByRole("listitem").filter({ hasText: DORMANT_SPOT_NAME });
     await expect(dormantRow.getByText("確認切れ", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "確認待ちが2件あります" })).toBeVisible();

@@ -21,6 +21,7 @@
 //     期限到来済みの確認依頼・期限前の確認依頼を持つ。確認の導線と E2E に使う）
 // それ以外（実在6店の投稿者・静けさ・時刻・確認履歴）は seed.sql と一致させる。
 
+import { canChangeHomeCity, homeCityLimitMessage, nextHomeCityChangeAt } from "../domain/home-city";
 import { isWinterMonth } from "../domain/lantern";
 import { countAnswerableRequests, isMissed } from "../domain/lifecycle";
 import { nextDayAtTokyoTime } from "../format/date-time";
@@ -92,8 +93,13 @@ export const FIXTURE_BADGE_DEFS: Array<Pick<Badge, "slug" | "glyph" | "label">> 
 interface FixtureUser {
   id: string;
   displayName: string;
-  /** mutable: setFixtureUserHomeCity が変える（resetFixtureUserHomeCities で初期値に戻す）。 */
-  homeCitySlug: string;
+  /**
+   * mutable: setFixtureUserHomeCity が変える（resetFixtureUserHomeCities で初期値に戻す）。
+   * null = 住んでいる街が未設定（DB の users.home_city_id が NULL の利用者に相当）。
+   */
+  homeCitySlug: string | null;
+  /** mutable: 住んでいる街を最後に変えた時刻（ISO8601）。初回設定は数えない。未指定 = 未変更（SPEC §9.16）。 */
+  homeCityChangedAt?: string | null;
   areaName: string;
   residentYears: number;
   lanternPoints: number;
@@ -115,6 +121,7 @@ const FIXTURE_USERS: FixtureUser[] = [
 
 /** 居住街の初期値（テスト間で元に戻すため）。 */
 const INITIAL_HOME_CITY_SLUGS = new Map(FIXTURE_USERS.map((u) => [u.id, u.homeCitySlug]));
+const INITIAL_HOME_CITY_CHANGED_AT = new Map(FIXTURE_USERS.map((u) => [u.id, u.homeCityChangedAt ?? null]));
 
 function findUser(id: string): FixtureUser {
   const user = FIXTURE_USERS.find((u) => u.id === id);
@@ -632,20 +639,42 @@ export const FIXTURE_BOOKMARKS: Bookmark[] = RAW_BOOKMARKS.map((b) => {
   };
 });
 
-/** /start で選んだ街をユーザーの居住街にする（mutations.ts の setUserHomeCity のデモ経路）。 */
-export function setFixtureUserHomeCity(userId: string, cityId: string): void {
+/**
+ * 住んでいる街を設定・変更する（mutations.ts の setUserHomeCity のデモ経路）。
+ * DB 関数 set_home_city（0007_home_city_change_limit.sql、SPEC §9.16）と同じ規則・同じ文言:
+ *   - 存在しない街は拒否。
+ *   - 未設定 → 設定（初回は制限に数えない。戻り値 null）。
+ *   - 同じ街 → 何もしない（記録済みの変更時刻を返す）。
+ *   - 別の街 → 未変更か90日以上前の変更なら変えて今の時刻を記録・返す。90日以内なら拒否。
+ */
+export function setFixtureUserHomeCity(userId: string, cityId: string): string | null {
   const user = FIXTURE_USERS.find((u) => u.id === userId);
-  if (!user) throw new Error("ユーザーが見つかりませんでした");
+  if (!user) throw new Error("プロフィールが見つかりませんでした");
   const city = findCityById(cityId);
   if (!city) throw new Error("街の情報が取得できませんでした");
+  const changedAt = user.homeCityChangedAt ?? null;
+
+  if (user.homeCitySlug === null) {
+    user.homeCitySlug = city.slug;
+    return null;
+  }
+  if (user.homeCitySlug === city.slug) return changedAt;
+
+  const now = new Date();
+  if (!canChangeHomeCity(changedAt, now)) {
+    const next = nextHomeCityChangeAt(changedAt);
+    if (next) throw new Error(homeCityLimitMessage(next));
+  }
   user.homeCitySlug = city.slug;
+  user.homeCityChangedAt = now.toISOString();
+  return user.homeCityChangedAt;
 }
 
-/** 全ユーザーの居住街を初期値に戻す（テスト間のリセット用）。 */
+/** 全ユーザーの居住街（と変更時刻）を初期値に戻す（テスト間のリセット用）。 */
 export function resetFixtureUserHomeCities(): void {
   for (const user of FIXTURE_USERS) {
-    const initial = INITIAL_HOME_CITY_SLUGS.get(user.id);
-    if (initial) user.homeCitySlug = initial;
+    user.homeCitySlug = INITIAL_HOME_CITY_SLUGS.get(user.id) ?? null;
+    user.homeCityChangedAt = INITIAL_HOME_CITY_CHANGED_AT.get(user.id) ?? null;
   }
 }
 
@@ -657,7 +686,7 @@ export function fixtureUserHomeCitySlug(userId: string): string | null {
 /** ユーザーの居住街ID（endorseSpot の「同じ街のユーザーのみ承認可」判定に使う）。 */
 export function fixtureUserHomeCityId(userId: string): string | null {
   const user = FIXTURE_USERS.find((u) => u.id === userId);
-  if (!user) return null;
+  if (!user || user.homeCitySlug === null) return null;
   return findCitySlug(user.homeCitySlug).id;
 }
 
@@ -665,11 +694,12 @@ export function fixtureUserHomeCityId(userId: string): string | null {
 export function fixtureUserProfile(userId: string): UserProfile | null {
   const user = FIXTURE_USERS.find((u) => u.id === userId);
   if (!user) return null;
-  const city = findCitySlug(user.homeCitySlug);
+  const city = user.homeCitySlug === null ? null : findCitySlug(user.homeCitySlug);
   return {
     id: user.id,
     displayName: user.displayName,
-    homeCityId: city.id,
+    homeCityId: city ? city.id : null,
+    homeCityChangedAt: user.homeCityChangedAt ?? null,
     areaName: user.areaName,
     residentYears: user.residentYears,
     avatarUrl: null,

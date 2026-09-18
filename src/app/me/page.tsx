@@ -8,6 +8,8 @@ import { quietnessLabel } from "@/lib/domain/quietness";
 import type { Quietness, SpotStatus } from "@/lib/db/types";
 import { AnimatedCounter, Card, Divider, Tag } from "@/components/ui";
 import { Disclaimer } from "@/components/profile/Disclaimer";
+import { HomeCitySetting } from "@/components/profile/HomeCitySetting";
+import { canChangeHomeCity, formatHomeCityChangeDate, nextHomeCityChangeAt } from "@/lib/domain/home-city";
 
 /**
  * SPEC §9.8: S7「あなたが書いた店」のステータス表記は `quietnessLabel()` の
@@ -44,6 +46,13 @@ export default async function ProfilePage() {
   ]);
   const homeCity = cities.find((city) => city.id === profile?.homeCityId) ?? null;
   const displayName = profile?.displayName ?? "地元の人";
+  // SPEC §9.16: 90日の制限中なら、次に変えられる日を添える。
+  const homeCityChangedAt = profile?.homeCityChangedAt ?? null;
+  const nextHomeCityChange = nextHomeCityChangeAt(homeCityChangedAt);
+  const nextChangeNote =
+    nextHomeCityChange && !canChangeHomeCity(homeCityChangedAt)
+      ? `次に変えられるのは${formatHomeCityChangeDate(nextHomeCityChange)}以降です。`
+      : null;
 
   const badges = resolveBadges({
     verificationCount: stats.verificationsAnswered,
@@ -145,6 +154,14 @@ export default async function ProfilePage() {
         <h3 className="m-0">確認待ちが{stats.pendingRequestCount}件あります</h3>
         <p className="m-0">答えないままのピンは、90日後に地図から静かに外れます。</p>
       </Card>
+
+      <Divider />
+
+      <HomeCitySetting
+        cities={cities.map((city) => ({ slug: city.slug, name: city.name }))}
+        currentCitySlug={homeCity?.slug ?? null}
+        nextChangeNote={nextChangeNote}
+      />
 
       <Disclaimer />
     </div>
