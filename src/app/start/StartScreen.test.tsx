@@ -241,10 +241,10 @@ describe("StartScreen（SPEC §9.15 案B）", () => {
     expect(screen.queryByRole("heading", { name: "どの街を歩きますか" })).not.toBeInTheDocument();
   });
 
-  it("R14暫定レビュー軽微8: 街が0件の空状態にも h1 と main ランドマークを付ける（通常表示の構造に合わせる）", () => {
+  it("R14暫定レビュー軽微8: 街が0件の空状態にも h1 を付け、main は AppShell に任せて重ねない", () => {
     render(<StartScreen cities={[]} dataBySlug={{}} defaultCitySlug="sapporo" />);
 
     expect(screen.getByRole("heading", { level: 1, name: "ウラスポ" })).toBeInTheDocument();
-    expect(screen.getByRole("main")).toBeInTheDocument();
+    expect(screen.queryByRole("main")).not.toBeInTheDocument();
   });
 });

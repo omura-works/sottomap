@@ -74,7 +74,8 @@ export function StartScreen({
   // 空状態だけを表示する。
   if (cities.length === 0) {
     return (
-      <main
+      // main ランドマークは AppShell が既に出しているので、ここでは重ねない。
+      <div
         className="start-screen flex min-h-dvh items-center justify-center px-5 text-center"
         style={{ background: "var(--color-bg)" }}
       >
@@ -86,7 +87,7 @@ export function StartScreen({
             まだ街が準備されていません。しばらくしてからもう一度お試しください。
           </p>
         </div>
-      </main>
+      </div>
     );
   }
 
