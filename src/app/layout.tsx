@@ -4,7 +4,24 @@ import { AppShell } from "@/components/layout/AppShell";
 import { isDemoMode } from "@/lib/supabase/env";
 import { getCurrentUserId } from "@/lib/auth";
 import { getUserProfile, listCities } from "@/lib/db/spots";
+import { getSiteOrigin } from "@/lib/auth/site-url";
 import "./globals.css";
+
+/**
+ * metadataBase・OGP用の絶対URLの元になる origin。
+ * `NEXT_PUBLIC_SITE_URL` 未設定・不正のときは例外を投げる関数（本番は必須・SPEC §9.13.8）だが、
+ * metadata はビルド時にも評価されるため、ここでは例外にせず undefined にする
+ * （実行系の判定は src/lib/supabase/env.ts・src/lib/auth/site-url.ts が別途担う）。
+ */
+function resolveSiteOrigin(): string | undefined {
+  try {
+    return getSiteOrigin();
+  } catch {
+    return undefined;
+  }
+}
+
+const siteOrigin = resolveSiteOrigin();
 
 // 見出し用フォント（Spec §5: 見出しは "Zen Maru Gothic"）。--font-heading に割り当てる。
 const zenMaruGothic = Zen_Maru_Gothic({
@@ -23,8 +40,25 @@ const zenKakuGothicNew = Zen_Kaku_Gothic_New({
 });
 
 export const metadata: Metadata = {
-  title: "ウラスポ",
-  description: "北海道の、まだ静かな店を歩く",
+  ...(siteOrigin ? { metadataBase: new URL(siteOrigin) } : {}),
+  title: {
+    default: "ウラスポ",
+    template: "%s｜ウラスポ",
+  },
+  description:
+    "住んでいる人が残した店だけを見せる、北海道の街の地図。まだ静かな店を、地元の確認だけで歩く。",
+  openGraph: {
+    title: "ウラスポ",
+    description: "北海道の、まだ静かな店を歩く",
+    siteName: "ウラスポ",
+    locale: "ja_JP",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "ウラスポ",
+    description: "北海道の、まだ静かな店を歩く",
+  },
 };
 
 /**
