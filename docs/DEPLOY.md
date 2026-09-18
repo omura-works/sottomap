@@ -10,8 +10,9 @@
 
 Vercel・Supabase の管理画面のメニュー名・項目名は、両サービスの更新頻度が高く、この文書の作成時点
 （2026年9月）の一般的な構成に基づいています。実際の画面と項目名が異なる場合は、各サービスの公式ドキュメント
-を優先してください（このリポジトリからは実際のダッシュボードを確認できないため、正確な現行の項目名は
-**要確認**です）。
+を優先してください。2026年9月18日に Vercel・Supabase の公式ドキュメントで主要な項目（Cron の認可ヘッダー、
+Hobby プランの Cron 制約、`db push` のオプション、URL 設定・メールテンプレート・SMTP の画面、Sensitive 環境変数）を
+確認済みです。
 
 ---
 
@@ -47,8 +48,8 @@ Vercel・Supabase の管理画面のメニュー名・項目名は、両サー�
    ```
 
    - `db push` は `supabase/migrations/` にある未適用のマイグレーションを、ファイル名の番号順に本番へ適用します。
-   - 実行前に `npx supabase db push --dry-run`（対応バージョンであれば）でSQLを確認することを推奨します。
-     オプション名はCLIのバージョンにより変わることがあるため **要確認**（`npx supabase db push --help` で確認）。
+   - 実行前に `npx supabase db push --dry-run` で、適用されるマイグレーションの一覧を確認してください（適用はされません）。
+   - `db push` は既定ではシードを流しません（`--include-seed` を付けたときだけ流れる）。**本番では `--include-seed` を付けないこと**（6節の初期データの扱いを参照）。
 4. **pgTAP テスト（`supabase/tests/*.sql`）は本番プロジェクトに流さないこと。**
    `npx supabase test db` はローカルのSupabase（`npx supabase start` で起動したコンテナ）専用です。
    テストの中には確認依頼を作成・削除する副作用があり、本番データを汚します。本番の動作確認は
@@ -58,7 +59,7 @@ Vercel・Supabase の管理画面のメニュー名・項目名は、両サー�
 
 ## 2. 認証設定（Supabase ダッシュボード）
 
-Authentication → URL Configuration（要確認: 現在のメニュー名）で以下を設定します。
+Authentication → URL Configuration（`https://supabase.com/dashboard/project/<プロジェクトID>/auth/url-configuration`）で以下を設定します。
 
 - **Site URL**: `https://urasupo.jp`
 - **Redirect URLs**（許可リスト。ワイルドカード `**` が使えます）:
@@ -70,13 +71,13 @@ Authentication → URL Configuration（要確認: 現在のメニュー名）で
 
 ローカルは `supabase/config.toml` の `content_path` でファイルを直接参照できますが、**本番の
 Supabaseプロジェクトではこの設定はダッシュボード側に反映されません。** Authentication → Email Templates
-（要確認: 現在のメニュー名）から、テンプレートごとに件名と本文を手動で貼り付けてください。
+（`https://supabase.com/dashboard/project/<プロジェクトID>/auth/templates`）から、テンプレートごとに件名と本文を手動で貼り付けてください。
 
 | テンプレート | 件名（そのままコピー） | 本文ファイル |
 | --- | --- | --- |
-| Magic Link | ウラスポにログインする | `supabase/templates/magic_link.html` |
-| Confirm signup | ウラスポのメールアドレスを確認する | `supabase/templates/confirmation.html` |
-| Change Email Address | ウラスポのメールアドレス変更を確認する | `supabase/templates/email_change.html` |
+| Magic link or OTP | ウラスポにログインする | `supabase/templates/magic_link.html` |
+| Confirm sign up | ウラスポのメールアドレスを確認する | `supabase/templates/confirmation.html` |
+| Change email address | ウラスポのメールアドレス変更を確認する | `supabase/templates/email_change.html` |
 | Reauthentication | ウラスポの確認コード | `supabase/templates/reauthentication.html` |
 | Invite user | ウラスポにご招待します | `supabase/templates/invite.html` |
 
@@ -86,10 +87,11 @@ HTMLも合わせて直してください。
 
 ### SMTP（メール配信）
 
-Supabase 組み込みのメール配信（デフォルトSMTP）には送信数の制限があり、本番の実運用には**推奨されません**
-（具体的な上限値は変更されることがあるため、Supabase公式ドキュメントで最新の制限を確認してください。
-このリポジトリからは **要確認**）。本番では Authentication → SMTP Settings（要確認: 現在のメニュー名）
-から独自のSMTP（例: SendGrid、AWS SES など）を設定することを推奨します。
+**独自SMTPの設定は必須です。** Supabase 組み込みのメール配信は、プロジェクトのチームメンバーのアドレスにしか
+届かず、送信数も1時間あたり2通までです（2026年9月時点の公式ドキュメント）。独自SMTPを設定しないと、一般の利用者には
+ログインメールが一通も届きません。Authentication → SMTP Settings（`https://supabase.com/dashboard/project/<プロジェクトID>/auth/smtp`）
+で独自のSMTP（例: Resend、SendGrid、Amazon SES など）を設定してください。設定後も送信数の上限（Rate Limits）を
+確認し、想定する利用者数に足りるよう調整してください。
 
 - 送信元アドレス・送信者名は、利用者が届いたメールを見て「ウラスポ」と分かるものにしてください。
 - SMTPのAPIキー・パスワードは、Supabaseダッシュボードにのみ入力し、このリポジトリのどこにも
@@ -115,8 +117,7 @@ Supabase 組み込みのメール配信（デフォルトSMTP）には送信数�
 1. `supabase/seed.sql` を直接 `db push` や `psql` で流さない。
 2. `cities` / `tags` / `badges` の `insert` 文だけを別ファイル（例: `supabase/seed.production.sql`、
    このリポジトリには未作成）に抜き出してレビューし、本人が内容を確認したうえで
-   `npx supabase db execute` や Supabase ダッシュボードの SQL Editor で実行する
-   （コマンド名はCLIのバージョンで変わることがあるため **要確認**）。
+   Supabase ダッシュボードの SQL Editor に貼り付けて実行する。
 3. 実店舗のデータ（`spots` 相当）を本番に載せる場合は、実際の投稿フロー（`create_spot` DB関数経由、
    §9.13.2）で、実在の利用者が居住街を確認した上で投稿し、同じ街の2人の承認を経て公開する運用に
    乗せてください。シードとして直接INSERTしない。
@@ -148,12 +149,13 @@ Supabase 組み込みのメール配信（デフォルトSMTP）には送信数�
 | `URASUPO_DEMO_MODE` | **設定しない** | 設定しない（設定すると本番実行環境で起動時に例外） | - |
 | `NEXT_DIST_DIR` | 設定しない（実DB版E2E専用のローカル切替） | 設定しない | - |
 
-- 「Sensitive」（秘密の値であることの明示。Vercelのプランにより名称が異なる場合あり。**要確認**）に
-  チェックできる項目は必ずチェックしてください。
+- 秘密の値（`SUPABASE_SERVICE_ROLE_KEY`・`CRON_SECRET` など）は、追加フォームの上部にある **Sensitive** スイッチを
+  Enabled にしてから登録してください（登録後は値を読み出せなくなります）。Sensitive は Production と Preview でのみ使えます。
+  既存の変数を後から Sensitive にするには、いったん削除して登録し直します。
 - Preview環境で `NEXT_PUBLIC_SITE_URL` にVercelの自動生成URL（`https://<branch>-<project>.vercel.app`
   のような形）を固定で入れることは難しいため、Preview環境でログインメールのリンクを実際に検証したい
   場合は、そのPreview URLを都度 `NEXT_PUBLIC_SITE_URL` に設定し直すか、Preview環境専用の固定URL
-  （Vercelの「Custom Preview Domain」等。**要確認**）を使ってください。日常のPreviewデプロイでは
+  （Preview 用に独自ドメインを割り当てる方法。手順は Vercel の Domains のドキュメント参照）を使ってください。日常のPreviewデプロイでは
   未設定・不正確でも起動時に例外になるだけで、ビルド自体は失敗しません（`next build`はサーバー実行時
   の環境変数評価をビルド時に強制しないため。※Server ActionsやAPI Routeの実行時にのみ例外が出ます）。
 
@@ -173,18 +175,19 @@ Supabase 組み込みのメール配信（デフォルトSMTP）には送信数�
   日本時間の別の時刻に変更したい場合は、目的の日本時間からUTCへ変換してから `schedule` を書き換えて
   ください（JSTはUTCより9時間進んでいるため、UTC時刻 = JST時刻 − 9時間、日付が負になる場合は前日）。
 - 実装（`src/app/api/cron/verification/route.ts` / `authorize.ts`）は、`Authorization: Bearer
-  <CRON_SECRET>` のヘッダーが一致しないと401を返します。Vercelは環境変数 `CRON_SECRET` が設定されている
-  場合、Cron実行時にこのヘッダーを自動付与すると案内されていることがありますが、**この挙動はVercelの
-  現行仕様として要確認**です（このリポジトリからは公式ドキュメントを確認できません）。確実に動かすには、
-  公開直後の確認チェックリスト（5節）で実際にCronのログを見て、401になっていないか確認してください。
-- **Vercelの無料（Hobby）プランのCronには制約があります**（1日1回まで、実行時刻の精度に幅がある、
-  同時に登録できるCron数に上限がある、など）。現在の設定（1日1回）はHobbyプランの制約を超えない想定
-  ですが、**正確な現行の制約値はVercelの料金ページ・ドキュメントで要確認**です。有料プランへの
-  アップグレードが必要かどうかは、公式ドキュメントの最新情報で判断してください。
+  <CRON_SECRET>` のヘッダーが一致しないと401を返します。Vercel は、プロジェクトに環境変数 `CRON_SECRET`
+  が設定されていれば、Cron 実行時にその値を `Authorization: Bearer <値>` として自動で付けます（公式ドキュメントで
+  確認済み）。値は16文字以上のランダムな文字列にしてください。公開後は 5節のチェックリストで Cron のログが
+  401 になっていないことを確認します。
+- Cron は失敗しても再実行されず、まれに実行漏れや二重実行があります。この実装は行ロック（`FOR UPDATE SKIP LOCKED`）
+  と勧告ロックで二重実行に備え、毎回「未処理のもの全部」を処理するため、1日分の漏れは翌日に取り戻せます。
+- **Vercel の無料（Hobby）プランの Cron の制約**（2026年9月時点）: 1日1回まで（それより頻繁な式はデプロイが失敗する）、
+  実行時刻は指定した時の中で最大59分ずれる、1プロジェクト100件まで。現在の設定（1日1回、UTC 18時台 = 日本時間 3時台）は
+  この制約の範囲内なので、Hobby プランのままで動きます。
 
 ### 4.4 独自ドメイン urasupo.jp
 
-1. Vercel Project Settings → Domains（要確認: 現在のメニュー名）で `urasupo.jp` を追加する。
+1. Vercel のプロジェクトの Settings → Domains で `urasupo.jp` を追加する。
 2. Vercelが提示するDNSレコード（通常は `A` レコードをVercelのIPへ、または `www` 等のサブドメインなら
    `CNAME` をVercelのホスト名へ）を、ドメインのDNS管理画面（レジストラ等）に追加する。
    **具体的なレコード値はVercelが追加時にその場で表示するものを使ってください**（固定のIPアドレスを
@@ -208,8 +211,8 @@ Supabase 組み込みのメール配信（デフォルトSMTP）には送信数�
       居住街の保存ができることを確認する。
 - [ ] Cronの手動実行確認: `curl -H "Authorization: Bearer <CRON_SECRET>" https://urasupo.jp/api/cron/verification`
       を本人が実行し、`401` ではなく処理結果のJSONが返ることを確認する（CRON_SECRETの値は本人だけが
-      知っている前提。この手順書には値を書かない）。あわせてVercelのCron実行ログ（Vercel Dashboard →
-      Cron Jobs、要確認: 現在のメニュー名）で自動実行が18:00 UTC付近に成功しているか確認する。
+      知っている前提。この手順書には値を書かない）。あわせてVercelのCron実行ログ（プロジェクトの
+      Settings → Cron Jobs → View Logs）で、自動実行が UTC 18時台（日本時間 3時台）に 200 で成功しているか確認する。
 - [ ] デモモードが無効であること: 本番の環境変数一覧に `URASUPO_DEMO_MODE` が**存在しない**ことを
       Vercelダッシュボードで直接確認する（`check-production-env.mjs` のOK表示でも確認できる）。
 - [ ] 公開されているスポットが、投入した想定のデータ（3節）と一致しているか（架空のデモデータが
@@ -221,8 +224,11 @@ Supabase 組み込みのメール配信（デフォルトSMTP）には送信数�
 
 ### アプリ（Vercel）
 
-- Vercel Dashboard → Deployments から、直前の正常なデプロイを選び「Promote to Production」
-  （要確認: 現在の項目名）で即座に切り戻せます。コードの再ビルドは不要です。
+- プロジェクトの概要ページの Production Deployment の枠にある **Instant Rollback** → 戻す先を選んで **Continue**
+  → **Confirm Rollback** で即座に切り戻せます（再ビルド不要）。Hobby プランで戻せるのは**直前の本番デプロイだけ**です。
+- 切り戻すと、本番ブランチへの新しいプッシュは自動では本番に出なくなります。修正を出すときは、同じ枠の
+  **Undo Rollback** で通常の状態に戻してください。
+- 切り戻しでは環境変数は戻りません（値はそのまま）。Cron の設定は、戻した先のデプロイの状態に戻ります。
 
 ### データベース（Supabase）
 
@@ -230,11 +236,10 @@ Supabase 組み込みのメール配信（デフォルトSMTP）には送信数�
   `supabase/migrations/` は前進のみの前提です。マイグレーション適用後に問題が見つかった場合は、
   問題を修正する新しいマイグレーションを追加して `npx supabase db push` する方針を基本にしてください。
 - 本番DBの破壊的な変更（列やテーブルの削除など）を伴うマイグレーションを適用する前には、Supabase
-  ダッシュボードのバックアップ機能（プランによって自動バックアップの頻度が異なる。**要確認**）で
-  事前にバックアップが取れているか確認するか、手動でバックアップ（`pg_dump` 等）を取ってください。
+  の無料プランには**自動バックアップがありません**（Pro プランは直近7日分の日次バックアップ）。無料プランで
+  運用する間は、マイグレーション適用の前と定期的に `npx supabase db dump` で手元にバックアップを取ってください。
 - Cronの一時停止が必要な場合は、`vercel.json` の `crons` を空配列にしてデプロイするか、Vercel
-  ダッシュボードでCron Jobを無効化してください（**要確認**: 現行のVercelにダッシュボードからの
-  Cron一時停止機能があるか）。
+  ダッシュボードのプロジェクトの Settings → Cron Jobs にある **Disable Cron Jobs** で止めてください。
 
 ---
 
