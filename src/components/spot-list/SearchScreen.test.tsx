@@ -272,6 +272,20 @@ describe("SearchScreen（Codex R10 重要2: 結果差し替え時のフォーカ
     expect(document.activeElement).toBe(heading);
   });
 
+  // Codex R11 重要1: 一度見出しへ救済した後、利用者が検索欄へ戻れば、次の結果更新でフォーカスを奪わない。
+  it("見出しへ移した後に検索欄へ戻ったら、次の結果更新でも検索欄のフォーカスを保つ", () => {
+    const { rerender } = render(<SearchScreen city={CITY} spots={[SPOT_A, SPOT_B]} activeFilters={[]} query="" />);
+    screen.getByRole("link", { name: /店A/ }).focus();
+    rerender(<SearchScreen city={CITY} spots={[SPOT_B, SPOT_C]} activeFilters={[]} query="" />);
+    expect(document.activeElement).toBe(screen.getByRole("heading", { level: 1 }));
+
+    const searchbox = screen.getByRole("searchbox");
+    searchbox.focus();
+    rerender(<SearchScreen city={CITY} spots={[SPOT_C]} activeFilters={[]} query="" />);
+
+    expect(document.activeElement).toBe(searchbox);
+  });
+
   it("フォーカスしていた要素が差し替え後も残っていれば、見出しへフォーカスを移さない", () => {
     const { rerender } = render(<SearchScreen city={CITY} spots={[SPOT_A, SPOT_B]} activeFilters={[]} query="" />);
     const linkA = screen.getByRole("link", { name: /店A/ });

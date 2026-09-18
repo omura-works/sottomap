@@ -1,5 +1,5 @@
-// 位置計算の共有ロジック（Codex R8 重要1: サーバー `src/lib/db/spots.ts` と
-// クライアント `src/components/map/geo.ts` の両方が「徒歩10分」のしきい値を同じ値で使うための置き場）。
+// 位置計算の共有ロジック（距離計算と「徒歩10分」のしきい値）。
+// 「徒歩10分」の判定はクライアント側（`src/components/map/geo.ts`）だけで行う（Codex R9 重要1）。
 
 export interface LatLng {
   lat: number;

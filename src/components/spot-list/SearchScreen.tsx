@@ -100,6 +100,9 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
   // `window.location.pathname` で確認し、そうでなければ router.replace しない
   // （検索欄に入力した直後に別画面へ遷移しても、後から検索URLへ戻されないようにする）。
   useEffect(() => {
+    // Codex R11 軽微1: 検索欄に入力している＝この画面に留まっているので、遷移中フラグを戻す
+    // （戻る操作や取り消されたリンク操作で true のまま残ると、以後の検索が反映されなくなるため）。
+    navigatingAwayRef.current = false;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       // Codex R10 重要1: pathname ガードに加えて、利用者が別画面への遷移を始めていないかを見る。
@@ -260,6 +263,9 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
     if (previousIds.join(",") === currentIds.join(",")) return;
     const lastFocused = lastFocusedRef.current;
     if (lastFocused && !lastFocused.isConnected) {
+      // Codex R11 重要1: 救済したら追跡をやめる（残すと、利用者が検索欄へ戻った後の次の更新でも
+      // 切断済みの古い要素を再検出して、見出しへフォーカスを奪い続けてしまう）。
+      lastFocusedRef.current = null;
       headingRef.current?.focus();
     }
   }, [visibleSpots]);

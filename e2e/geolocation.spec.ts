@@ -120,6 +120,22 @@ test.describe("現在地の扱い（回帰）", () => {
     await expect(page.getByRole("status")).toHaveText(/軒見つかりました|条件に合う店が見つかりませんでした。/);
   });
 
+  // Codex R10/R11 条件: 位置解決の前後で、実ブラウザのフォーカスが検索欄から奪われない。
+  test("重要2(R10): 位置取得中に検索欄へフォーカスしていれば、解決後もフォーカスは検索欄のまま", async ({ page }) => {
+    await grantDelayedGeolocation(page, OTARU_CENTER);
+
+    await page.goto("/otaru/search?filters=within-10min");
+    await expect(page.getByRole("heading", { level: 1, name: "現在地を確認しています…" })).toBeVisible();
+    const searchbox = page.getByRole("searchbox", { name: "小樽の店をさがす" });
+    await searchbox.focus();
+    await expect(searchbox).toBeFocused();
+
+    await expect(page.getByRole("heading", { level: 1, name: "現在地を確認しています…" })).toHaveCount(0, { timeout: 5000 });
+    await expect(page.getByRole("status")).toHaveText(/軒見つかりました|条件に合う店が見つかりませんでした。/);
+    await expect(searchbox).toBeFocused();
+    await expect(page.getByRole("heading", { level: 1 })).not.toBeFocused();
+  });
+
   // Codex R9 重要5: 検索欄に入力した直後（300ms以内）に別画面へ移動しても、後から検索URLへ戻されない。
   test("重要5(R9): 検索入力直後に「地図」へ移動しても地図画面に留まる", async ({ page }) => {
     await page.goto("/otaru/search");
@@ -138,6 +154,7 @@ test.describe("現在地の扱い（回帰）", () => {
   test("重要1(R10): 遷移先の描画が遅れても（300ms超）、検索入力直後の地図への遷移が検索URLへ戻されない", async ({ page }) => {
     await page.goto("/otaru/search");
 
+    let delayedRequests = 0;
     await page.route("**/*", async (route) => {
       const request = route.request();
       const headers = request.headers();
@@ -145,6 +162,7 @@ test.describe("現在地の扱い（回帰）", () => {
       const isRscRequest = headers["rsc"] === "1" || url.searchParams.has("_rsc");
       const isMapTarget = url.pathname === "/otaru";
       if (isRscRequest && isMapTarget) {
+        delayedRequests += 1;
         await new Promise((resolve) => setTimeout(resolve, 1500));
       }
       await route.continue();
@@ -157,5 +175,7 @@ test.describe("現在地の扱い（回帰）", () => {
     await expect(page).toHaveURL(/\/otaru(?:\?.*)?$/);
     const url = new URL(page.url());
     expect(url.searchParams.has("q")).toBe(false);
+    // Codex R11: 遅延の分岐が実際に通ったこと（遷移先のRSCが遅延されたこと）を確認する。
+    expect(delayedRequests).toBeGreaterThan(0);
   });
 });
