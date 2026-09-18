@@ -4,6 +4,7 @@ node_modules/
 .next-e2e/
 out/
 .env*
+!.env.example
 *.tsbuildinfo
 next-env.d.ts
 .superpowers/

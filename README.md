@@ -110,3 +110,12 @@ npx playwright test
 ## Vercel Cron
 
 `vercel.json` は `/api/cron/verification` を毎日 `0 18 * * *`（UTC）に呼び出します。Vercelの環境変数に `CRON_SECRET` を設定してください。APIは `Authorization: Bearer <CRON_SECRET>` が一致しない呼び出し（`CRON_SECRET` が未設定・空の場合を含む）を `401` で拒否します。比較は SHA-256 で固定長にしたうえでの定数時間比較です。DB 関数 `run_verification_cron` は、回答・承認がロック中のスポットを待たずに次回へ回し（結果の `skippedLockedCount`）、API はデッドロック（`40P01`）・直列化失敗（`40001`）のときだけ1回再実行します。
+
+## 本番公開（urasupo.jp / Vercel + Supabase）
+
+手順は `docs/DEPLOY.md` にまとめています。アカウント作成・ログイン・APIキーの入力・実際のデプロイは、
+本人が手順書に従って行ってください。
+
+- 必要な環境変数の一覧は `.env.example`（値は空、公開/秘密の区別つき）を参照してください。
+- 公開前に `node scripts/check-production-env.mjs` を実行すると、環境変数の不足・形式の誤りを日本語で
+  列挙します（秘密の値は表示しません）。
