@@ -2,18 +2,21 @@
 --
 -- 実行方法: npx supabase db reset → npx supabase test db
 -- 役割の切り替えは 0006_security.sql と同じく `set local role` と `request.jwt.claims` で行い、最後に rollback する。
--- 同時に2回変えようとしたときの行ロック（for update）は 0007_home_city_concurrency.sql（2接続）で検証する。
+-- 同時に2回変えようとしたときの行ロック（for update）は 0007_home_city_concurrency.sql、
+-- 初回設定（initialize_home_city）の同時実行は 0007_home_city_initialize_concurrency.sql（2接続）で検証する。
 
 begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(28);
+select plan(45);
 
 -- =========================================================
 -- テストデータ（postgres として作成）
 --   街: H1 / H2 / H3
---   利用者: G（住んでいる街が未設定）, H（H1 在住・未変更）
+--   利用者: G（住んでいる街が未設定）, H（H1 在住・未変更）,
+--           I（街だけ NULL・変更日時あり。set_home_city の初回分岐用）,
+--           J（街だけ NULL・変更日時あり。initialize_home_city 用）
 -- =========================================================
 insert into cities (id, slug, name, name_kana, is_port, center_lat, center_lng) values
   ('bbbb0000-0000-4000-8000-000000000001', 'hc-test-city-1', '街テスト1', 'まちてすと1', false, 43.06, 141.35),
@@ -26,11 +29,19 @@ insert into auth.users (
   raw_app_meta_data, raw_user_meta_data, is_sso_user
 ) values
   ('33330000-0000-4000-8000-00000000000a', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'hc-g@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
-  ('33330000-0000-4000-8000-00000000000b', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'hc-h@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false);
+  ('33330000-0000-4000-8000-00000000000b', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'hc-h@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
+  ('33330000-0000-4000-8000-00000000000c', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'hc-i@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
+  ('33330000-0000-4000-8000-00000000000d', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'hc-j@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false);
 
 insert into users (id, display_name, home_city_id, area_name, resident_years, lantern_points) values
   ('33330000-0000-4000-8000-00000000000a', 'テストG', null, null, null, 0),
-  ('33330000-0000-4000-8000-00000000000b', 'テストH', 'bbbb0000-0000-4000-8000-000000000001', '北', 3, 0);
+  ('33330000-0000-4000-8000-00000000000b', 'テストH', 'bbbb0000-0000-4000-8000-000000000001', '北', 3, 0),
+  ('33330000-0000-4000-8000-00000000000c', 'テストI', null, null, null, 0),
+  ('33330000-0000-4000-8000-00000000000d', 'テストJ', null, null, null, 0);
+
+-- 都市の削除（on delete set null）や管理者操作で「街だけ NULL・変更日時あり」になった行を作る
+update users set home_city_changed_at = now() - interval '10 days'
+where id in ('33330000-0000-4000-8000-00000000000c', '33330000-0000-4000-8000-00000000000d');
 
 -- =========================================================
 -- 権限表
@@ -60,6 +71,20 @@ select ok(
   ),
   'set_home_city は security definer で search_path = '''' に固定されている'
 );
+select ok(
+  has_function_privilege('authenticated', 'public.initialize_home_city(uuid)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.initialize_home_city(uuid)', 'EXECUTE')
+  and not has_function_privilege('public', 'public.initialize_home_city(uuid)', 'EXECUTE'),
+  '権限表: initialize_home_city の EXECUTE は authenticated だけ'
+);
+select ok(
+  (
+    select coalesce('search_path=""' = any(p.proconfig) or 'search_path=' = any(p.proconfig), false) and p.prosecdef
+    from pg_proc p
+    where p.oid = 'public.initialize_home_city(uuid)'::regprocedure
+  ),
+  'initialize_home_city は security definer で search_path = '''' に固定されている'
+);
 
 -- =========================================================
 -- 匿名（anon）と未ログイン
@@ -72,6 +97,11 @@ select throws_ok(
   '42501', null,
   '匿名: set_home_city を実行できない'
 );
+select throws_ok(
+  $$ select public.initialize_home_city('bbbb0000-0000-4000-8000-000000000001') $$,
+  '42501', null,
+  '匿名: initialize_home_city を実行できない'
+);
 
 set local role authenticated;
 set local request.jwt.claims to '{"role":"authenticated"}';
@@ -80,6 +110,11 @@ select throws_ok(
   $$ select public.set_home_city('bbbb0000-0000-4000-8000-000000000001') $$,
   '42501', 'ログインが必要です',
   '未ログイン（sub なし）: 拒否する'
+);
+select throws_ok(
+  $$ select public.initialize_home_city('bbbb0000-0000-4000-8000-000000000001') $$,
+  '42501', 'ログインが必要です',
+  '未ログイン（sub なし）: initialize_home_city も拒否する'
 );
 
 -- =========================================================
@@ -230,6 +265,99 @@ select is(
   now(),
   '90日を超えた変更で、記録した時刻が更新される'
 );
+
+-- =========================================================
+-- I: 「街だけ NULL・変更日時あり」の行を set_home_city で初回設定すると、変更日時も NULL に戻る
+-- =========================================================
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"33330000-0000-4000-8000-00000000000c","role":"authenticated"}';
+
+select is(
+  public.set_home_city('bbbb0000-0000-4000-8000-000000000002'),
+  null::timestamptz,
+  '街だけ NULL の行: set_home_city は初回設定として NULL を返す'
+);
+
+reset role;
+select is(
+  (select home_city_id from users where id = '33330000-0000-4000-8000-00000000000c'),
+  'bbbb0000-0000-4000-8000-000000000002'::uuid,
+  '街だけ NULL の行: 住んでいる街が設定される'
+);
+select is(
+  (select home_city_changed_at from users where id = '33330000-0000-4000-8000-00000000000c'),
+  null::timestamptz,
+  '街だけ NULL の行: 初回設定で home_city_changed_at が NULL に戻る（古い制限が残らない）'
+);
+
+-- =========================================================
+-- J: initialize_home_city（/start の初回設定。設定済みなら何もしない）
+-- =========================================================
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"33330000-0000-4000-8000-00000000000d","role":"authenticated"}';
+
+select throws_ok(
+  $$ select public.initialize_home_city('bbbb0000-0000-4000-8000-0000000000ff') $$,
+  'P0002', '街の情報が取得できませんでした',
+  'initialize_home_city: 存在しない街は拒否する'
+);
+select throws_ok(
+  $$ select public.initialize_home_city(null) $$,
+  'P0002', '街の情報が取得できませんでした',
+  'initialize_home_city: 街の指定なし（NULL）は拒否する'
+);
+select is(
+  public.initialize_home_city('bbbb0000-0000-4000-8000-000000000002'),
+  true,
+  'initialize_home_city: 未設定なら設定して true を返す'
+);
+
+reset role;
+select is(
+  (select home_city_id from users where id = '33330000-0000-4000-8000-00000000000d'),
+  'bbbb0000-0000-4000-8000-000000000002'::uuid,
+  'initialize_home_city: 住んでいる街が設定される'
+);
+select is(
+  (select home_city_changed_at from users where id = '33330000-0000-4000-8000-00000000000d'),
+  null::timestamptz,
+  'initialize_home_city: 制限に数えない（街だけ NULL・変更日時ありの行でも home_city_changed_at は NULL）'
+);
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"33330000-0000-4000-8000-00000000000d","role":"authenticated"}';
+
+select is(
+  public.initialize_home_city('bbbb0000-0000-4000-8000-000000000003'),
+  false,
+  'initialize_home_city: 設定済みなら別の街を渡しても何もせず false を返す（例外にしない）'
+);
+select is(
+  public.initialize_home_city('bbbb0000-0000-4000-8000-000000000002'),
+  false,
+  'initialize_home_city: 設定済みの同じ街でも false を返す'
+);
+
+reset role;
+select is(
+  (select home_city_id from users where id = '33330000-0000-4000-8000-00000000000d'),
+  'bbbb0000-0000-4000-8000-000000000002'::uuid,
+  'initialize_home_city: 設定済みの住んでいる街は変わらない'
+);
+select is(
+  (select home_city_changed_at from users where id = '33330000-0000-4000-8000-00000000000d'),
+  null::timestamptz,
+  'initialize_home_city: 設定済みの no-op でも変更日時を記録しない'
+);
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"33330000-0000-4000-8000-00000000000d","role":"authenticated"}';
+select is(
+  public.set_home_city('bbbb0000-0000-4000-8000-000000000003'),
+  now(),
+  'initialize_home_city の後の最初の変更は、90日の制限を受けずに /me から変えられる'
+);
+reset role;
 
 -- =========================================================
 -- H: 直接の書き換えは拒否（RPC だけ）

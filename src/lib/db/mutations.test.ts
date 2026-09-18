@@ -577,3 +577,63 @@ describe("createSpot の入力検証（create_spot と同じ規則・同じ文�
     expect(spot.reason).toBe("🐟".repeat(60));
   });
 });
+
+describe("住んでいる街の初回設定（SPEC §9.16-1。initialize_home_city と同じ規則）", () => {
+  it("setUserHomeCity: 「街だけ未設定・変更時刻あり」から初回設定すると、変更時刻も消える（古い制限が残らない）", async () => {
+    const { overrideFixtureUserHomeCityForTest } = await import("./fixtures");
+    const { setUserHomeCity } = await import("./mutations");
+    const { getUserProfile } = await import("./spots");
+    freezeAt(new Date("2026-09-18T01:00:00.000Z"));
+    overrideFixtureUserHomeCityForTest(K_SAN, null, "2026-09-10T00:00:00.000Z");
+
+    await expect(setUserHomeCity(K_SAN, OTARU_CITY_ID)).resolves.toBeNull();
+    const profile = await getUserProfile(K_SAN);
+    expect(profile?.homeCityId).toBe(OTARU_CITY_ID);
+    expect(profile?.homeCityChangedAt).toBeNull();
+    // 制限が残っていないので、続けて別の街へ変えられる
+    await expect(setUserHomeCity(K_SAN, SAPPORO_CITY_ID)).resolves.toBe("2026-09-18T01:00:00.000Z");
+  });
+
+  it("initializeUserHomeCity: 未設定なら設定して true、変更時刻は記録しない", async () => {
+    const { overrideFixtureUserHomeCityForTest } = await import("./fixtures");
+    const { initializeUserHomeCity } = await import("./mutations");
+    const { getUserProfile } = await import("./spots");
+    overrideFixtureUserHomeCityForTest(K_SAN, null, "2026-09-10T00:00:00.000Z");
+
+    await expect(initializeUserHomeCity(K_SAN, OTARU_CITY_ID)).resolves.toBe(true);
+    const profile = await getUserProfile(K_SAN);
+    expect(profile?.homeCityId).toBe(OTARU_CITY_ID);
+    expect(profile?.homeCityChangedAt).toBeNull();
+  });
+
+  it("initializeUserHomeCity: 設定済みなら別の街でも何もせず false（例外にしない）", async () => {
+    const { initializeUserHomeCity } = await import("./mutations");
+    const { getUserProfile } = await import("./spots");
+
+    await expect(initializeUserHomeCity(K_SAN, OTARU_CITY_ID)).resolves.toBe(false);
+    const profile = await getUserProfile(K_SAN);
+    expect(profile?.homeCityId).toBe(SAPPORO_CITY_ID);
+    expect(profile?.homeCityChangedAt).toBeNull();
+  });
+
+  it("initializeUserHomeCity: 存在しない街は拒否する", async () => {
+    const { overrideFixtureUserHomeCityForTest } = await import("./fixtures");
+    const { initializeUserHomeCity } = await import("./mutations");
+    overrideFixtureUserHomeCityForTest(K_SAN, null, null);
+
+    await expect(initializeUserHomeCity(K_SAN, "no-such-city")).rejects.toThrow("街の情報が取得できませんでした");
+  });
+
+  it("initializeUserHomeCity: 2回続けて別の街を渡しても、2回目は変更にならない", async () => {
+    const { overrideFixtureUserHomeCityForTest } = await import("./fixtures");
+    const { initializeUserHomeCity } = await import("./mutations");
+    const { getUserProfile } = await import("./spots");
+    overrideFixtureUserHomeCityForTest(K_SAN, null, null);
+
+    await expect(initializeUserHomeCity(K_SAN, OTARU_CITY_ID)).resolves.toBe(true);
+    await expect(initializeUserHomeCity(K_SAN, SAPPORO_CITY_ID)).resolves.toBe(false);
+    const profile = await getUserProfile(K_SAN);
+    expect(profile?.homeCityId).toBe(OTARU_CITY_ID);
+    expect(profile?.homeCityChangedAt).toBeNull();
+  });
+});

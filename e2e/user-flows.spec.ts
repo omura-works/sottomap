@@ -59,6 +59,57 @@ test.describe("デモモードの主要導線", () => {
     await expect(page.getByRole("heading", { name: "確認待ちが1件あります" })).toBeVisible();
   });
 
+  test("R13 重要2: /me の確認ダイアログはモーダル（Tab を繰り返しても外へ出ない・Esc で閉じて起点へ戻る）", async ({ page }) => {
+    await page.goto("/me");
+    await page.getByRole("button", { name: "変更する" }).click();
+    await page.getByLabel("住んでいる街を選ぶ").selectOption({ label: "小樽" });
+    const opener = page.getByRole("button", { name: "変える", exact: true });
+    await opener.click();
+
+    const dialog = page.getByRole("dialog", { name: /^住んでいる街を小樽に変えますか。次に変えられるのは/ });
+    await expect(dialog).toBeVisible();
+    // showModal() で開いている（背景はブラウザが操作不可にする）
+    await expect(page.locator("dialog:modal")).toHaveCount(1);
+    // 初期フォーカスは破壊的な「変える」ではなく「やめる」
+    await expect(dialog.getByRole("button", { name: "やめる" })).toBeFocused();
+
+    const focusedInsideDialog = () =>
+      page.evaluate(() => {
+        const modal = document.querySelector("dialog");
+        const active = document.activeElement;
+        return {
+          inside: Boolean(modal && active && active !== modal && modal.contains(active)),
+          label: active?.textContent?.trim() ?? "",
+        };
+      });
+
+    const forward: string[] = [];
+    for (let i = 0; i < 5; i += 1) {
+      await page.keyboard.press("Tab");
+      const state = await focusedInsideDialog();
+      expect(state.inside, `Tab ${i + 1} 回目`).toBe(true);
+      forward.push(state.label);
+    }
+    // 2つのボタンの間を循環する
+    expect(forward).toEqual(["変える", "やめる", "変える", "やめる", "変える"]);
+
+    const backward: string[] = [];
+    for (let i = 0; i < 5; i += 1) {
+      await page.keyboard.press("Shift+Tab");
+      const state = await focusedInsideDialog();
+      expect(state.inside, `Shift+Tab ${i + 1} 回目`).toBe(true);
+      backward.push(state.label);
+    }
+    expect(backward).toEqual(["やめる", "変える", "やめる", "変える", "やめる"]);
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(opener).toBeFocused();
+    // 取り消したので住んでいる街は札幌のまま
+    await expect(page.getByLabel("住んでいる街を選ぶ")).toBeVisible();
+    await expect(page.locator("dialog")).toHaveCount(0);
+  });
+
   test("SPEC §9.14-3: 「地図」「さがす」は街のページではその街、それ以外では居住街を指す", async ({ page }) => {
     await page.goto("/otaru");
     await page.getByRole("link", { name: "さがす" }).click();

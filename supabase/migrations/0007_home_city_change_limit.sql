@@ -1,8 +1,8 @@
 -- 0007: 住んでいる街（users.home_city_id）の変更制限（docs/SPEC.md §9.16）
 --
 -- 見る街と住んでいる街を分ける。住んでいる街は「ピンを立てられる街」「地元として確認できる街」を決めるため、
--- 利用者が表を直接書き換えられないようにし、DB 関数 set_home_city だけで変える。
---   - 初回（NULL → 街）は制限に数えない（home_city_changed_at は NULL のまま）。
+-- 利用者が表を直接書き換えられないようにし、DB 関数 set_home_city / initialize_home_city だけで変える。
+--   - 初回（NULL → 街）は制限に数えない（home_city_changed_at は NULL に戻す）。
 --   - 同じ街は何もしない。
 --   - 別の街への変更は90日に1回まで（home_city_changed_at が NULL か90日以上前のときだけ）。
 -- 0006 の方針（search_path = ''、スキーマ修飾、明示 GRANT、anon へは付与しない）に合わせる。
@@ -13,11 +13,11 @@
 alter table public.users add column if not exists home_city_changed_at timestamptz;
 
 comment on column public.users.home_city_changed_at is
-  '住んでいる街を最後に変えた時刻（初回設定は数えない）。NULL = 未変更。set_home_city だけが書く（§9.16）。';
+  '住んでいる街を最後に変えた時刻（初回設定は数えない）。NULL = 未変更。set_home_city / initialize_home_city だけが書く（§9.16）。';
 
 -- ---------------------------------------------------------
 -- 2. 権限: authenticated から home_city_id の直接 insert / update を取り上げる。
---    初回設定（NULL → 街）も set_home_city に統一する（プロフィール行の作成は id・表示名などだけ）。
+--    初回設定（NULL → 街）も RPC（/start は initialize_home_city、/me は set_home_city）に統一する（プロフィール行の作成は id・表示名などだけ）。
 --    home_city_changed_at は authenticated に一度も付与しない（読み取りは表単位の SELECT で可）。
 -- ---------------------------------------------------------
 revoke insert (home_city_id), update (home_city_id) on table public.users from authenticated;
@@ -25,7 +25,7 @@ revoke insert (home_city_id), update (home_city_id) on table public.users from a
 -- ---------------------------------------------------------
 -- 3. set_home_city: 住んでいる街を設定・変更する（本人のみ）。
 --   本人の users 行を for update でロックしてから検査するため、同時に2回呼んでも2回は変わらない。
---   戻り値: 変更したときは記録した時刻（now()）。初回設定は NULL。同じ街なら現在の home_city_changed_at。
+--   戻り値: 変更したときは記録した時刻（now()）。初回設定は NULL（home_city_changed_at も NULL に戻す）。同じ街なら現在の home_city_changed_at。
 --   90日以内の変更は拒否し、次に変えられる日（Asia/Tokyo の日付。時刻の端数は翌日へ切り上げ）を
 --   メッセージと HINT（ISO 8601 の時刻）で返す。
 -- ---------------------------------------------------------
@@ -61,9 +61,13 @@ begin
     raise exception 'プロフィールが見つかりませんでした' using errcode = 'P0002';
   end if;
 
-  -- 初回設定は制限に数えない。
+  -- 初回設定は制限に数えない。都市の削除（on delete set null）などで「街だけ NULL・日時あり」になった行でも、
+  -- 古い制限が残らないよう home_city_changed_at を明示的に NULL に戻す。
   if v_current is null then
-    update public.users set home_city_id = p_city_id where id = v_uid;
+    update public.users
+    set home_city_id = p_city_id,
+        home_city_changed_at = null
+    where id = v_uid;
     return null;
   end if;
 
@@ -94,7 +98,57 @@ comment on function public.set_home_city(uuid) is
   '住んでいる街の設定・変更（§9.16）。初回は制限なし、同じ街は何もしない、別の街は90日に1回まで。';
 
 -- ---------------------------------------------------------
--- 4. EXECUTE は authenticated だけに明示する（PUBLIC / anon / service_role には与えない）。
+-- 4. initialize_home_city: 住んでいる街の初回設定だけを行う（/start の「歩きはじめる」専用。本人のみ）。
+--   「読んでから set_home_city を呼ぶ」と、2タブが同時に NULL を読んだとき後続が「1回目の変更」として
+--   成立してしまう（別の街へ変わり、90日の制限もかかる）。そこで本人の users 行を for update でロックし、
+--   ロックを取った後の値が NULL のときだけ設定する。
+--   戻り値: 設定したら true。設定済み（またはプロフィール行が無い）なら何もせず false（例外にしない）。
+--   home_city_changed_at は NULL にする（初回設定は制限に数えない）。
+--   未ログインは「ログインが必要です」、存在しない街は「街の情報が取得できませんでした」で拒否する。
+-- ---------------------------------------------------------
+create or replace function public.initialize_home_city(p_city_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_current uuid;
+begin
+  if v_uid is null then
+    raise exception 'ログインが必要です' using errcode = '42501';
+  end if;
+
+  if p_city_id is null or not exists (select 1 from public.cities c where c.id = p_city_id) then
+    raise exception '街の情報が取得できませんでした' using errcode = 'P0002';
+  end if;
+
+  select u.home_city_id
+    into v_current
+  from public.users u
+  where u.id = v_uid
+  for update;
+  -- プロフィール行が無い・既に住んでいる街がある利用者は何もしない（/start から変えない。§9.16-1）。
+  if not found or v_current is not null then
+    return false;
+  end if;
+
+  update public.users
+  set home_city_id = p_city_id,
+      home_city_changed_at = null
+  where id = v_uid;
+  return true;
+end;
+$$;
+
+comment on function public.initialize_home_city(uuid) is
+  '住んでいる街の初回設定（§9.16-1）。未設定のときだけ設定して true、設定済みなら何もせず false。制限に数えない。';
+
+-- ---------------------------------------------------------
+-- 5. EXECUTE は authenticated だけに明示する（PUBLIC / anon / service_role には与えない）。
 -- ---------------------------------------------------------
 revoke all on function public.set_home_city(uuid) from public, anon, authenticated, service_role;
 grant execute on function public.set_home_city(uuid) to authenticated;
+revoke all on function public.initialize_home_city(uuid) from public, anon, authenticated, service_role;
+grant execute on function public.initialize_home_city(uuid) to authenticated;

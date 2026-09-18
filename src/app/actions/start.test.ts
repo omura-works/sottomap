@@ -1,53 +1,50 @@
 // SPEC §9.16: トップの「歩きはじめる」は住んでいる街を変えない。未設定（NULL）のログイン利用者だけ初回設定する。
+// 「未設定か」は読んで判断せず、初回設定専用の initialize_home_city（行ロックの中で判断する）だけに任せる（R13 重要1）。
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getCurrentUserId } from "@/lib/auth";
-import { setUserHomeCity } from "@/lib/db/mutations";
+import { initializeUserHomeCity, setUserHomeCity } from "@/lib/db/mutations";
 import { getUserProfile } from "@/lib/db/spots";
-import type { UserProfile } from "@/lib/db/types";
 import { saveHomeCityAction } from "./start";
 
 vi.mock("@/lib/auth", () => ({ getCurrentUserId: vi.fn() }));
-vi.mock("@/lib/db/mutations", () => ({ setUserHomeCity: vi.fn(async () => null) }));
+vi.mock("@/lib/db/mutations", () => ({
+  initializeUserHomeCity: vi.fn(async () => true),
+  setUserHomeCity: vi.fn(async () => null),
+}));
 vi.mock("@/lib/db/spots", () => ({
   getCity: vi.fn(async (slug: string) => (slug === "otaru" ? { id: "city-otaru", slug: "otaru", name: "小樽" } : null)),
   getUserProfile: vi.fn(),
 }));
-
-function profile(homeCityId: string | null): UserProfile {
-  return {
-    id: "user-1",
-    displayName: "テスト",
-    homeCityId,
-    homeCityChangedAt: null,
-    areaName: null,
-    residentYears: null,
-    avatarUrl: null,
-    lanternPoints: 0,
-    createdAt: "2026-01-01T00:00:00.000Z",
-  };
-}
 
 describe("saveHomeCityAction（見る街と住んでいる街を分ける）", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("住んでいる街が設定済みなら、選んだ街で上書きしない", async () => {
+  it("初回設定専用の initializeUserHomeCity だけを呼び、変更用の setUserHomeCity は呼ばない", async () => {
     vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
-    vi.mocked(getUserProfile).mockResolvedValue(profile("city-sapporo"));
 
     await saveHomeCityAction("otaru");
 
+    expect(initializeUserHomeCity).toHaveBeenCalledTimes(1);
+    expect(initializeUserHomeCity).toHaveBeenCalledWith("user-1", "city-otaru");
     expect(setUserHomeCity).not.toHaveBeenCalled();
   });
 
-  it("住んでいる街が未設定（NULL）なら、初回だけ選んだ街を設定する", async () => {
+  it("「未設定か」を先に読んで判断しない（プロフィールを読まない）", async () => {
     vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
-    vi.mocked(getUserProfile).mockResolvedValue(profile(null));
 
     await saveHomeCityAction("otaru");
 
-    expect(setUserHomeCity).toHaveBeenCalledWith("user-1", "city-otaru");
+    expect(getUserProfile).not.toHaveBeenCalled();
+  });
+
+  it("設定済みで何もしなかった（false）ときも例外にしない", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
+    vi.mocked(initializeUserHomeCity).mockResolvedValueOnce(false);
+
+    await expect(saveHomeCityAction("otaru")).resolves.toBeUndefined();
+    expect(setUserHomeCity).not.toHaveBeenCalled();
   });
 
   it("未ログインなら何もしない", async () => {
@@ -55,16 +52,7 @@ describe("saveHomeCityAction（見る街と住んでいる街を分ける）", (
 
     await saveHomeCityAction("otaru");
 
-    expect(getUserProfile).not.toHaveBeenCalled();
-    expect(setUserHomeCity).not.toHaveBeenCalled();
-  });
-
-  it("プロフィール行が無ければ何もしない", async () => {
-    vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
-    vi.mocked(getUserProfile).mockResolvedValue(null);
-
-    await saveHomeCityAction("otaru");
-
+    expect(initializeUserHomeCity).not.toHaveBeenCalled();
     expect(setUserHomeCity).not.toHaveBeenCalled();
   });
 
@@ -72,6 +60,7 @@ describe("saveHomeCityAction（見る街と住んでいる街を分ける）", (
     vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
 
     await expect(saveHomeCityAction("no-such-city")).rejects.toThrow("街の情報が取得できませんでした");
+    expect(initializeUserHomeCity).not.toHaveBeenCalled();
     expect(setUserHomeCity).not.toHaveBeenCalled();
   });
 });

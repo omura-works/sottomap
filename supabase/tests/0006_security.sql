@@ -149,7 +149,7 @@ select is_empty(
       select r.role_name, c.col, p.priv,
         case r.role_name
           when 'authenticated' then
-            -- 0007（§9.16）: home_city_id は set_home_city だけで変える（直接の insert / update は不可）。
+            -- 0007（§9.16）: home_city_id は set_home_city / initialize_home_city だけで変える（直接の insert / update は不可）。
             (p.priv = 'INSERT' and c.col in ('id', 'display_name', 'avatar_url', 'resident_years'))
             or (p.priv = 'UPDATE' and c.col in ('display_name', 'avatar_url', 'resident_years'))
           when 'service_role' then true
@@ -174,7 +174,8 @@ select is_empty(
       ('public.is_profile_visible(uuid)', true, true, true),
       ('public.award_lantern_points(uuid, text, uuid, integer)', false, false, false),
       ('public.publish_pending_spot(uuid, timestamp with time zone)', false, false, false),
-      ('public.set_home_city(uuid)', false, true, false)
+      ('public.set_home_city(uuid)', false, true, false),
+      ('public.initialize_home_city(uuid)', false, true, false)
     )
     select f.fn, e.role_name, e.allowed
     from fns f
@@ -199,7 +200,8 @@ select is_empty(
       )
       and p.proname not in (
         'create_spot', 'endorse_spot', 'answer_verification', 'run_verification_cron',
-        'is_profile_visible', 'award_lantern_points', 'publish_pending_spot', 'set_home_city'
+        'is_profile_visible', 'award_lantern_points', 'publish_pending_spot', 'set_home_city',
+        'initialize_home_city'
       )
       and (
         has_function_privilege('public', p.oid, 'EXECUTE')

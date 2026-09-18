@@ -643,7 +643,7 @@ export const FIXTURE_BOOKMARKS: Bookmark[] = RAW_BOOKMARKS.map((b) => {
  * 住んでいる街を設定・変更する（mutations.ts の setUserHomeCity のデモ経路）。
  * DB 関数 set_home_city（0007_home_city_change_limit.sql、SPEC §9.16）と同じ規則・同じ文言:
  *   - 存在しない街は拒否。
- *   - 未設定 → 設定（初回は制限に数えない。戻り値 null）。
+ *   - 未設定 → 設定（初回は制限に数えない。変更時刻も消す。戻り値 null）。
  *   - 同じ街 → 何もしない（記録済みの変更時刻を返す）。
  *   - 別の街 → 未変更か90日以上前の変更なら変えて今の時刻を記録・返す。90日以内なら拒否。
  */
@@ -655,7 +655,9 @@ export function setFixtureUserHomeCity(userId: string, cityId: string): string |
   const changedAt = user.homeCityChangedAt ?? null;
 
   if (user.homeCitySlug === null) {
+    // 初回設定は数えない。「街だけ未設定・変更時刻あり」でも古い制限が残らないよう時刻も消す（DB と同じ）。
     user.homeCitySlug = city.slug;
+    user.homeCityChangedAt = null;
     return null;
   }
   if (user.homeCitySlug === city.slug) return changedAt;
@@ -668,6 +670,38 @@ export function setFixtureUserHomeCity(userId: string, cityId: string): string |
   user.homeCitySlug = city.slug;
   user.homeCityChangedAt = now.toISOString();
   return user.homeCityChangedAt;
+}
+
+/**
+ * 住んでいる街の初回設定（mutations.ts の initializeUserHomeCity のデモ経路。/start の「歩きはじめる」専用）。
+ * DB 関数 initialize_home_city（0007_home_city_change_limit.sql、SPEC §9.16-1）と同じ規則:
+ *   - 存在しない街は拒否。
+ *   - 未設定なら設定して true（初回は制限に数えない。変更時刻も消す）。
+ *   - 設定済み（またはデモ利用者でない）なら何もせず false（例外にしない）。
+ */
+export function initializeFixtureUserHomeCity(userId: string, cityId: string): boolean {
+  const city = findCityById(cityId);
+  if (!city) throw new Error("街の情報が取得できませんでした");
+  const user = FIXTURE_USERS.find((u) => u.id === userId);
+  if (!user || user.homeCitySlug !== null) return false;
+  user.homeCitySlug = city.slug;
+  user.homeCityChangedAt = null;
+  return true;
+}
+
+/**
+ * テスト用: 住んでいる街と変更時刻を直接書き換える（未設定の利用者や「街だけ未設定・変更時刻あり」の行を作るため）。
+ * resetFixtureUserHomeCities で初期値に戻る。アプリのコードからは呼ばない。
+ */
+export function overrideFixtureUserHomeCityForTest(
+  userId: string,
+  homeCitySlug: string | null,
+  homeCityChangedAt: string | null,
+): void {
+  const user = FIXTURE_USERS.find((u) => u.id === userId);
+  if (!user) throw new Error("プロフィールが見つかりませんでした");
+  user.homeCitySlug = homeCitySlug;
+  user.homeCityChangedAt = homeCityChangedAt;
 }
 
 /** 全ユーザーの居住街（と変更時刻）を初期値に戻す（テスト間のリセット用）。 */

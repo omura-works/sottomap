@@ -6,6 +6,9 @@ import { changeHomeCityAction } from "@/app/actions/home-city";
 import { formatHomeCityChangeDate, homeCityConfirmMessage, nextHomeCityChangeAt } from "@/lib/domain/home-city";
 import { Button, Dialog } from "@/components/ui";
 
+/** 処理中は aria-disabled（フォーカスを保つため disabled にしない）。見た目は .btn:disabled と同じ値にそろえる。 */
+const DIALOG_BUTTON_CLASS = "min-h-11 aria-disabled:opacity-45 aria-disabled:cursor-not-allowed";
+
 export interface HomeCityOption {
   slug: string;
   name: string;
@@ -23,6 +26,10 @@ export interface HomeCitySettingProps {
  * /me「住んでいる街」（SPEC §9.16）。住んでいる街を変えられる唯一の明示的な操作。
  * 「変更する」→ 街を選ぶ →「変える」→ 確認ダイアログ →「変える」で確定する。
  * 90日に1回までの制限は DB（デモはフィクスチャ）が強制し、拒否されたら role="alert" で理由を出す。
+ * 確認ダイアログはモーダル（R13 重要2）: 初期フォーカスは「やめる」。「変える」を押したら処理中も開いたまま、
+ * ボタンを無効（aria-disabled。フォーカスを失わないよう disabled にはしない）にして aria-busy と
+ * 常設のライブリージョン「変更しています…」で知らせる。失敗はダイアログ内に role="alert" で出して閉じない。
+ * 閉じたら起点へフォーカスを戻す（成功: 編集欄が閉じるので「変更する」、取消・失敗後の取消: ダイアログを開いた「変える」）。
  */
 export function HomeCitySetting({ cities, currentCitySlug, nextChangeNote }: HomeCitySettingProps) {
   const router = useRouter();
@@ -40,7 +47,7 @@ export function HomeCitySetting({ cities, currentCitySlug, nextChangeNote }: Hom
 
   const editButtonRef = useRef<HTMLButtonElement>(null);
   const submitButtonRef = useRef<HTMLButtonElement>(null);
-  const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogCancelRef = useRef<HTMLButtonElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   const focusAfterRender = useRef<"edit" | "select" | "submit" | null>(null);
 
@@ -51,10 +58,6 @@ export function HomeCitySetting({ cities, currentCitySlug, nextChangeNote }: Hom
     if (target === "select") selectRef.current?.focus();
     if (target === "submit") submitButtonRef.current?.focus();
   });
-
-  useEffect(() => {
-    if (confirming) confirmButtonRef.current?.focus();
-  }, [confirming]);
 
   const currentName = cities.find((city) => city.slug === currentSlug)?.name ?? null;
   const selectedName = cities.find((city) => city.slug === selectedSlug)?.name ?? "";
@@ -79,25 +82,28 @@ export function HomeCitySetting({ cities, currentCitySlug, nextChangeNote }: Hom
   };
 
   const closeConfirm = () => {
+    // 処理中は閉じない（Esc・背景は Dialog の busy が止める。「やめる」はここで止める）。
+    if (isPending) return;
     setConfirming(false);
     focusAfterRender.current = "submit";
   };
 
   const confirmChange = () => {
+    if (isPending) return;
     const slug = selectedSlug;
-    setConfirming(false);
     setError(null);
     setStatus("");
     startTransition(async () => {
       const result = await changeHomeCityAction(slug);
       if (!result.ok) {
+        // ダイアログは閉じずに、ダイアログの中で理由を知らせる。
         setError(result.message);
-        focusAfterRender.current = "submit";
         return;
       }
       const next = nextHomeCityChangeAt(result.changedAt);
       setCurrentSlug(slug);
       setNote(next ? `次に変えられるのは${formatHomeCityChangeDate(next)}以降です。` : null);
+      setConfirming(false);
       setEditing(false);
       setStatus(`住んでいる街を${result.cityName}に変えました。`);
       focusAfterRender.current = "edit";
@@ -134,7 +140,7 @@ export function HomeCitySetting({ cities, currentCitySlug, nextChangeNote }: Hom
               value={selectedSlug}
               onChange={(event) => setSelectedSlug(event.target.value)}
               aria-invalid={error ? true : undefined}
-              aria-describedby={error ? `${selectId}-error` : undefined}
+              aria-describedby={error && !confirming ? `${selectId}-error` : undefined}
             >
               {choices.map((city) => (
                 <option key={city.slug} value={city.slug}>
@@ -148,24 +154,24 @@ export function HomeCitySetting({ cities, currentCitySlug, nextChangeNote }: Hom
               ref={submitButtonRef}
               variant="primary"
               className="min-h-11"
-              disabled={isPending || !selectedSlug}
-              aria-busy={isPending || undefined}
+              disabled={!selectedSlug}
               onClick={() => {
                 setError(null);
                 setConfirming(true);
               }}
             >
-              {isPending ? "変えています…" : "変える"}
+              変える
             </Button>
-            <Button variant="ghost" className="min-h-11" disabled={isPending} onClick={cancelEditing}>
+            <Button variant="ghost" className="min-h-11" onClick={cancelEditing}>
               やめる
             </Button>
           </div>
         </div>
       ) : null}
 
-      {error ? (
-        <p id={`${selectId}-error`} role="alert" className="text-sm m-0" style={{ color: "var(--color-accent-700)" }}>
+      {/* ダイアログを閉じた後も、拒否の理由は選択欄に結び付けて残す（通知はダイアログ内の role="alert" で済んでいる）。 */}
+      {error && !confirming ? (
+        <p id={`${selectId}-error`} className="text-sm m-0" style={{ color: "var(--color-accent-700)" }}>
           {error}
         </p>
       ) : null}
@@ -177,12 +183,39 @@ export function HomeCitySetting({ cities, currentCitySlug, nextChangeNote }: Hom
         open={confirming}
         title={confirmMessage}
         onClose={closeConfirm}
+        busy={isPending}
+        initialFocusRef={dialogCancelRef}
+        notice={
+          <>
+            {/* 常設のライブリージョン（ダイアログを開いた時点から空で置き、処理中だけ文言を入れる）。 */}
+            <p role="status" aria-live="polite" className="text-sm m-0">
+              {isPending ? "変更しています…" : ""}
+            </p>
+            {error ? (
+              <p role="alert" className="text-sm m-0" style={{ color: "var(--color-accent-700)" }}>
+                {error}
+              </p>
+            ) : null}
+          </>
+        }
         actions={
           <>
-            <Button variant="ghost" className="min-h-11" onClick={closeConfirm}>
+            <Button
+              ref={dialogCancelRef}
+              variant="ghost"
+              className={DIALOG_BUTTON_CLASS}
+              aria-disabled={isPending || undefined}
+              onClick={closeConfirm}
+            >
               やめる
             </Button>
-            <Button ref={confirmButtonRef} variant="primary" className="min-h-11" onClick={confirmChange}>
+            <Button
+              variant="primary"
+              className={DIALOG_BUTTON_CLASS}
+              aria-disabled={isPending || undefined}
+              aria-busy={isPending || undefined}
+              onClick={confirmChange}
+            >
               変える
             </Button>
           </>

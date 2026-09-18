@@ -225,9 +225,14 @@ test.describe("実DB: ログイン済みの主要導線", () => {
     await page.getByRole("button", { name: "変更する" }).click();
     await page.getByLabel("住んでいる街を選ぶ").selectOption({ label: "小樽" });
     await page.getByRole("button", { name: "変える", exact: true }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "変える", exact: true }).click();
-    await expect(page.getByRole("alert").filter({ hasText: "住んでいる街は90日に1回まで変えられます。" })).toBeVisible();
+    const limitDialog = page.getByRole("dialog");
+    await limitDialog.getByRole("button", { name: "変える", exact: true }).click();
+    // 失敗してもダイアログは閉じず、ダイアログの中に理由を出す（R13 重要2）
+    await expect(limitDialog.getByRole("alert").filter({ hasText: "住んでいる街は90日に1回まで変えられます。" })).toBeVisible();
     expect((await readHomeCity())?.home_city_id).toBe(SAPPORO_ID);
+    await limitDialog.getByRole("button", { name: "やめる", exact: true }).click();
+    await expect(limitDialog).toBeHidden();
+    await expect(page.getByRole("button", { name: "変える", exact: true })).toBeFocused();
     const dormantRow = page.getByRole("listitem").filter({ hasText: DORMANT_SPOT_NAME });
     await expect(dormantRow.getByText("確認切れ", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "確認待ちが2件あります" })).toBeVisible();

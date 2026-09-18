@@ -1,7 +1,9 @@
 // SPEC §9.16: /me「住んでいる街」の変更 UI（確認 → 成功、制限中のエラー表示）。
+// R13 重要2: 確認ダイアログはモーダル。初期フォーカスは「やめる」、処理中は開いたまま通知し、閉じたら起点へ戻す。
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeHomeCityAction } from "@/app/actions/home-city";
+import type { ChangeHomeCityResult } from "@/app/actions/home-city";
 import { HomeCitySetting } from "./HomeCitySetting";
 
 const refresh = vi.fn();
@@ -67,14 +69,17 @@ describe("HomeCitySetting", () => {
     render(<HomeCitySetting cities={CITIES} currentCitySlug="sapporo" nextChangeNote={null} />);
 
     const dialog = openConfirm("小樽");
+    // 初期フォーカスは破壊的な「変える」ではなく「やめる」
+    expect(within(dialog).getByRole("button", { name: "やめる" })).toHaveFocus();
     const confirm = within(dialog).getByRole("button", { name: "変える" });
-    expect(confirm).toHaveFocus();
     await act(async () => {
       fireEvent.click(confirm);
     });
 
     expect(changeHomeCityAction).toHaveBeenCalledWith("otaru");
     expect(screen.getByRole("status")).toHaveTextContent("住んでいる街を小樽に変えました。");
+    // 閉じたら起点の「変更する」へフォーカスを戻す（編集欄は閉じている）
+    expect(screen.getByRole("button", { name: "変更する" })).toHaveFocus();
     expect(screen.getByText("小樽", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("次に変えられるのは2026年12月18日以降です。", { exact: true })).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -82,7 +87,7 @@ describe("HomeCitySetting", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
-  it("確認ダイアログの「やめる」では変更しない", () => {
+  it("確認ダイアログの「やめる」では変更せず、ダイアログを開いた「変える」へフォーカスを戻す", () => {
     render(<HomeCitySetting cities={CITIES} currentCitySlug="sapporo" nextChangeNote={null} />);
 
     const dialog = openConfirm("函館");
@@ -91,6 +96,62 @@ describe("HomeCitySetting", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(changeHomeCityAction).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "変える" })).toHaveFocus();
+  });
+
+  it("Esc で閉じても変更せず、ダイアログを開いた「変える」へフォーカスを戻す", () => {
+    render(<HomeCitySetting cities={CITIES} currentCitySlug="sapporo" nextChangeNote={null} />);
+
+    const dialog = openConfirm("函館");
+    fireEvent.keyDown(dialog, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(changeHomeCityAction).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "変える" })).toHaveFocus();
+  });
+
+  it("処理中はダイアログを開いたまま、ボタンを無効にして aria-busy と「変更しています…」で知らせる", async () => {
+    let resolveAction: (result: ChangeHomeCityResult) => void = () => {};
+    vi.mocked(changeHomeCityAction).mockImplementation(
+      () =>
+        new Promise<ChangeHomeCityResult>((resolve) => {
+          resolveAction = resolve;
+        }),
+    );
+    render(<HomeCitySetting cities={CITIES} currentCitySlug="sapporo" nextChangeNote={null} />);
+
+    const dialog = openConfirm("小樽");
+    // ライブリージョンは開いた時点から常設（空）で置いておく
+    const live = within(dialog).getByRole("status");
+    expect(live).toHaveTextContent("");
+    const confirm = within(dialog).getByRole("button", { name: "変える" });
+    confirm.focus();
+    await act(async () => {
+      fireEvent.click(confirm);
+    });
+
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    expect(dialog).toHaveAttribute("aria-busy", "true");
+    expect(live).toHaveTextContent("変更しています…");
+    const cancel = within(dialog).getByRole("button", { name: "やめる" });
+    expect(confirm).toHaveAttribute("aria-disabled", "true");
+    expect(cancel).toHaveAttribute("aria-disabled", "true");
+    // フォーカスは失われない（disabled でフォーカスが body へ落ちないよう aria-disabled にしている）
+    expect(confirm).toHaveFocus();
+
+    // 処理中は Esc・「やめる」・もう一度の「変える」では閉じない／二重に送らない
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    fireEvent.click(cancel);
+    fireEvent.click(confirm);
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    expect(changeHomeCityAction).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveAction({ ok: true, cityName: "小樽", changedAt: "2026-09-18T01:00:00.000Z" });
+    });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("住んでいる街を小樽に変えました。");
+    expect(screen.getByRole("button", { name: "変更する" })).toHaveFocus();
   });
 
   it("制限中に拒否されたら、理由を role=alert で表示し、住んでいる街は変わらない", async () => {
@@ -110,10 +171,23 @@ describe("HomeCitySetting", () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "変える" }));
     });
 
-    expect(screen.getByRole("alert")).toHaveTextContent(message);
-    expect(screen.getByLabelText("住んでいる街を選ぶ")).toHaveAttribute("aria-invalid", "true");
+    // 失敗してもダイアログは閉じず、ダイアログの中に role="alert" で理由を出す
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    expect(dialog).not.toHaveAttribute("aria-busy");
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(message);
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(within(dialog).getByRole("status")).toHaveTextContent("");
+    expect(within(dialog).getByRole("button", { name: "変える" })).not.toHaveAttribute("aria-disabled");
     expect(screen.getByText("札幌", { exact: true })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("");
     expect(refresh).not.toHaveBeenCalled();
+
+    // 閉じたらダイアログを開いた「変える」へ戻り、理由は選択欄に結び付いて残る
+    fireEvent.click(within(dialog).getByRole("button", { name: "やめる" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "変える" })).toHaveFocus();
+    const select = screen.getByLabelText("住んでいる街を選ぶ");
+    expect(select).toHaveAttribute("aria-invalid", "true");
+    expect(select).toHaveAccessibleDescription(message);
+    expect(screen.getByRole("status")).toHaveTextContent("");
   });
 });

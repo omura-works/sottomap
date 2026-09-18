@@ -38,6 +38,7 @@ import {
   fixtureUserHomeCityId,
   fixtureUserProfile,
   hasFixtureEndorsement,
+  initializeFixtureUserHomeCity,
   setFixtureUserHomeCity,
 } from "./fixtures";
 
@@ -553,5 +554,22 @@ export async function setUserHomeCity(userId: string, cityId: string): Promise<s
   const { data, error } = await supabase.rpc("set_home_city", { p_city_id: cityId });
   if (error) throw rpcError("住んでいる街の保存", error);
   return typeof data === "string" ? data : null;
+}
+
+/**
+ * 住んでいる街の初回設定（SPEC §9.16-1。/start の「歩きはじめる」専用）。
+ * Supabase 経路は DB 関数 initialize_home_city を本人のセッションで呼ぶだけ。関数が本人の行を for update で
+ * ロックしてから「未設定か」を判断するため、2タブから同時に呼んでも後続が「変更」として成立しない。
+ * 戻り値: 設定したら true、設定済みで何もしなかったら false。
+ */
+export async function initializeUserHomeCity(userId: string, cityId: string): Promise<boolean> {
+  if (!isSupabaseConfigured()) {
+    return initializeFixtureUserHomeCity(userId, cityId);
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("initialize_home_city", { p_city_id: cityId });
+  if (error) throw rpcError("住んでいる街の保存", error);
+  return data === true;
 }
 
