@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useLayoutEffect, useRef } from "react";
-import type { KeyboardEvent, MouseEvent, ReactNode, RefObject, SyntheticEvent } from "react";
+import type { KeyboardEvent, MouseEvent, PointerEvent, ReactNode, RefObject, SyntheticEvent } from "react";
 import { cn } from "./cn";
 
 export interface DialogProps {
@@ -22,7 +22,11 @@ export interface DialogProps {
    * 省略時はダイアログ内の最初のフォーカスできる要素。
    */
   initialFocusRef?: RefObject<HTMLElement | null>;
-  /** 処理中。`aria-busy="true"` を付け、Esc・背景のクリックでは閉じない（onClose を呼ばない）。 */
+  /**
+   * 処理中。Esc・背景のクリックでは閉じない（onClose を呼ばない）。ダイアログ自体には
+   * `aria-busy` は付けない（中の `role="status"` が読まれなくなるため）。処理中の表示は
+   * 呼び出し側がボタンに `aria-busy`/`aria-disabled` を付けて示す。
+   */
   busy?: boolean;
 }
 
@@ -47,8 +51,11 @@ function focusableElements(root: HTMLElement): HTMLElement[] {
  * - 見出し（title）を `aria-labelledby` でダイアログの名前にする。
  * - 開いたら initialFocusRef（無ければ最初のフォーカスできる要素）へフォーカスする。
  * - Tab／Shift+Tab はダイアログ内で循環する（ブラウザの外枠へも出さない）。
- * - Esc と背景（::backdrop）のクリックで onClose。処理中（busy）は閉じない。
+ * - Esc と背景（::backdrop。pointerdown・click の両方が背景で起きたときだけ）のクリックで onClose。
+ *   処理中（busy）は閉じない。
  * - 閉じたら、開く前にフォーカスがあった要素へ戻す（呼び出し側が描画後に別の要素へ移してもよい）。
+ * - ブラウザが自力で `<dialog>` を閉じた場合（Android の戻る連打などで preventDefault が効かなかった
+ *   場合）も native の `close` イベントを拾って onClose を呼び、親の状態とそろえる。
  */
 export function Dialog(props: DialogProps) {
   if (!props.open) return null;
@@ -67,6 +74,12 @@ function ModalDialog({
 }: DialogProps) {
   const titleId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
+  // requestClose・アンマウント時のクリーンアップなど、自分自身の操作で <dialog> を閉じたときは
+  // 続く native "close" イベントで onClose を再度呼ばないようにする（ブラウザが自力で閉じた場合だけ呼ぶ）。
+  const closingBySelfRef = useRef(false);
+  // 背景クリックは pointerdown と click の両方が dialog 要素そのもので起きたときだけ閉じる
+  // （中で押して外で離す/外で押して中で離すドラッグでは閉じない）。
+  const backdropPointerDownRef = useRef(false);
 
   useLayoutEffect(() => {
     const dialog = dialogRef.current;
@@ -76,13 +89,26 @@ function ModalDialog({
     const target = initialFocusRef?.current ?? focusableElements(dialog)[0] ?? dialog;
     target.focus();
     return () => {
+      closingBySelfRef.current = true;
       if (dialog.open) dialog.close();
       if (opener?.isConnected) opener.focus();
     };
   }, [initialFocusRef]);
 
   const requestClose = () => {
-    if (!busy) onClose();
+    if (busy) return;
+    closingBySelfRef.current = true;
+    onClose();
+  };
+
+  // ブラウザが自力で <dialog> を閉じた場合（Android の戻る連打など、こちらの preventDefault が
+  // 効かなかった場合）に発火する。自分自身の close() 呼び出しに続くものであれば何もしない。
+  const handleNativeClose = () => {
+    if (closingBySelfRef.current) {
+      closingBySelfRef.current = false;
+      return;
+    }
+    onClose();
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDialogElement>) => {
@@ -121,18 +147,27 @@ function ModalDialog({
   };
 
   // 背景（::backdrop）のクリックは dialog 要素そのものに届く（中身は内側の .dialog が受ける）。
+  // pointerdown と click の両方が dialog 要素自身で起きたときだけ閉じる（中で押して外で離す、
+  // 外で押して中で離す、といった操作では閉じない）。
+  const handlePointerDown = (event: PointerEvent<HTMLDialogElement>) => {
+    backdropPointerDownRef.current = event.target === event.currentTarget;
+  };
+
   const handleClick = (event: MouseEvent<HTMLDialogElement>) => {
-    if (event.target === event.currentTarget) requestClose();
+    const startedOnBackdrop = backdropPointerDownRef.current;
+    backdropPointerDownRef.current = false;
+    if (event.target === event.currentTarget && startedOnBackdrop) requestClose();
   };
 
   return (
     <dialog
       ref={dialogRef}
       aria-labelledby={titleId}
-      aria-busy={busy || undefined}
       tabIndex={-1}
       onKeyDown={handleKeyDown}
       onCancel={handleCancel}
+      onClose={handleNativeClose}
+      onPointerDown={handlePointerDown}
       onClick={handleClick}
       className="m-auto w-[min(440px,calc(100%-2*var(--space-4)))] max-w-none border-0 bg-transparent p-0 text-inherit backdrop:bg-[color-mix(in_srgb,var(--color-neutral-900)_50%,transparent)]"
     >

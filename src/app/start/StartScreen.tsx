@@ -74,19 +74,19 @@ export function StartScreen({
   // 空状態だけを表示する。
   if (cities.length === 0) {
     return (
-      <div
+      <main
         className="start-screen flex min-h-dvh items-center justify-center px-5 text-center"
         style={{ background: "var(--color-bg)" }}
       >
         <div>
-          <p className="m-0 text-xs tracking-[0.3em]" style={{ color: "var(--color-neutral-600)" }}>
+          <h1 className="m-0 text-xs tracking-[0.3em]" style={{ color: "var(--color-neutral-600)" }}>
             ウラスポ
-          </p>
+          </h1>
           <p className="m-0 mt-4" style={{ color: "var(--color-neutral-800)" }}>
             まだ街が準備されていません。しばらくしてからもう一度お試しください。
           </p>
         </div>
-      </div>
+      </main>
     );
   }
 

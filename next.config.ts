@@ -35,17 +35,26 @@ const CSP_REPORT_PATH = "/api/csp-report";
  *
  * `'unsafe-eval'` は開発時（`next dev`）だけ許可する。MapLibre GL JS はスタイル式（フィルタ等）の
  * 評価に `new Function()` を使うが、これは `next dev` のホットリロード用ランタイムが要求する
- * 場合を含めて確認した挙動であり、本番相当（`next build && next start`）では外して確認済み
- * （e2e/prodready.spec.ts の「本番相当で地図・ログイン・/start を開いてもCSP違反が出ない」テスト）。
+ * 場合を含めて確認した挙動である。本番相当（`next build && next start`、`'unsafe-eval'` を外した
+ * 状態）で地図・ログイン・/start を開いてもCSP違反が出ないことは、2026年9月に手動で1回確認した
+ * （自動テストではない）。`e2e/prodready.spec.ts` のCSP関連テストは Playwright の既定の
+ * webServer（`npm run dev`、つまり `next dev`）に対して動くため、`'unsafe-eval'` がある状態の
+ * 確認にしかならない。本番相当の確認を自動化する場合は、`next build && next start` を webServer
+ * にした別のE2E設定を用意すること。
  * 本番で `'unsafe-eval'` を要求する違反が Report-Only の観測で出た場合は、ここに理由を追記して
  * 最小限で戻すこと。
  *
- * `img-src`: 現状 `photoUrl`（spots）・`avatarUrl`（users）の書き込み経路がアプリ内に無く
- * （フィクスチャ・シードは常に null）、両方とも常に null か Supabase Storage 由来の値になる想定
- * のため、任意オリジンは許可しない。Supabase Storage は `NEXT_PUBLIC_SUPABASE_URL` と同一オリジン
- * （`<project>.supabase.co/storage/v1/...`）のため、connect-src と同じオリジンを img-src にも許可する。
- * 将来、利用者が任意URLの画像を登録できるようになった場合はこのコメントと許可リストの見直しが必要
- * （具体的な経路が増えたら DEPLOY.md の強制移行判断にも反映する）。
+ * `img-src`: `photoUrl`（spots）はアプリ内に書き込み経路が無く（フィクスチャ・シードは常に null）
+ * 常に null か Supabase Storage 由来の値になる想定。`avatarUrl`（users）は、0006マイグレーションの
+ * 列単位 GRANT（`grant update (display_name, avatar_url, ...) on table public.users to authenticated`）
+ * により、本人が PostgREST 経由で任意のURLを書き込めるが、表示（`<img>`）しているのは本人の `/me`
+ * ページだけ（他者の avatarUrl は `public_profiles` 経由で読めるが、現状どの画面でも表示していない）。
+ * この権限自体は変えていない（列単位 GRANT はこのアプリの意図した設計であり、書ける値の制限は
+ * アプリ側の入力フォームが無い現状に依っている）。任意オリジンの画像URLが書き込める以上、img-src は
+ * 引き続き Supabase Storage と同一オリジンに絞る（`<project>.supabase.co/storage/v1/...`。
+ * connect-src と同じオリジンを img-src にも許可する）。他者の avatarUrl を表示する画面を追加する
+ * 場合は、このコメントと許可リストの見直しが必要（具体的な経路が増えたら DEPLOY.md の強制移行判断にも
+ * 反映する）。
  */
 function contentSecurityPolicy(isProduction: boolean): string {
   const supabase = supabaseOrigin();

@@ -130,9 +130,12 @@ describe("HomeCitySetting", () => {
     });
 
     expect(screen.getByRole("dialog")).toBe(dialog);
-    expect(dialog).toHaveAttribute("aria-busy", "true");
+    // ダイアログ自体には aria-busy を付けない（中の role="status" が読まれなくなるため）。
+    // 処理中はボタン側だけに aria-busy/aria-disabled を付ける。
+    expect(dialog).not.toHaveAttribute("aria-busy");
     expect(live).toHaveTextContent("変更しています…");
     const cancel = within(dialog).getByRole("button", { name: "やめる" });
+    expect(confirm).toHaveAttribute("aria-busy", "true");
     expect(confirm).toHaveAttribute("aria-disabled", "true");
     expect(cancel).toHaveAttribute("aria-disabled", "true");
     // フォーカスは失われない（disabled でフォーカスが body へ落ちないよう aria-disabled にしている）
@@ -144,6 +147,37 @@ describe("HomeCitySetting", () => {
     fireEvent.click(confirm);
     expect(screen.getByRole("dialog")).toBe(dialog);
     expect(changeHomeCityAction).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveAction({ ok: true, cityName: "小樽", changedAt: "2026-09-18T01:00:00.000Z" });
+    });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("住んでいる街を小樽に変えました。");
+    expect(screen.getByRole("button", { name: "変更する" })).toHaveFocus();
+  });
+
+  it("処理中にブラウザが自力でダイアログを閉じても（Android の戻る連打など）処理は続き、完了時の通知とフォーカス復帰が壊れない", async () => {
+    let resolveAction: (result: ChangeHomeCityResult) => void = () => {};
+    vi.mocked(changeHomeCityAction).mockImplementation(
+      () =>
+        new Promise<ChangeHomeCityResult>((resolve) => {
+          resolveAction = resolve;
+        }),
+    );
+    render(<HomeCitySetting cities={CITIES} currentCitySlug="sapporo" nextChangeNote={null} />);
+
+    const dialog = openConfirm("小樽");
+    const confirm = within(dialog).getByRole("button", { name: "変える" });
+    await act(async () => {
+      fireEvent.click(confirm);
+    });
+
+    // ブラウザが自力で <dialog> を閉じた（preventDefault が効かなかった）ことを模す。
+    // 処理中はダイアログ側の onClose は無視されるが、進行中の処理には影響しない。
+    act(() => {
+      dialog.dispatchEvent(new Event("close"));
+    });
 
     await act(async () => {
       resolveAction({ ok: true, cityName: "小樽", changedAt: "2026-09-18T01:00:00.000Z" });

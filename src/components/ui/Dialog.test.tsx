@@ -115,17 +115,36 @@ describe("Dialog（モーダル）", () => {
     fireEvent.click(screen.getByText("確認の見出し"));
     expect(onClose).not.toHaveBeenCalled();
 
+    fireEvent.pointerDown(dialog);
     fireEvent.click(dialog);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("処理中（busy）は aria-busy を付け、Esc・背景・cancel では閉じない", () => {
+  it("背景で押して中で離す・中で押して背景で離す操作では閉じない（pointerdown・click の両方が背景で起きたときだけ閉じる）", () => {
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} />);
+    const dialog = openDialog();
+    const title = screen.getByText("確認の見出し");
+
+    // 背景で押して、中で離す。
+    fireEvent.pointerDown(dialog);
+    fireEvent.click(title);
+    expect(onClose).not.toHaveBeenCalled();
+
+    // 中で押して、背景で離す。
+    fireEvent.pointerDown(title);
+    fireEvent.click(dialog);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("処理中（busy）は Esc・背景・cancel では閉じない（aria-busy はダイアログ自体には付けない）", () => {
     const onClose = vi.fn();
     render(<Harness busy onClose={onClose} />);
     const dialog = openDialog();
 
-    expect(dialog).toHaveAttribute("aria-busy", "true");
+    expect(dialog).not.toHaveAttribute("aria-busy");
     fireEvent.keyDown(dialog, { key: "Escape" });
+    fireEvent.pointerDown(dialog);
     fireEvent.click(dialog);
     const cancel = new Event("cancel", { cancelable: true });
     dialog.dispatchEvent(cancel);
@@ -133,5 +152,34 @@ describe("Dialog（モーダル）", () => {
     expect(cancel.defaultPrevented).toBe(true);
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("ブラウザが自力で <dialog> を閉じた場合（native の close イベント）も onClose を呼び、親の状態をそろえる", () => {
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} />);
+    const dialog = openDialog();
+
+    // Esc・背景以外の経路（例: Android の戻る連打で preventDefault が効かなかった場合）で
+    // ブラウザが直接 close() したことを模す。
+    dialog.dispatchEvent(new Event("close"));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("自分自身の操作（背景クリック）で閉じた直後に続く native close イベントでは onClose を重複して呼ばない", () => {
+    const onClose = vi.fn();
+    // open を変えない（マウントされ続ける）ことで、自分自身の close 要求のあと native の
+    // close イベントが同じ <dialog> に届くケースを再現する。
+    render(
+      <Dialog open title="見出し" onClose={onClose} actions={<button type="button">閉じる</button>} />,
+    );
+    const dialog = screen.getByRole("dialog");
+
+    fireEvent.pointerDown(dialog);
+    fireEvent.click(dialog);
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    dialog.dispatchEvent(new Event("close"));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

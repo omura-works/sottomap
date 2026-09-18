@@ -7,6 +7,7 @@
 // という配列形式になるため、両方から同じ要約を取り出せるようにする。
 //
 // 個人情報・機微情報を残さないため、URL はオリジン/パスだけを取り出し、クエリ文字列は捨てる。
+// さらに各項目は200文字で切って残す（想定外に長い値・過大なログを防ぐ）。
 
 export interface CspReportSummary {
   effectiveDirective: string;
@@ -20,10 +21,10 @@ export interface CspReportSummary {
 function originOf(value: unknown): string {
   if (typeof value !== "string" || value === "") return "unknown";
   try {
-    return new URL(value).origin;
+    return truncate(new URL(value).origin);
   } catch {
     // "inline" "eval" "self" 等のキーワードや不完全なスキームはそのまま返す（クエリ文字列を含まない前提）。
-    return value.split("?")[0];
+    return truncate(value.split("?")[0]);
   }
 }
 
@@ -31,14 +32,22 @@ function originOf(value: unknown): string {
 function pathOf(value: unknown): string {
   if (typeof value !== "string" || value === "") return "unknown";
   try {
-    return new URL(value).pathname;
+    return truncate(new URL(value).pathname);
   } catch {
-    return value.split("?")[0];
+    return truncate(value.split("?")[0]);
   }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+/** ログに残す各項目の上限文字数。ブラウザが送る値は通常もっと短いが、想定外に長い値を切って残す。 */
+const MAX_FIELD_LENGTH = 200;
+
+/** 文字列を200文字で切る（ログに個人情報や過大な値を残さないため）。 */
+function truncate(value: string): string {
+  return value.length > MAX_FIELD_LENGTH ? value.slice(0, MAX_FIELD_LENGTH) : value;
 }
 
 /** 古い report-uri 形式（`{ "csp-report": {...} }`）から要約を取り出す。 */
@@ -47,7 +56,8 @@ function fromCspReportUri(report: Record<string, unknown>): CspReportSummary | n
   if (!isRecord(inner)) return null;
   const effectiveDirective = inner["effective-directive"];
   return {
-    effectiveDirective: typeof effectiveDirective === "string" && effectiveDirective ? effectiveDirective : "unknown",
+    effectiveDirective:
+      typeof effectiveDirective === "string" && effectiveDirective ? truncate(effectiveDirective) : "unknown",
     blockedUriOrigin: originOf(inner["blocked-uri"]),
     documentUriPath: pathOf(inner["document-uri"]),
   };
@@ -60,7 +70,8 @@ function fromReportingApi(report: Record<string, unknown>): CspReportSummary | n
   if (!isRecord(body)) return null;
   const effectiveDirective = body["effectiveDirective"];
   return {
-    effectiveDirective: typeof effectiveDirective === "string" && effectiveDirective ? effectiveDirective : "unknown",
+    effectiveDirective:
+      typeof effectiveDirective === "string" && effectiveDirective ? truncate(effectiveDirective) : "unknown",
     blockedUriOrigin: originOf(body["blockedURL"]),
     documentUriPath: pathOf(body["documentURL"]),
   };

@@ -25,3 +25,9 @@ public/maplibre/
 
 # Claude Code の作業用 worktree
 .claude/worktrees/
+
+# バックアップ・復元試験で生成するダンプ（リポジトリ直下のみ。supabase/配下は無視しない）
+/roles.sql
+/schema.sql
+/data.sql
+/*.dump.sql

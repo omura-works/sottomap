@@ -162,8 +162,12 @@ select slug, name from cities order by slug;    -- asahikawa/furano/hakodate/kus
 | `NEXT_DIST_DIR` | 設定しない（実DB版E2E専用のローカル切替） | 設定しない | - |
 
 - 秘密の値（`SUPABASE_SERVICE_ROLE_KEY`・`CRON_SECRET` など）は、追加フォームの上部にある **Sensitive** スイッチを
-  Enabled にしてから登録してください（登録後は値を読み出せなくなります）。Sensitive は Production と Preview でのみ使えます。
-  既存の変数を後から Sensitive にするには、いったん削除して登録し直します。
+  Enabled にしてから登録してください（登録後は値を読み出せなくなります。[Vercel公式ドキュメント](https://vercel.com/docs/environment-variables/sensitive-environment-variables)
+  の「non-readable once created」のとおりで、`vercel env pull` でも値は取得できません）。Sensitive は Production と
+  Preview でのみ使えます。既存の変数を後から Sensitive にするには、いったん削除して登録し直します。
+  この「登録後は読み出せない」性質のため、`scripts/check-production-env.mjs` による事前確認は
+  Vercel へ登録する**前**に、本人が値を入れた `.env.production.local` に対して行う運用にしてください
+  （5節「公開直後の確認チェックリスト」の最初の項目を参照）。
 - Preview環境で `NEXT_PUBLIC_SITE_URL` にVercelの自動生成URL（`https://<branch>-<project>.vercel.app`
   のような形）を固定で入れることは難しいため、Preview環境でログインメールのリンクを実際に検証したい
   場合は、そのPreview URLを都度 `NEXT_PUBLIC_SITE_URL` に設定し直すか、Preview環境専用の固定URL
@@ -214,9 +218,17 @@ select slug, name from cities order by slug;    -- asahikawa/furano/hakodate/kus
 
 ## 5. 公開直後の確認チェックリスト
 
-- [ ] `vercel env pull .env.production.local --environment=production` で本番の環境変数を取得し、
-      `node --env-file=.env.production.local scripts/check-production-env.mjs` を実行して、すべて
-      OKであることを確認する（値は表示されない。`.env.production.local` はコミットしないこと）。
+- [ ] `check-production-env.mjs` は Vercel へ登録する**前に**、本人が値を入れた
+      `.env.production.local` に対して実行する運用にする（Sensitive にした環境変数は、
+      Vercel 公式ドキュメントの「non-readable once created」のとおり、登録後は
+      `vercel env pull` 等で値を取り出せなくなるため）。
+      具体的には、`.env.example` を `.env.production.local` にコピーして本人が実際の値を
+      直接書き込み、`node --env-file=.env.production.local scripts/check-production-env.mjs`
+      を実行してすべて OK であることを確認したあと、その値を4.2節の手順で Vercel の
+      Production 環境変数（秘密の値は Sensitive）に登録する。登録後に値を変更した場合は、
+      変更した値をもう一度 `.env.production.local` に書いて再チェックしてから登録し直す
+      （事後に `vercel env pull` で取得して確認することはできない）。`.env.production.local`
+      はコミットしないこと（`.gitignore` の `.env*` に含まれる）。
 - [ ] `https://urasupo.jp/start` が表示される（デモモードの表示・挙動になっていないこと）。
 - [ ] ログイン（マジックリンク）を実際のメールアドレスで試し、**日本語の件名・本文**でメールが届く
       ことを確認する（1. と 2. のメールテンプレート設定が反映されているか）。
@@ -287,9 +299,14 @@ npx supabase db dump --linked -f roles.sql --role-only
 # スキーマ（テーブル・関数・RLSポリシー等の定義。データを含まない）
 npx supabase db dump --linked -f schema.sql
 
-# データ（--data-only。--use-copy で COPY 文にし、大量データでも高速・安定に出力する）
-npx supabase db dump --linked -f data.sql --data-only --use-copy
+# データ（--use-copy で COPY 文にし、大量データでも高速・安定に出力する。
+# storage.buckets_vectors / storage.vector_indexes はこのアプリで使っていないため除外する）
+npx supabase db dump --linked -f data.sql --use-copy --data-only -x "storage.buckets_vectors" -x "storage.vector_indexes"
 ```
+
+上記は Supabase 公式（[Backup and restore using the CLI](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore)、2026-09-19確認）どおりのコマンドです。`-x`（`--exclude`）オプションは
+`npx supabase db dump --help` で存在を確認済みです（今後のCLI更新で無くなっていた場合は、この
+オプションを付けずに実行してください）。
 
 - 3ファイル（`roles.sql` / `schema.sql` / `data.sql`）が揃って初めて復元可能なバックアップになります。
   いずれか1つだけでは不十分です。
@@ -310,20 +327,49 @@ npx supabase db dump --linked -f data.sql --data-only --use-copy
   （`.gitignore` の対象にすること。特に `data.sql` は利用者の個人情報を含み得る）。
 - 定期取得の頻度は運用方針によるが、少なくとも「破壊的なマイグレーション適用の直前」には毎回取得する。
 
-### 7.3 復元試験（ローカル環境で行う。本番DBには書き込まない）
+### 7.3 復元試験
+
+**このリポジトリのローカル `supabase start`（マイグレーション・シード適用済み）には流さないこと。**
+`schema.sql` には既に存在するテーブル・関数等の定義が含まれるため、「すでに存在する」エラーで
+必ず失敗します。復元試験は、**このために新規作成した空の Supabase プロジェクト**（試験専用。
+試験後は削除する）に対して行ってください。
+
+Supabase 公式（[Backup and restore using the CLI](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore)、
+2026-09-19確認）どおり、`psql` で1つのトランザクションとして流します。
 
 ```bash
-npx supabase stop --no-backup   # ローカルのSupabaseを初期化
-npx supabase start
-psql "$(npx supabase status -o env | grep DB_URL | cut -d= -f2-)" -f roles.sql
-psql "$(npx supabase status -o env | grep DB_URL | cut -d= -f2-)" -f schema.sql
-psql "$(npx supabase status -o env | grep DB_URL | cut -d= -f2-)" -f data.sql
+psql --single-transaction --variable ON_ERROR_STOP=1 \
+  --file roles.sql \
+  --file schema.sql \
+  --command 'SET session_replication_role = replica' \
+  --file data.sql \
+  --dbname "<復元先（試験用の空プロジェクト）の接続文字列>"
 ```
 
-- 復元後、`npx supabase test db` は流さない（本番相当データに副作用のあるテストを実行しないため）。
-  代わりに `select count(*) from cities;` 等で件数が想定どおりか確認する。
+- `--single-transaction --variable ON_ERROR_STOP=1` により、1件でもエラーが出れば全体がロール
+  バックされます。つまり、このコマンドが**エラーなく完了すること自体が「完全に復元できた」ことの
+  確認**になります（途中で一部だけ流れた状態にはなりません）。
+- `SET session_replication_role = replica` は、`data.sql` の投入時にトリガー・外部キー制約による
+  順序依存のエラーを避けるためのものです（公式手順どおり）。
+- `psql` は Supabase CLI には同梱されていません。[PostgreSQL公式のインストーラ](https://www.postgresql.org/download/)
+  等で別途用意してください。
+
+復元後、`npx supabase test db` は流さない（本番相当データに副作用のあるテストを実行しないため）。
+代わりに次のSQLで件数が想定どおりか確認する。
+
+```sql
+select count(*) as cities_count from cities;
+select count(*) as spots_count  from spots;
+select count(*) as users_count  from users;
+select count(*) as auth_users_count from auth.users;
+```
+
+- このアプリは Vault や列レベルの暗号化を使っていません（`SUPABASE_SERVICE_ROLE_KEY` 等の秘密は
+  Vercel の環境変数側で管理しており、DB内の列に暗号化データを置いていない）。そのため復元試験に
+  暗号鍵の扱いは不要です。将来 Vault や列暗号化を使うようになった場合は、鍵（暗号化キー）の保管・
+  復元手順をこの節に追加してください。
 - 復元試験は、バックアップの取得方法が変わったとき（Supabase CLI のメジャー更新時等）や、少なくとも
-  年1回程度は実施し、手順が古くなっていないか確認する。
+  年1回程度は実施し、手順が古くなっていないか確認する。試験専用プロジェクトは確認後に削除する。
 
 ---
 

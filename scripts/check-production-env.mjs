@@ -37,6 +37,21 @@ function isPlausibleUrl(value) {
   }
 }
 
+/**
+ * 32文字以上あっても、短い並び（周期4以下）を繰り返しただけの値は推測されやすい
+ * （例: "abcdabcdabcdabcdabcdabcdabcdabcd"、"abababababababababababababababab"）。
+ * 単一文字の繰り返し（周期1）は別のチェック（`/^(.)\1*$/`）で検出済みのため、ここでは周期2〜4を調べる。
+ * @param {string} value
+ */
+function isShortPeriodRepeat(value) {
+  for (let period = 2; period <= 4; period += 1) {
+    if (value.length % period !== 0) continue;
+    const unit = value.slice(0, period);
+    if (unit.repeat(value.length / period) === value) return true;
+  }
+  return false;
+}
+
 function check(name, fn) {
   const messages = [];
   let ok = true;
@@ -122,15 +137,26 @@ check("CRON_SECRET", (messages) => {
     );
     return;
   }
-  // .env.example にサンプル値を書いていないため実害は無いはずだが、将来サンプルを書いた場合に
-  // そのまま本番へ流用されるのを防ぐ（プレースホルダーの文字列そのものを禁止値として明示する）。
-  const knownWeakValues = new Set(["changeme", "your-cron-secret", "cron-secret", "secret", "password"]);
+  // `.env.example` の CRON_SECRET は常に空欄（サンプル値を書いていない）だが、よくある
+  // プレースホルダーの単語を32文字になるまで継ぎ足しただけの値は推測されやすいため、
+  // 実際に弱い32文字以上の例を具体的に禁止値として明示する（R14暫定レビュー軽微6:
+  // 旧実装は32文字未満の短い禁止語しか持たず、上の長さチェックで先に弾かれて絶対に
+  // 到達しない dead code だった）。
+  const knownWeakValues = new Set([
+    "changemechangemechangemechangeme", // "changeme" を32文字になるまで継ぎ足した例
+    "your-cron-secretyour-cron-secret", // "your-cron-secret" を継ぎ足した例
+    "passwordpasswordpasswordpassword", // "password" を継ぎ足した例
+  ]);
   if (knownWeakValues.has(value.toLowerCase())) {
     messages.push("NG: サンプル・既定値として使われがちな文字列です。ランダムな値に置き換えてください。");
     return;
   }
   if (/^(.)\1*$/.test(value)) {
     messages.push("NG: 同じ文字の繰り返しです。推測されにくいランダムな値にしてください。");
+    return;
+  }
+  if (isShortPeriodRepeat(value)) {
+    messages.push("NG: 短い並び（4文字以下）の繰り返しです。推測されにくいランダムな値にしてください。");
     return;
   }
   if (new Set(value).size < 4) {
