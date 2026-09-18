@@ -232,4 +232,12 @@ describe("StartScreen（SPEC §9.15 案B）", () => {
     const liveRegion = screen.getByText("札幌には、地元が確認したピンが").closest('[aria-live="polite"]');
     expect(liveRegion).toHaveAttribute("aria-atomic", "true");
   });
+
+  it("R13レビュー重要4: 街が0件でも落ちず、空状態を表示する（選択・開始UIは出さない）", () => {
+    render(<StartScreen cities={[]} dataBySlug={{}} defaultCitySlug="sapporo" />);
+
+    expect(screen.getByText("まだ街が準備されていません。しばらくしてからもう一度お試しください。")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "歩きはじめる" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "どの街を歩きますか" })).not.toBeInTheDocument();
+  });
 });

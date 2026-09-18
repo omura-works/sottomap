@@ -30,8 +30,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         { url: `${origin}/${city.slug}/search`, changeFrequency: "daily", priority: 0.6 },
       );
     }
-  } catch {
-    // DB取得に失敗しても /start だけのsitemapを返す（buildを落とさない）。
+  } catch (error) {
+    // DB取得に失敗しても /start だけのsitemapを返す（buildを落とさない）。ただし失敗自体は
+    // ビルドログ・監視で気づけるよう1行だけログに出す（R13レビュー軽微4）。
+    console.error(
+      "[sitemap] 街の一覧取得に失敗したため、/start だけのsitemapを返します:",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 
   return entries;

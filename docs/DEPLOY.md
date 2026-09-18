@@ -49,7 +49,7 @@ Hobby プランの Cron 制約、`db push` のオプション、URL 設定・メ
 
    - `db push` は `supabase/migrations/` にある未適用のマイグレーションを、ファイル名の番号順に本番へ適用します。
    - 実行前に `npx supabase db push --dry-run` で、適用されるマイグレーションの一覧を確認してください（適用はされません）。
-   - `db push` は既定ではシードを流しません（`--include-seed` を付けたときだけ流れる）。**本番では `--include-seed` を付けないこと**（6節の初期データの扱いを参照）。
+   - `db push` は既定ではシードを流しません（`--include-seed` を付けたときだけ流れる）。**本番では `--include-seed` を付けないこと**（`supabase/seed.sql` には架空のデモユーザー・確認履歴が含まれるため。3節の初期データの扱いを参照）。街・タグ・バッジ（`supabase/migrations/0008_reference_data.sql`）は通常のマイグレーションとして `db push` に含まれるため、この番号を指定しない全体適用で自動的に投入される。
 4. **pgTAP テスト（`supabase/tests/*.sql`）は本番プロジェクトに流さないこと。**
    `npx supabase test db` はローカルのSupabase（`npx supabase start` で起動したコンテナ）専用です。
    テストの中には確認依頼を作成・削除する副作用があり、本番データを汚します。本番の動作確認は
@@ -101,26 +101,38 @@ HTMLも合わせて直してください。
 
 ## 3. 初期データの投入
 
-`supabase/seed.sql` は**本番に投入してはいけません。** このファイルは以下を含みます。
+本番に必須の参照データ（`cities`＝街8件・実在の北海道の自治体名、`tags`＝タグの定義、
+`badges`＝バッジの定義）は、`supabase/migrations/0008_reference_data.sql` に**冪等な
+マイグレーションとして**含まれています（R13レビュー重要4）。実在の店・利用者の個人情報は
+含みません。少なくとも `cities` が0件だと `/start` を含む全画面が「街が準備されていません」の
+空状態になり、投稿・地図表示が始まりません。
 
-- **本番に入れてよい可能性がある部分**: `cities`（街8件・実在の北海道の自治体名）、`tags`（タグの
-  定義）、`badges`（バッジの定義）。これらはアプリの設定データで、実在の店・利用者の個人情報は
-  含みません。
-- **本番に入れてはいけない部分**: `auth.users` / `users`（架空のデモユーザー10件）、`spots`（架空の
-  確認履歴・承認・静けさステータスを持つ店舗データ。店名・住所自体は実在店舗の公開情報だが、確認人数
-  や承認履歴はゲーム上のデモデータ）、`endorsements`、`verifications`、`verification_requests`、
-  `bookmarks`。これらは `README.md` の「実データ方針」注記のとおりアーキテクチャ実演用の架空データ
-  であり、実店舗の事実の主張として公開してはいけません。
+- **本番へ自動で入る**: `cities` / `tags` / `badges`（0008。1節の `npx supabase db push` で他の
+  マイグレーションと同じ番号順に適用される。個別に流す操作は不要）。
+- **本番に入れてはいけない**: `supabase/seed.sql` に残っている `auth.users` / `users`（架空の
+  デモユーザー10件）、`spots`（架空の確認履歴・承認・静けさステータスを持つ店舗データ。店名・住所
+  自体は実在店舗の公開情報だが、確認人数や承認履歴はゲーム上のデモデータ）、`endorsements`、
+  `verifications`、`verification_requests`、`bookmarks`。これらは `README.md` の「実データ方針」
+  注記のとおりアーキテクチャ実演用の架空データであり、実店舗の事実の主張として公開してはいけません。
+  `db push` は `--include-seed` を付けない限り `seed.sql` を流さないため、通常の手順のままなら
+  混入しません。
 
-投入方法（本番で使う場合）:
+適用後の確認（本人が Supabase ダッシュボードの SQL Editor か `psql` で実行する。件数・IDに
+秘密情報は無いためログに残しても問題ありません）:
 
-1. `supabase/seed.sql` を直接 `db push` や `psql` で流さない。
-2. `cities` / `tags` / `badges` の `insert` 文だけを別ファイル（例: `supabase/seed.production.sql`、
-   このリポジトリには未作成）に抜き出してレビューし、本人が内容を確認したうえで
-   Supabase ダッシュボードの SQL Editor に貼り付けて実行する。
-3. 実店舗のデータ（`spots` 相当）を本番に載せる場合は、実際の投稿フロー（`create_spot` DB関数経由、
-   §9.13.2）で、実在の利用者が居住街を確認した上で投稿し、同じ街の2人の承認を経て公開する運用に
-   乗せてください。シードとして直接INSERTしない。
+```sql
+select count(*) as cities_count from cities;   -- 期待値: 8
+select count(*) as tags_count   from tags;      -- 期待値: 10
+select count(*) as badges_count from badges;    -- 期待値: 3
+select slug, name from cities order by slug;    -- asahikawa/furano/hakodate/kushiro/obihiro/otaru/sapporo/wakkanai の8件
+```
+
+件数が0や期待値と異なる場合は、0008マイグレーションが未適用（`npx supabase db push --dry-run` で
+未適用一覧を確認）か、既存データが手動編集されている可能性があります。
+
+実店舗のデータ（`spots` 相当）を本番に載せる場合は、実際の投稿フロー（`create_spot` DB関数経由、
+§9.13.2）で、実在の利用者が居住街を確認した上で投稿し、同じ街の2人の承認を経て公開する運用に
+乗せてください。シードとして直接INSERTしないでください。
 
 ---
 
@@ -145,7 +157,7 @@ HTMLも合わせて直してください。
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 本番Supabaseプロジェクトの値 | 同上 | 公開 |
 | `NEXT_PUBLIC_SITE_URL` | `https://urasupo.jp` | Vercelが割り当てるPreview URL（`https://` 必須） | 公開 |
 | `SUPABASE_SERVICE_ROLE_KEY` | 本番Supabaseプロジェクトの値 | 同上（Previewでcronを検証しない場合は未設定でも起動には問題ないが、`/api/cron/verification`実行時にエラーになる） | **秘密**（Sensitiveにする） |
-| `CRON_SECRET` | 十分に長いランダムな値 | 設定してもよい（Preview環境でCronは自動実行されない。手動確認用） | **秘密**（Sensitiveにする） |
+| `CRON_SECRET` | 32文字以上のランダムな値 | 設定してもよい（Preview環境でCronは自動実行されない。手動確認用） | **秘密**（Sensitiveにする） |
 | `URASUPO_DEMO_MODE` | **設定しない** | 設定しない（設定すると本番実行環境で起動時に例外） | - |
 | `NEXT_DIST_DIR` | 設定しない（実DB版E2E専用のローカル切替） | 設定しない | - |
 
@@ -177,8 +189,9 @@ HTMLも合わせて直してください。
 - 実装（`src/app/api/cron/verification/route.ts` / `authorize.ts`）は、`Authorization: Bearer
   <CRON_SECRET>` のヘッダーが一致しないと401を返します。Vercel は、プロジェクトに環境変数 `CRON_SECRET`
   が設定されていれば、Cron 実行時にその値を `Authorization: Bearer <値>` として自動で付けます（公式ドキュメントで
-  確認済み）。値は16文字以上のランダムな文字列にしてください。公開後は 5節のチェックリストで Cron のログが
-  401 になっていないことを確認します。
+  確認済み）。値は32文字以上のランダムな文字列にしてください（`scripts/check-production-env.mjs` が
+  32文字未満・空白混入・既定値そのまま・同じ文字の繰り返し等を失敗として検出します）。公開後は 5節の
+  チェックリストで Cron のログが401になっていないことを確認します。
 - Cron は失敗しても再実行されず、まれに実行漏れや二重実行があります。この実装は行ロック（`FOR UPDATE SKIP LOCKED`）
   と勧告ロックで二重実行に備え、毎回「未処理のもの全部」を処理するため、1日分の漏れは翌日に取り戻せます。
 - **Vercel の無料（Hobby）プランの Cron の制約**（2026年9月時点）: 1日1回まで（それより頻繁な式はデプロイが失敗する）、
@@ -201,9 +214,9 @@ HTMLも合わせて直してください。
 
 ## 5. 公開直後の確認チェックリスト
 
-- [ ] `node scripts/check-production-env.mjs` を、Vercelに設定した実際のProduction環境変数を読める
-      環境（例: `vercel env pull` で取得した `.env.production.local` を読み込んだシェル）で実行し、
-      すべてOKであることを確認する。
+- [ ] `vercel env pull .env.production.local --environment=production` で本番の環境変数を取得し、
+      `node --env-file=.env.production.local scripts/check-production-env.mjs` を実行して、すべて
+      OKであることを確認する（値は表示されない。`.env.production.local` はコミットしないこと）。
 - [ ] `https://urasupo.jp/start` が表示される（デモモードの表示・挙動になっていないこと）。
 - [ ] ログイン（マジックリンク）を実際のメールアドレスで試し、**日本語の件名・本文**でメールが届く
       ことを確認する（1. と 2. のメールテンプレート設定が反映されているか）。
@@ -222,24 +235,120 @@ HTMLも合わせて直してください。
 
 ## 6. ロールバック手順
 
-### アプリ（Vercel）
+### アプリ（Vercel）とCron（R13レビュー重要7の追補）
 
-- プロジェクトの概要ページの Production Deployment の枠にある **Instant Rollback** → 戻す先を選んで **Continue**
-  → **Confirm Rollback** で即座に切り戻せます（再ビルド不要）。Hobby プランで戻せるのは**直前の本番デプロイだけ**です。
-- 切り戻すと、本番ブランチへの新しいプッシュは自動では本番に出なくなります。修正を出すときは、同じ枠の
-  **Undo Rollback** で通常の状態に戻してください。
-- 切り戻しでは環境変数は戻りません（値はそのまま）。Cron の設定は、戻した先のデプロイの状態に戻ります。
+**Instant Rollback だけでは Cron の状態は保証されません。** 現在の Vercel Cron 管理ガイドは
+「Rollback だけではアクティブな Cron が更新されない」としており、過去の Instant Rollback の説明
+（Cron も戻る）とは食い違います。安全側に倒し、必ず次の順序で行ってください。
+
+1. **① Cron を止める**: プロジェクトの Settings → Cron Jobs → **Disable Cron Jobs** で、ロールバック
+   作業中に意図しないスケジュールやシークレットの不一致で Cron が動くのを防ぐ。
+2. **② Instant Rollback**: プロジェクトの概要ページの Production Deployment の枠にある
+   **Instant Rollback** → 戻す先を選んで **Continue** → **Confirm Rollback** で即座に切り戻す
+   （再ビルド不要）。Hobby プランで戻せるのは**直前の本番デプロイだけ**。切り戻すと、本番ブランチへの
+   新しいプッシュは自動では本番に出なくなる（修正を出すときは同じ枠の **Undo Rollback** で戻す）。
+   切り戻しでは環境変数は戻らない（値はそのまま）。
+3. **③ 目的の `vercel.json` の状態を明示的に再デプロイ**: ロールバック先のデプロイに含まれる
+   `vercel.json` の `crons` 設定が、今動かしたいスケジュールと一致しているかを確認する。一致しない
+   場合は、目的の `vercel.json` を含むコミットを明示的に再デプロイする（Rollback 操作に Cron 設定の
+   復元を委ねない）。
+4. **④ Cron を有効化して実行ログを確認**: Settings → Cron Jobs で有効化し直し、次回実行後に
+   View Logs でスケジュール・ステータス（200）を確認する。手動確認したい場合は本人が
+   `curl -H "Authorization: Bearer <CRON_SECRET>" https://urasupo.jp/api/cron/verification` を実行し
+   401 ではなく処理結果のJSONが返ることを確認する。
 
 ### データベース（Supabase）
 
 - **マイグレーションのロールバック用のdownスクリプトはこのリポジトリに用意されていません。**
   `supabase/migrations/` は前進のみの前提です。マイグレーション適用後に問題が見つかった場合は、
   問題を修正する新しいマイグレーションを追加して `npx supabase db push` する方針を基本にしてください。
-- 本番DBの破壊的な変更（列やテーブルの削除など）を伴うマイグレーションを適用する前には、Supabase
-  の無料プランには**自動バックアップがありません**（Pro プランは直近7日分の日次バックアップ）。無料プランで
-  運用する間は、マイグレーション適用の前と定期的に `npx supabase db dump` で手元にバックアップを取ってください。
-- Cronの一時停止が必要な場合は、`vercel.json` の `crons` を空配列にしてデプロイするか、Vercel
-  ダッシュボードのプロジェクトの Settings → Cron Jobs にある **Disable Cron Jobs** で止めてください。
+- 本番DBの破壊的な変更（列やテーブルの削除など）を伴うマイグレーションを適用する前には、必ず7節の
+  バックアップ手順でダンプを取ってください。Supabase の無料プランには**自動バックアップがありません**
+  （Pro プランは直近7日分の日次バックアップ）。
+
+---
+
+## 7. バックアップ・復元（R13レビュー重要5の追補）
+
+`npx supabase db dump --linked` を素朴に実行すると**既定ではデータを含まない**ため、それだけでは
+「本番データのバックアップ」になりません。公式手順に合わせ、roles・schema・data を出力先ファイル付きで
+個別に取得してください（オプション名は環境のCLIバージョンで変わりうるため、事前に
+`npx supabase db dump --help` で確認する）。
+
+### 7.1 取得（本人が実行する）
+
+```bash
+npx supabase login
+npx supabase link --project-ref <本番プロジェクトのref>
+
+# ロール定義（ユーザー・権限）
+npx supabase db dump --linked -f roles.sql --role-only
+
+# スキーマ（テーブル・関数・RLSポリシー等の定義。データを含まない）
+npx supabase db dump --linked -f schema.sql
+
+# データ（--data-only。--use-copy で COPY 文にし、大量データでも高速・安定に出力する）
+npx supabase db dump --linked -f data.sql --data-only --use-copy
+```
+
+- 3ファイル（`roles.sql` / `schema.sql` / `data.sql`）が揃って初めて復元可能なバックアップになります。
+  いずれか1つだけでは不十分です。
+- `auth` スキーマ（`auth.users` 等の認証情報）は上記の通常の `db dump` では対象外になることがあります。
+  認証情報を含めて復元したい場合は、Supabase の最新ドキュメント（本文書冒頭の確認日以降に変更が
+  あり得る）で `auth` スキーマの扱いを確認し、必要なら別途 `--schema auth` 相当のオプションを付けて
+  取得してください。**メールアドレス等の個人情報を含むため、取得したファイルは暗号化して保管する。**
+- **Storage**（画像等の実オブジェクト）は `db dump` の対象外です。バケット単位でオブジェクトを
+  別途エクスポートする必要があります（本アプリは現時点で `photoUrl`/`avatarUrl` の書き込み経路が無く
+  常に null のため、公開直後の運用では Storage オブジェクトの実体は無い想定。将来アップロード機能を
+  追加したら、この節にオブジェクトのバックアップ手順を追加すること）。
+
+### 7.2 保存先
+
+- 取得した `roles.sql` / `schema.sql` / `data.sql` は、暗号化されたストレージ（例: 会社・個人で
+  管理しているパスワードマネージャーの添付ファイル機能、暗号化した外部ドライブ、暗号化を有効にした
+  プライベートなクラウドストレージ）に保存する。**このリポジトリにコミットしない**
+  （`.gitignore` の対象にすること。特に `data.sql` は利用者の個人情報を含み得る）。
+- 定期取得の頻度は運用方針によるが、少なくとも「破壊的なマイグレーション適用の直前」には毎回取得する。
+
+### 7.3 復元試験（ローカル環境で行う。本番DBには書き込まない）
+
+```bash
+npx supabase stop --no-backup   # ローカルのSupabaseを初期化
+npx supabase start
+psql "$(npx supabase status -o env | grep DB_URL | cut -d= -f2-)" -f roles.sql
+psql "$(npx supabase status -o env | grep DB_URL | cut -d= -f2-)" -f schema.sql
+psql "$(npx supabase status -o env | grep DB_URL | cut -d= -f2-)" -f data.sql
+```
+
+- 復元後、`npx supabase test db` は流さない（本番相当データに副作用のあるテストを実行しないため）。
+  代わりに `select count(*) from cities;` 等で件数が想定どおりか確認する。
+- 復元試験は、バックアップの取得方法が変わったとき（Supabase CLI のメジャー更新時等）や、少なくとも
+  年1回程度は実施し、手順が古くなっていないか確認する。
+
+---
+
+## 8. CSP（Content-Security-Policy）の強制移行（R13レビュー重要3の追補）
+
+現在は `Content-Security-Policy-Report-Only` のみで、違反は `POST /api/csp-report` で受信し
+`console.warn` の構造化ログに残ります（本文は個人情報を含まないよう要点だけに絞っている）。
+
+### 8.1 Vercelのログで違反を確認する方法
+
+- Vercel プロジェクトの **Logs**（または各デプロイの **Runtime Logs**）で、`/api/csp-report` への
+  リクエストと、そこに紐づく `console.warn` 出力（`[csp-report] ...`）を検索する。
+- 期間を指定して集計し、`blockedUriOrigin` が自サービス外の未知のオリジンばかりか、正規の機能
+  （地図・ログイン等）に伴うものかを判別する。
+
+### 8.2 強制（`Content-Security-Policy` ヘッダーへの切替）に移す判断基準と期限
+
+- **期限の目安**: 公開後2週間、実際のトラフィックでCSP違反の観測期間を確保する。
+- **切替の条件**: その2週間で、正規利用（地図表示・ログイン・投稿・確認等の一連の操作）に由来する
+  違反が **0件** であること。0件でない場合は、許可リストを見直すか期限を延長し、再度2週間観測する。
+- 切替時は `next.config.ts` の `Content-Security-Policy-Report-Only` を `Content-Security-Policy`
+  に変更し、`report-uri`/`report-to` はそのまま残す（強制後の違反も観測を続けるため）。
+- 切替後は、地図（MapLibre）・ログイン（マジックリンク遷移）・投稿フォームが実際に壊れていないかを
+  本番で目視確認する（Report-Onlyの間は違反があっても機能を壊さないため、切替直後だけ想定外の
+  ブロックが起きるリスクがある）。
 
 ---
 

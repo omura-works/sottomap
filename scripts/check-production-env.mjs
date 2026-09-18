@@ -2,11 +2,11 @@
 // 本番公開前に、必要な環境変数が揃っているか・形式が正しいかを確認するスクリプト。
 // 依存追加なし（Node標準機能のみ）。秘密の値は表示しない（設定済み/未設定と、形式の妥当性だけを出す）。
 //
-// 使い方:
-//   node scripts/check-production-env.mjs
+// 使い方（Vercel の Production 環境変数を `vercel env pull` 等で `.env.production.local` に
+// 書き出したあと、Node 標準の --env-file で読み込んで実行する）:
+//   node --env-file=.env.production.local scripts/check-production-env.mjs
 //
-// Vercel の Production 環境の値をローカルに `.env.production.local` などへ書き出して
-// 検査する場合は、`--env-file` で読み込むか、シェルで export してから実行してください。
+// シェルで export 済みの環境変数だけを検査したい場合は --env-file を省略してもよい。
 // このスクリプトは値を外部へ送信しない。
 //
 // 終了コード: 問題があれば 1、なければ 0。
@@ -103,19 +103,41 @@ check("NEXT_PUBLIC_SITE_URL", (messages) => {
 });
 
 // --- CRON_SECRET ---
+// R13レビュー重要6・軽微5: 短すぎる／弱い値でも終了コード0になっていたのを、32文字未満・空白混入・
+// .env.example のサンプル値・明らかに弱い値（同じ文字の繰り返し等）を失敗（NG）にする。値そのものは
+// 一切表示しない（長さと判定結果だけを出す）。
 check("CRON_SECRET", (messages) => {
   const value = readEnv("CRON_SECRET");
   if (!value || value.trim() === "") {
     messages.push("NG: 未設定または空です。Vercel Cron からの呼び出しがすべて401になります。");
     return;
   }
+  if (/\s/.test(value)) {
+    messages.push("NG: 空白文字を含んでいます。Authorization ヘッダーの比較に使う値には空白を含めないでください。");
+    return;
+  }
   if (value.length < 32) {
     messages.push(
-      `注意: 長さが${value.length}文字です。推測されにくい十分に長いランダムな値（32文字以上を推奨）にしてください。`,
+      `NG: 長さが${value.length}文字です。推測されにくい十分に長いランダムな値（32文字以上必須）にしてください。`,
     );
-  } else {
-    messages.push(`OK: 設定済みです（長さ${value.length}文字。値は表示しません）。`);
+    return;
   }
+  // .env.example にサンプル値を書いていないため実害は無いはずだが、将来サンプルを書いた場合に
+  // そのまま本番へ流用されるのを防ぐ（プレースホルダーの文字列そのものを禁止値として明示する）。
+  const knownWeakValues = new Set(["changeme", "your-cron-secret", "cron-secret", "secret", "password"]);
+  if (knownWeakValues.has(value.toLowerCase())) {
+    messages.push("NG: サンプル・既定値として使われがちな文字列です。ランダムな値に置き換えてください。");
+    return;
+  }
+  if (/^(.)\1*$/.test(value)) {
+    messages.push("NG: 同じ文字の繰り返しです。推測されにくいランダムな値にしてください。");
+    return;
+  }
+  if (new Set(value).size < 4) {
+    messages.push("NG: 使われている文字の種類が少なすぎます（推測されにくいランダムな値にしてください）。");
+    return;
+  }
+  messages.push(`OK: 設定済みです（長さ${value.length}文字。値は表示しません）。`);
 });
 
 // --- URASUPO_DEMO_MODE（本番では設定しないこと） ---
@@ -127,6 +149,17 @@ check("URASUPO_DEMO_MODE（本番では未設定であること）", (messages) 
     );
   } else if (value !== undefined && value !== "") {
     messages.push(`注意: 値 '${value}' が設定されています。本番では未設定にしてください（"1"以外でも混乱の元になります）。`);
+  } else {
+    messages.push("OK: 未設定です。");
+  }
+});
+
+// --- NEXT_DIST_DIR（本番では未設定であること） ---
+// R13レビュー軽微5: 実DB版E2E専用の切り替え変数。本番に紛れ込むとビルド出力先がずれるため検査対象にする。
+check("NEXT_DIST_DIR（本番では未設定であること）", (messages) => {
+  const value = readEnv("NEXT_DIST_DIR");
+  if (value !== undefined && value !== "") {
+    messages.push(`NG: '${value}' が設定されています。実DB版E2E専用の変数のため、本番の環境変数からは削除してください。`);
   } else {
     messages.push("OK: 未設定です。");
   }

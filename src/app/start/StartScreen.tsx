@@ -69,6 +69,27 @@ export function StartScreen({
   const motionPaused = motionState === "paused";
   const activeStep = useCycle(STEPS.length, STEP_INTERVAL_MS, effectivePaused);
 
+  // R13レビュー重要4: 参照データ（街）の投入前・投入失敗時に選択都市が undefined になり
+  // 以降の `.name` 参照で落ちるのを防ぐ。街が1件も無い場合は選択・開始のUIを出さず、
+  // 空状態だけを表示する。
+  if (cities.length === 0) {
+    return (
+      <div
+        className="start-screen flex min-h-dvh items-center justify-center px-5 text-center"
+        style={{ background: "var(--color-bg)" }}
+      >
+        <div>
+          <p className="m-0 text-xs tracking-[0.3em]" style={{ color: "var(--color-neutral-600)" }}>
+            ウラスポ
+          </p>
+          <p className="m-0 mt-4" style={{ color: "var(--color-neutral-800)" }}>
+            まだ街が準備されていません。しばらくしてからもう一度お試しください。
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const selectedCity = cities.find((city) => city.slug === selectedSlug) ?? cities[0];
   const selectedData = dataBySlug[selectedSlug] ?? { publishedCount: 0, recentlyVerified: [] };
 
