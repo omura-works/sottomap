@@ -18,12 +18,6 @@ export interface CityMapScreenProps {
   /** status='published' の店（listSpots が sortSpots を通した順で返す）。 */
   spots: Spot[];
   quietCount: number;
-  /**
-   * 見出し「{街}・{エリア}」の後半部分（無ければ市区町村名のみ）。
-   * SPEC §9.14-8: quietCount と同じ範囲（featuredArea優先→最頻エリア名）で
-   * サーバー側（`/[city]/page.tsx`）が計算した値をそのまま使う。
-   */
-  featuredArea: string | null;
   /** URL `filters` を parseFiltersParam したもの。表示・トグルの単一の情報源。 */
   activeFilters: string[];
   /** `?spots=id1,id2,...`（栞の「N軒を地図にまとめる」からの受け口）。無ければ null。 */
@@ -42,7 +36,6 @@ export function CityMapScreen({
   city,
   spots,
   quietCount,
-  featuredArea,
   activeFilters,
   focusedSpotIds,
   bookmarkedSpotIds,
@@ -70,9 +63,8 @@ export function CityMapScreen({
   }, [spots, focusedSpotIds]);
 
   const distances = useMemo(() => buildDistanceMap(visibleSpots, origin), [visibleSpots, origin]);
-  // SPEC §9.14-8: featuredArea はサーバー側（/[city]/page.tsx）が quietCount と同じ範囲で
-  // 計算した値をそのまま使う（見出しと件数のスコープを一致させる）。
-  const cityHeading = featuredArea ? `${city.name}・${featuredArea}` : city.name;
+  // SPEC §9.14-8（2026-09-19 改訂）: 見出しは街の名前だけ。件数（quietCount）も街全体で数える。
+  const cityHeading = city.name;
 
   // SPEC §9.14-5: 「まだ静か」ON時は quiet を上、crowding/touristy を「混みはじめた店」の下にまとめる。
   const quietNowActive = activeFilters.includes("quiet-now");

@@ -134,25 +134,3 @@ export function buildDistanceMap(spots: Spot[], origin: LatLng): Record<string, 
   }
   return map;
 }
-
-/**
- * 街のヘッダー見出し（例:「札幌・北24条」）に使う代表エリア名を推定する。
- * City にはエリア概念が無いため、表示中スポットの areaName の最頻値を採用する。
- * 該当が無ければ null（呼び出し側は市区町村名のみ表示する）。
- */
-export function mostCommonAreaName(spots: Spot[]): string | null {
-  const counts = new Map<string, number>();
-  for (const spot of spots) {
-    if (!spot.areaName) continue;
-    counts.set(spot.areaName, (counts.get(spot.areaName) ?? 0) + 1);
-  }
-  let best: string | null = null;
-  let bestCount = 0;
-  for (const [area, count] of counts) {
-    if (count > bestCount) {
-      best = area;
-      bestCount = count;
-    }
-  }
-  return best;
-}

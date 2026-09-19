@@ -12,7 +12,6 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("./geo", () => ({
   buildDistanceMap: () => ({ "spot-1": 560 }),
-  mostCommonAreaName: () => null,
   parseUrlOrigin: () => null,
   useResolvedOrigin: (origin: { lat: number; lng: number }) => ({ origin, resolved: false, isPrecise: false }),
   walkingLabel: () => "徒歩7分",
@@ -89,7 +88,6 @@ describe("CityMapScreen", () => {
         city={CITY}
         spots={[SPOT]}
         quietCount={1}
-        featuredArea="北24条"
         activeFilters={[]}
         focusedSpotIds={null}
       />,
@@ -106,7 +104,6 @@ describe("CityMapScreen", () => {
         city={CITY}
         spots={[SPOT]}
         quietCount={1}
-        featuredArea="北24条"
         activeFilters={[]}
         focusedSpotIds={null}
       />,
@@ -122,19 +119,19 @@ describe("CityMapScreen", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("SPEC §9.14-8: 見出しは渡された featuredArea を使う（quietCountと同じスコープ）", () => {
+  it("SPEC §9.14-8（改訂）: 見出しは街の名前だけで、エリア名を付けない", () => {
     render(
       <CityMapScreen
         city={CITY}
         spots={[SPOT]}
         quietCount={1}
-        featuredArea="北24条"
         activeFilters={[]}
         focusedSpotIds={null}
       />,
     );
 
-    expect(screen.getAllByText("札幌・北24条").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("heading", { level: 1, name: "札幌" }).length).toBeGreaterThan(0);
+    expect(screen.queryByText("札幌・北24条")).not.toBeInTheDocument();
   });
 
   it("SPEC §9.14-16: 除外する絞り込みが付いて0件のとき、条件に合う旨と解除導線を出す", () => {
@@ -143,7 +140,6 @@ describe("CityMapScreen", () => {
         city={CITY}
         spots={[]}
         quietCount={0}
-        featuredArea={null}
         activeFilters={["quiet-now", "day-only"]}
         focusedSpotIds={null}
       />,
@@ -156,7 +152,7 @@ describe("CityMapScreen", () => {
 
   it("全チップOFF（filters=none）で0件なら、本当に未登録として「まだ店がありません。」を出す", () => {
     render(
-      <CityMapScreen city={CITY} spots={[]} quietCount={0} featuredArea={null} activeFilters={[]} focusedSpotIds={null} />,
+      <CityMapScreen city={CITY} spots={[]} quietCount={0} activeFilters={[]} focusedSpotIds={null} />,
     );
 
     expect(screen.getAllByText("まだ店がありません。").length).toBeGreaterThan(0);
@@ -171,7 +167,6 @@ describe("CityMapScreen", () => {
         city={CITY}
         spots={[SPOT]}
         quietCount={1}
-        featuredArea="北24条"
         activeFilters={["within-10min"]}
         focusedSpotIds={null}
       />,
@@ -187,7 +182,6 @@ describe("CityMapScreen", () => {
         city={CITY}
         spots={[]}
         quietCount={0}
-        featuredArea={null}
         activeFilters={["quiet-now"]}
         focusedSpotIds={null}
       />,
