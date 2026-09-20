@@ -1,11 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { GET, POST } from "./route";
+import { GET, POST, resetCspReportLimiterForTests } from "./route";
+
+function postCspReport(payload: unknown) {
+  const request = new Request("https://urasupo.jp/api/csp-report", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return POST(request);
+}
 
 describe("POST /api/csp-report", () => {
   let warnSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    resetCspReportLimiterForTests();
   });
 
   afterEach(() => {
@@ -90,6 +99,49 @@ describe("POST /api/csp-report", () => {
     expect(response.status).toBe(413);
     // 上限（16KB = chunkSize の4個分）を超えた直後に打ち切るため、全100チャンクは読み切っていない。
     expect(pulledChunks).toBeLessThan(100);
+  });
+
+  it("上限（60秒あたり20件）を超えたら、以降は本文を読まずに204を返しログも増やさない（R14 重要3）", async () => {
+    const payload = {
+      "csp-report": { "document-uri": "https://urasupo.jp/sapporo", "effective-directive": "script-src", "blocked-uri": "https://evil.example/x.js" },
+    };
+    for (let i = 0; i < 20; i += 1) {
+      const response = await postCspReport(payload);
+      expect(response.status).toBe(204);
+    }
+    expect(warnSpy).toHaveBeenCalledTimes(1); // 同じ違反は重複排除で1回だけログに出る
+
+    warnSpy.mockClear();
+    // 21件目以降（上限超え）は本文を読まず、ログも増やさない
+    const overLimit = await postCspReport({
+      "csp-report": { "document-uri": "https://urasupo.jp/x", "effective-directive": "style-src", "blocked-uri": "https://another.example/y.css" },
+    });
+    expect(overLimit.status).toBe(204);
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("同じ違反（effective-directive と blocked-uri のオリジンの組）が続くと、重複はログに出さずまとめる", async () => {
+    const payload = {
+      "csp-report": { "document-uri": "https://urasupo.jp/sapporo", "effective-directive": "script-src", "blocked-uri": "https://evil.example/x.js" },
+    };
+    await postCspReport(payload);
+    await postCspReport(payload);
+    await postCspReport(payload);
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const logged = warnSpy.mock.calls[0]?.join(" ") ?? "";
+    expect(logged).toContain("script-src");
+  });
+
+  it("異なる違反はそれぞれ最初の1回はログに出る", async () => {
+    await postCspReport({
+      "csp-report": { "document-uri": "https://urasupo.jp/a", "effective-directive": "script-src", "blocked-uri": "https://evil.example/x.js" },
+    });
+    await postCspReport({
+      "csp-report": { "document-uri": "https://urasupo.jp/b", "effective-directive": "style-src", "blocked-uri": "https://other.example/y.css" },
+    });
+
+    expect(warnSpy).toHaveBeenCalledTimes(2);
   });
 });
 

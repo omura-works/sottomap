@@ -11,8 +11,8 @@
 Vercel・Supabase の管理画面のメニュー名・項目名は、両サービスの更新頻度が高く、この文書の作成時点
 （2026年9月）の一般的な構成に基づいています。実際の画面と項目名が異なる場合は、各サービスの公式ドキュメント
 を優先してください。2026年9月18日に Vercel・Supabase の公式ドキュメントで主要な項目（Cron の認可ヘッダー、
-Hobby プランの Cron 制約、`db push` のオプション、URL 設定・メールテンプレート・SMTP の画面、Sensitive 環境変数）を
-確認済みです。
+Hobby プランの Cron 制約、`db push` のオプション、URL 設定・メールテンプレート・SMTP の画面、
+Config/Secret 環境変数）を確認済みです。
 
 ---
 
@@ -153,18 +153,22 @@ select slug, name from cities order by slug;    -- asahikawa/furano/hakodate/kus
 
 | 変数 | Production | Preview | 種別 |
 | --- | --- | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | 本番Supabaseプロジェクトの値 | 本番と同じ、または別のSupabaseプロジェクトの値（運用方針による） | 公開 |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 本番Supabaseプロジェクトの値 | 同上 | 公開 |
-| `NEXT_PUBLIC_SITE_URL` | `https://urasupo.jp` | Vercelが割り当てるPreview URL（`https://` 必須） | 公開 |
-| `SUPABASE_SERVICE_ROLE_KEY` | 本番Supabaseプロジェクトの値 | 同上（Previewでcronを検証しない場合は未設定でも起動には問題ないが、`/api/cron/verification`実行時にエラーになる） | **秘密**（Sensitiveにする） |
-| `CRON_SECRET` | 32文字以上のランダムな値 | 設定してもよい（Preview環境でCronは自動実行されない。手動確認用） | **秘密**（Sensitiveにする） |
+| `NEXT_PUBLIC_SUPABASE_URL` | 本番Supabaseプロジェクトの値 | 本番と同じ、または別のSupabaseプロジェクトの値（運用方針による） | Config |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 本番Supabaseプロジェクトの値 | 同上 | Config |
+| `NEXT_PUBLIC_SITE_URL` | `https://urasupo.jp` | Vercelが割り当てるPreview URL（`https://` 必須） | Config |
+| `SUPABASE_SERVICE_ROLE_KEY` | 本番Supabaseプロジェクトの値 | 同上（Previewでcronを検証しない場合は未設定でも起動には問題ないが、`/api/cron/verification`実行時にエラーになる） | **Secret** |
+| `CRON_SECRET` | 32文字以上のランダムな値 | 設定してもよい（Preview環境でCronは自動実行されない。手動確認用） | **Secret** |
 | `URASUPO_DEMO_MODE` | **設定しない** | 設定しない（設定すると本番実行環境で起動時に例外） | - |
 | `NEXT_DIST_DIR` | 設定しない（実DB版E2E専用のローカル切替） | 設定しない | - |
 
-- 秘密の値（`SUPABASE_SERVICE_ROLE_KEY`・`CRON_SECRET` など）は、追加フォームの上部にある **Sensitive** スイッチを
-  Enabled にしてから登録してください（登録後は値を読み出せなくなります。[Vercel公式ドキュメント](https://vercel.com/docs/environment-variables/sensitive-environment-variables)
-  の「non-readable once created」のとおりで、`vercel env pull` でも値は取得できません）。Sensitive は Production と
-  Preview でのみ使えます。既存の変数を後から Sensitive にするには、いったん削除して登録し直します。
+- Vercel は2026年8月24日から、環境変数の秘匿区分を旧来の「Sensitive」トグルではなく
+  **Config**（通常の値）／**Secret**（秘密の値）の2種類から選ぶ形に変えています（[Vercelの変更履歴](https://vercel.com/changelog/environment-variables-now-use-config-and-secret-types)）。
+  秘密の値（`SUPABASE_SERVICE_ROLE_KEY`・`CRON_SECRET` など）は、追加フォームで種別を **Secret** にして
+  登録してください（登録後は値を読み出せなくなります。`vercel env pull` でも値は取得できません）。
+  Secret は Production・Preview に加えて **Development にも設定できます**（旧「Sensitive」の
+  Production/Preview限定という制約は無くなっています）。既存の変数を後から Secret にするには、
+  いったん削除して登録し直します。**本番用の Secret の値は、Preview・Development 用の値とは別の
+  値にしてください**（同じ値を使うと、Preview環境からの操作が本番のSupabase等に影響し得ます）。
   この「登録後は読み出せない」性質のため、`scripts/check-production-env.mjs` による事前確認は
   Vercel へ登録する**前**に、本人が値を入れた `.env.production.local` に対して行う運用にしてください
   （5節「公開直後の確認チェックリスト」の最初の項目を参照）。
@@ -219,13 +223,12 @@ select slug, name from cities order by slug;    -- asahikawa/furano/hakodate/kus
 ## 5. 公開直後の確認チェックリスト
 
 - [ ] `check-production-env.mjs` は Vercel へ登録する**前に**、本人が値を入れた
-      `.env.production.local` に対して実行する運用にする（Sensitive にした環境変数は、
-      Vercel 公式ドキュメントの「non-readable once created」のとおり、登録後は
-      `vercel env pull` 等で値を取り出せなくなるため）。
+      `.env.production.local` に対して実行する運用にする（Secret 種別にした環境変数は、
+      登録後は `vercel env pull` 等で値を取り出せなくなるため）。
       具体的には、`.env.example` を `.env.production.local` にコピーして本人が実際の値を
       直接書き込み、`node --env-file=.env.production.local scripts/check-production-env.mjs`
       を実行してすべて OK であることを確認したあと、その値を4.2節の手順で Vercel の
-      Production 環境変数（秘密の値は Sensitive）に登録する。登録後に値を変更した場合は、
+      Production 環境変数（秘密の値は Secret）に登録する。登録後に値を変更した場合は、
       変更した値をもう一度 `.env.production.local` に書いて再チェックしてから登録し直す
       （事後に `vercel env pull` で取得して確認することはできない）。`.env.production.local`
       はコミットしないこと（`.gitignore` の `.env*` に含まれる）。
@@ -302,29 +305,43 @@ npx supabase db dump --linked -f schema.sql
 # データ（--use-copy で COPY 文にし、大量データでも高速・安定に出力する。
 # storage.buckets_vectors / storage.vector_indexes はこのアプリで使っていないため除外する）
 npx supabase db dump --linked -f data.sql --use-copy --data-only -x "storage.buckets_vectors" -x "storage.vector_indexes"
+
+# マイグレーション履行履歴（supabase_migrations スキーマ。schema_migrations テーブルに
+# 適用済みマイグレーションのバージョン一覧が入っている）。既定の schema.sql / data.sql の
+# 対象からは外れる（auth スキーマと同様、内部スキーマは既定で対象外）ため、
+# --schema（-s）で明示的に指定して別ファイルに取得する。
+npx supabase db dump --linked -f migrations_schema.sql --schema supabase_migrations
+npx supabase db dump --linked -f migrations_data.sql --schema supabase_migrations --data-only --use-copy
 ```
 
-上記は Supabase 公式（[Backup and restore using the CLI](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore)、2026-09-19確認）どおりのコマンドです。`-x`（`--exclude`）オプションは
+上記は Supabase 公式（[Backup and restore using the CLI](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore)、2026-09-19確認）どおりのコマンドです。`-x`（`--exclude`）・`--schema`（`-s`）オプションは
 `npx supabase db dump --help` で存在を確認済みです（今後のCLI更新で無くなっていた場合は、この
 オプションを付けずに実行してください）。
 
-- 3ファイル（`roles.sql` / `schema.sql` / `data.sql`）が揃って初めて復元可能なバックアップになります。
-  いずれか1つだけでは不十分です。
+- 5ファイル（`roles.sql` / `schema.sql` / `data.sql` / `migrations_schema.sql` / `migrations_data.sql`）が
+  揃って初めて復元可能なバックアップになります。いずれか1つだけでは不十分です。
+- **マイグレーション履行履歴（`migrations_schema.sql` / `migrations_data.sql`）を復元しないまま
+  復元先で `npx supabase db push` を実行すると、`supabase/migrations/` の 0001〜0008 が
+  「未適用」と判断され、既に適用済みの定義（テーブル・関数等）に対して再実行を試みて失敗、または
+  想定外の状態になる危険があります。** 復元後は必ず7.3節の手順で履行履歴も復元し、
+  `schema_migrations` の内容を確認してください。
 - `auth` スキーマ（`auth.users` 等の認証情報）は上記の通常の `db dump` では対象外になることがあります。
   認証情報を含めて復元したい場合は、Supabase の最新ドキュメント（本文書冒頭の確認日以降に変更が
   あり得る）で `auth` スキーマの扱いを確認し、必要なら別途 `--schema auth` 相当のオプションを付けて
   取得してください。**メールアドレス等の個人情報を含むため、取得したファイルは暗号化して保管する。**
 - **Storage**（画像等の実オブジェクト）は `db dump` の対象外です。バケット単位でオブジェクトを
-  別途エクスポートする必要があります（本アプリは現時点で `photoUrl`/`avatarUrl` の書き込み経路が無く
-  常に null のため、公開直後の運用では Storage オブジェクトの実体は無い想定。将来アップロード機能を
-  追加したら、この節にオブジェクトのバックアップ手順を追加すること）。
+  別途エクスポートする必要があります（本アプリは現時点で `photoUrl`（spots）の書き込み経路が無く
+  常に null のため、実体は無い想定。`avatarUrl`（users）は本人が PostgREST 経由で任意のURLを
+  書き込める列だが、値そのもの（URL文字列）は `data.sql` に含まれるため別途のオブジェクト取得は不要。
+  将来 `photoUrl` にアップロード機能を追加したら、この節にオブジェクトのバックアップ手順を追加すること）。
 
 ### 7.2 保存先
 
-- 取得した `roles.sql` / `schema.sql` / `data.sql` は、暗号化されたストレージ（例: 会社・個人で
-  管理しているパスワードマネージャーの添付ファイル機能、暗号化した外部ドライブ、暗号化を有効にした
-  プライベートなクラウドストレージ）に保存する。**このリポジトリにコミットしない**
-  （`.gitignore` の対象にすること。特に `data.sql` は利用者の個人情報を含み得る）。
+- 取得した `roles.sql` / `schema.sql` / `data.sql` / `migrations_schema.sql` / `migrations_data.sql` は、
+  暗号化されたストレージ（例: 会社・個人で管理しているパスワードマネージャーの添付ファイル機能、
+  暗号化した外部ドライブ、暗号化を有効にしたプライベートなクラウドストレージ）に保存する。
+  **このリポジトリにコミットしない**（`.gitignore` の対象にすること。特に `data.sql` は
+  利用者の個人情報を含み得る）。
 - 定期取得の頻度は運用方針によるが、少なくとも「破壊的なマイグレーション適用の直前」には毎回取得する。
 
 ### 7.3 復元試験
@@ -341,29 +358,42 @@ Supabase 公式（[Backup and restore using the CLI](https://supabase.com/docs/g
 psql --single-transaction --variable ON_ERROR_STOP=1 \
   --file roles.sql \
   --file schema.sql \
+  --file migrations_schema.sql \
   --command 'SET session_replication_role = replica' \
   --file data.sql \
+  --file migrations_data.sql \
   --dbname "<復元先（試験用の空プロジェクト）の接続文字列>"
 ```
 
 - `--single-transaction --variable ON_ERROR_STOP=1` により、1件でもエラーが出れば全体がロール
-  バックされます。つまり、このコマンドが**エラーなく完了すること自体が「完全に復元できた」ことの
-  確認**になります（途中で一部だけ流れた状態にはなりません）。
-- `SET session_replication_role = replica` は、`data.sql` の投入時にトリガー・外部キー制約による
-  順序依存のエラーを避けるためのものです（公式手順どおり）。
+  バックされます。つまり、このコマンドが**エラーなく完了すれば流し込み自体は成功**したことになります
+  （途中で一部だけ流れた状態にはなりません）。ただし、これは「SQLの実行順にエラーが出なかった」こと
+  の確認であり、**それだけでは「完全に復元できた」ことにはなりません**。続けて件数（下記）と
+  マイグレーション履行履歴を確認して初めて、復元が期待どおりかを確認したことになります。
+- `SET session_replication_role = replica` は、`data.sql` / `migrations_data.sql` の投入時に
+  トリガー・外部キー制約による順序依存のエラーを避けるためのものです（公式手順どおり）。
 - `psql` は Supabase CLI には同梱されていません。[PostgreSQL公式のインストーラ](https://www.postgresql.org/download/)
   等で別途用意してください。
 
 復元後、`npx supabase test db` は流さない（本番相当データに副作用のあるテストを実行しないため）。
-代わりに次のSQLで件数が想定どおりか確認する。
+代わりに次のSQLで件数とマイグレーション履行履歴が想定どおりか確認する。
 
 ```sql
 select count(*) as cities_count from cities;
 select count(*) as spots_count  from spots;
 select count(*) as users_count  from users;
 select count(*) as auth_users_count from auth.users;
+
+-- マイグレーション履行履歴が復元されているか（0001〜0008が順に並んでいること。
+-- この履歴が無いまま npx supabase db push を実行すると、適用済みのマイグレーションを
+-- 未適用と判断して再実行を試みる危険があるため、db push の前に必ず確認する）。
+select * from supabase_migrations.schema_migrations order by version;
 ```
 
+- 上記の最後のクエリで `version` が `supabase/migrations/` にある0001〜0008の各ファイル名の
+  先頭4桁（タイムスタンプ部分）と対応する行として並んでいることを確認する。1件でも欠けていたら、
+  `migrations_schema.sql` / `migrations_data.sql` の取得または復元に問題があるため、それを解決してから
+  `npx supabase db push` 等のマイグレーション操作を行うこと。
 - このアプリは Vault や列レベルの暗号化を使っていません（`SUPABASE_SERVICE_ROLE_KEY` 等の秘密は
   Vercel の環境変数側で管理しており、DB内の列に暗号化データを置いていない）。そのため復元試験に
   暗号鍵の扱いは不要です。将来 Vault や列暗号化を使うようになった場合は、鍵（暗号化キー）の保管・
@@ -395,6 +425,24 @@ select count(*) as auth_users_count from auth.users;
 - 切替後は、地図（MapLibre）・ログイン（マジックリンク遷移）・投稿フォームが実際に壊れていないかを
   本番で目視確認する（Report-Onlyの間は違反があっても機能を壊さないため、切替直後だけ想定外の
   ブロックが起きるリスクがある）。
+
+### 8.3 `/api/csp-report` の濫用対策（R14レビュー重要3の追補。本人が公開後に行う作業）
+
+`POST /api/csp-report` はブラウザが送るため認証を求めない設計のままだが、アプリ側
+（`src/app/api/csp-report/rate-limit.ts`）で同一プロセス内の簡易レート制限（60秒あたり最大20件）・
+重複排除・要約ログを実装している。ただしこれは**関数実行環境（プロセス）ごとに独立したメモリ状態**
+であり、Vercel が複数インスタンスに処理を分散した場合は、合計の受理件数がこの上限を超えることがある。
+公開後は、プロセス外で効く制限として Vercel Firewall（WAF）を設定する。
+
+1. Vercel プロジェクトの **Settings → Firewall**（Pro プラン以上。Hobby プランでは基本的な
+   IP ブロックのみで、レート制限ルールの作成には Pro 以上が必要な場合がある。実際に使える機能は
+   契約プランの画面で確認する）を開く。
+2. **Rate Limiting** ルールを新規作成し、パス条件に `/api/csp-report` を指定する。
+3. しきい値は、アプリ側の制限（60秒/20件/プロセス）より緩め（インスタンス分散を考慮して、
+   例えば 60秒あたり数百件程度）に設定し、それを超えた場合はブロックまたはチャレンジ（Managed
+   Challenge）にする。しきい値は公開後のログ実測（8.1節）を見て調整する。
+4. ルール作成後、実際に短時間で多数リクエストを送るテスト（本人の環境から）を行い、Firewall の
+   アクティビティログにブロックが記録されることを確認する。
 
 ---
 

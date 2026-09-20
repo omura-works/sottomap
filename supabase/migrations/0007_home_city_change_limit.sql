@@ -102,9 +102,12 @@ comment on function public.set_home_city(uuid) is
 --   「読んでから set_home_city を呼ぶ」と、2タブが同時に NULL を読んだとき後続が「1回目の変更」として
 --   成立してしまう（別の街へ変わり、90日の制限もかかる）。そこで本人の users 行を for update でロックし、
 --   ロックを取った後の値が NULL のときだけ設定する。
---   戻り値: 設定したら true。設定済み（またはプロフィール行が無い）なら何もせず false（例外にしない）。
+--   戻り値: 設定したら true。設定済みなら何もせず false（例外にしない）。
 --   home_city_changed_at は NULL にする（初回設定は制限に数えない）。
 --   未ログインは「ログインが必要です」、存在しない街は「街の情報が取得できませんでした」で拒否する。
+--   プロフィール行が無い（本来ありえないデータ不整合）場合は「既に設定済み」と区別するため、
+--   false ではなく「プロフィールが見つかりません」の例外にする（R14 軽微1）。呼び出し側
+--   （saveHomeCityAction）はこの例外を捕まえて記録し、/start の「歩きはじめる」は妨げない。
 -- ---------------------------------------------------------
 create or replace function public.initialize_home_city(p_city_id uuid)
 returns boolean
@@ -129,8 +132,13 @@ begin
   from public.users u
   where u.id = v_uid
   for update;
-  -- プロフィール行が無い・既に住んでいる街がある利用者は何もしない（/start から変えない。§9.16-1）。
-  if not found or v_current is not null then
+  if not found then
+    -- 「行が無い」と「既に設定済み」を同じ false に畳まない（R14 軽微1）。認証済みのはずの利用者に
+    -- プロフィール行が無いのはデータ不整合であり、呼び出し側が検知・記録できるよう例外にする。
+    raise exception 'プロフィールが見つかりません' using errcode = 'P0002';
+  end if;
+  -- 既に住んでいる街がある利用者は何もしない（/start から変えない。§9.16-1）。
+  if v_current is not null then
     return false;
   end if;
 

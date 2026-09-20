@@ -188,6 +188,44 @@ describe("HomeCitySetting", () => {
     expect(screen.getByRole("button", { name: "変更する" })).toHaveFocus();
   });
 
+  it("処理中にブラウザが自力でダイアログを閉じてもRPCが失敗したら、ダイアログの中でエラーが読める。もう一度「変える」で確認ダイアログが開く（R14 重要1）", async () => {
+    const message = "住んでいる街は90日に1回まで変えられます。次に変えられるのは2026年11月2日以降です。";
+    let resolveAction: (result: ChangeHomeCityResult) => void = () => {};
+    vi.mocked(changeHomeCityAction).mockImplementation(
+      () =>
+        new Promise<ChangeHomeCityResult>((resolve) => {
+          resolveAction = resolve;
+        }),
+    );
+    render(<HomeCitySetting cities={CITIES} currentCitySlug="sapporo" nextChangeNote={null} />);
+
+    const dialog = openConfirm("小樽");
+    const confirm = within(dialog).getByRole("button", { name: "変える" });
+    await act(async () => {
+      fireEvent.click(confirm);
+    });
+
+    // ブラウザが自力で <dialog> を閉じた（Android の戻る連打などで preventDefault が効かなかった）ことを模す。
+    act(() => {
+      (dialog as HTMLDialogElement).open = false;
+      dialog.dispatchEvent(new Event("close"));
+    });
+
+    await act(async () => {
+      resolveAction({ ok: false, message });
+    });
+
+    // ダイアログは開いたままで、失敗の理由がダイアログの中で role="alert" として読める
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(message);
+
+    // もう一度「やめる」→「変える」で確認ダイアログを開き直せる（再読み込みなしで操作を続けられる）
+    fireEvent.click(within(dialog).getByRole("button", { name: "やめる" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "変える" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
   it("制限中に拒否されたら、理由を role=alert で表示し、住んでいる街は変わらない", async () => {
     const message = "住んでいる街は90日に1回まで変えられます。次に変えられるのは2026年11月2日以降です。";
     vi.mocked(changeHomeCityAction).mockResolvedValue({ ok: false, message });

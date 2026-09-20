@@ -2,8 +2,10 @@
 // 本番公開前に、必要な環境変数が揃っているか・形式が正しいかを確認するスクリプト。
 // 依存追加なし（Node標準機能のみ）。秘密の値は表示しない（設定済み/未設定と、形式の妥当性だけを出す）。
 //
-// 使い方（Vercel の Production 環境変数を `vercel env pull` 等で `.env.production.local` に
-// 書き出したあと、Node 標準の --env-file で読み込んで実行する）:
+// 使い方: 秘密の値（SUPABASE_SERVICE_ROLE_KEY・CRON_SECRET）はVercelで Secret 種別として登録すると
+// 登録後に値を読み出せなくなる（`vercel env pull` でも取得できない）ため、`vercel env pull` は
+// このスクリプトの検査には使えない。代わりに、Vercel へ登録する**前**に本人が値を入れた
+// `.env.production.local` に対して実行する運用にする:
 //   node --env-file=.env.production.local scripts/check-production-env.mjs
 //
 // シェルで export 済みの環境変数だけを検査したい場合は --env-file を省略してもよい。

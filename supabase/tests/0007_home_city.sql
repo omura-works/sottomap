@@ -9,14 +9,15 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(45);
+select plan(47);
 
 -- =========================================================
 -- テストデータ（postgres として作成）
 --   街: H1 / H2 / H3
 --   利用者: G（住んでいる街が未設定）, H（H1 在住・未変更）,
 --           I（街だけ NULL・変更日時あり。set_home_city の初回分岐用）,
---           J（街だけ NULL・変更日時あり。initialize_home_city 用）
+--           J（街だけ NULL・変更日時あり。initialize_home_city 用）,
+--           K（auth.users はあるが public.users のプロフィール行が無い。R14 軽微1の検証用）
 -- =========================================================
 insert into cities (id, slug, name, name_kana, is_port, center_lat, center_lng) values
   ('bbbb0000-0000-4000-8000-000000000001', 'hc-test-city-1', '街テスト1', 'まちてすと1', false, 43.06, 141.35),
@@ -31,7 +32,8 @@ insert into auth.users (
   ('33330000-0000-4000-8000-00000000000a', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'hc-g@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
   ('33330000-0000-4000-8000-00000000000b', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'hc-h@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
   ('33330000-0000-4000-8000-00000000000c', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'hc-i@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
-  ('33330000-0000-4000-8000-00000000000d', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'hc-j@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false);
+  ('33330000-0000-4000-8000-00000000000d', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'hc-j@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false),
+  ('33330000-0000-4000-8000-00000000000e', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'hc-k@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false);
 
 insert into users (id, display_name, home_city_id, area_name, resident_years, lantern_points) values
   ('33330000-0000-4000-8000-00000000000a', 'テストG', null, null, null, 0),
@@ -358,6 +360,25 @@ select is(
   'initialize_home_city の後の最初の変更は、90日の制限を受けずに /me から変えられる'
 );
 reset role;
+
+-- =========================================================
+-- K: プロフィール行が無い（データ不整合）場合、initialize_home_city は false ではなく例外を返す（R14 軽微1）
+-- =========================================================
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"33330000-0000-4000-8000-00000000000e","role":"authenticated"}';
+
+select throws_ok(
+  $$ select public.initialize_home_city('bbbb0000-0000-4000-8000-000000000001') $$,
+  'P0002', 'プロフィールが見つかりません',
+  'initialize_home_city: プロフィール行が無ければ「既に設定済み」と区別して例外にする'
+);
+
+reset role;
+select is(
+  (select count(*) from users where id = '33330000-0000-4000-8000-00000000000e')::int,
+  0,
+  'K: プロフィール行は作られない（例外で終わるだけ）'
+);
 
 -- =========================================================
 -- H: 直接の書き換えは拒否（RPC だけ）

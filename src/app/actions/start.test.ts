@@ -47,6 +47,25 @@ describe("saveHomeCityAction（見る街と住んでいる街を分ける）", (
     expect(setUserHomeCity).not.toHaveBeenCalled();
   });
 
+  it("プロフィール行が無い（データ不整合）例外はconsole.errorで記録し、画面は止めない（R14 軽微1）", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
+    vi.mocked(initializeUserHomeCity).mockRejectedValueOnce(new Error("プロフィールが見つかりません"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(saveHomeCityAction("otaru")).resolves.toBeUndefined();
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy.mock.calls[0]?.join(" ")).toContain("プロフィールが見つかりません");
+
+    errorSpy.mockRestore();
+  });
+
+  it("プロフィール行が無い以外の例外はそのまま伝える", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
+    vi.mocked(initializeUserHomeCity).mockRejectedValueOnce(new Error("住んでいる街の保存に失敗しました"));
+
+    await expect(saveHomeCityAction("otaru")).rejects.toThrow("住んでいる街の保存に失敗しました");
+  });
+
   it("未ログインなら何もしない", async () => {
     vi.mocked(getCurrentUserId).mockResolvedValue(null);
 

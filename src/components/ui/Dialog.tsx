@@ -55,7 +55,9 @@ function focusableElements(root: HTMLElement): HTMLElement[] {
  *   処理中（busy）は閉じない。
  * - 閉じたら、開く前にフォーカスがあった要素へ戻す（呼び出し側が描画後に別の要素へ移してもよい）。
  * - ブラウザが自力で `<dialog>` を閉じた場合（Android の戻る連打などで preventDefault が効かなかった
- *   場合）も native の `close` イベントを拾って onClose を呼び、親の状態とそろえる。
+ *   場合）も native の `close` イベントを拾って onClose を呼び、親の状態とそろえる。処理中（busy）に
+ *   これが起きた場合は onClose を呼ばず、その場で `showModal()` をやり直してモーダルのまま保つ
+ *   （R14 重要1: busy 中に閉じ要求が親で拒まれたまま RPC が失敗すると復旧できなくなるのを防ぐ）。
  */
 export function Dialog(props: DialogProps) {
   if (!props.open) return null;
@@ -103,9 +105,16 @@ function ModalDialog({
 
   // ブラウザが自力で <dialog> を閉じた場合（Android の戻る連打など、こちらの preventDefault が
   // 効かなかった場合）に発火する。自分自身の close() 呼び出しに続くものであれば何もしない。
+  // 処理中（busy）にこれが起きた場合は、onClose を呼ばず（呼び出し側の busy ガードに委ねると
+  // 親の状態と <dialog> の開閉が食い違ったまま復旧できなくなるため）、その場で showModal() を
+  // やり直してモーダル性を保つ（R14 重要1）。
   const handleNativeClose = () => {
     if (closingBySelfRef.current) {
       closingBySelfRef.current = false;
+      return;
+    }
+    if (busy) {
+      dialogRef.current?.showModal();
       return;
     }
     onClose();

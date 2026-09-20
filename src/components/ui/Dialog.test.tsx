@@ -166,6 +166,23 @@ describe("Dialog（モーダル）", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("処理中（busy）にブラウザが自力で閉じても、onClose を呼ばずその場で showModal をやり直してモーダルを保つ（R14 重要1）", () => {
+    const onClose = vi.fn();
+    render(<Harness busy onClose={onClose} />);
+    const dialog = openDialog();
+    const showModal = vi.spyOn(HTMLDialogElement.prototype, "showModal");
+    showModal.mockClear();
+
+    // ブラウザが自力で <dialog> を閉じた（Android の戻る連打などで preventDefault が効かなかった）ことを模す。
+    (dialog as HTMLDialogElement).open = false;
+    dialog.dispatchEvent(new Event("close"));
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(showModal).toHaveBeenCalledTimes(1);
+    expect(dialog).toHaveAttribute("open");
+    showModal.mockRestore();
+  });
+
   it("自分自身の操作（背景クリック）で閉じた直後に続く native close イベントでは onClose を重複して呼ばない", () => {
     const onClose = vi.fn();
     // open を変えない（マウントされ続ける）ことで、自分自身の close 要求のあと native の

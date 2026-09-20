@@ -683,7 +683,9 @@ export function initializeFixtureUserHomeCity(userId: string, cityId: string): b
   const city = findCityById(cityId);
   if (!city) throw new Error("街の情報が取得できませんでした");
   const user = FIXTURE_USERS.find((u) => u.id === userId);
-  if (!user || user.homeCitySlug !== null) return false;
+  // 「行が無い」と「既に設定済み」を同じ false に畳まない（R14 軽微1。0007 の initialize_home_city と同じ規則）。
+  if (!user) throw new Error("プロフィールが見つかりません");
+  if (user.homeCitySlug !== null) return false;
   user.homeCitySlug = city.slug;
   user.homeCityChangedAt = null;
   return true;
