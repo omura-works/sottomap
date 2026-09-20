@@ -2,6 +2,34 @@ import { describe, expect, it } from "vitest";
 import { summarizeCspReport } from "./logic";
 
 describe("summarizeCspReport（CSP違反レポートの要点抽出）", () => {
+  // Codex R17 重要2: Unicode の行区切りと双方向制御文字（U+061C を含む）も取り除く。
+  it("Unicodeの行区切り・双方向制御文字（U+061C を含む）も空白に置き換える", () => {
+    const body = {
+      "csp-report": {
+        "document-uri": "https://urasupo.jp/sapporo",
+        "effective-directive": "script-src\u2028\u061c\u202e偽装",
+        "blocked-uri": "https://evil.example/x.js",
+      },
+    };
+    const summary = summarizeCspReport(body);
+    expect(summary?.effectiveDirective).toBe("script-src   偽装");
+  });
+
+  // Codex R16 軽微1: 200文字で切るときに絵文字を割らない。
+  it("200文字を超える値は文字単位で切り、絵文字を壊さない", () => {
+    const long = "a".repeat(199) + "🍜" + "b".repeat(10);
+    const body = {
+      "csp-report": {
+        "document-uri": "https://urasupo.jp/sapporo",
+        "effective-directive": long,
+        "blocked-uri": "https://evil.example/x.js",
+      },
+    };
+    const value = summarizeCspReport(body)?.effectiveDirective ?? "";
+    expect([...value]).toHaveLength(200);
+    expect(value.endsWith("🍜")).toBe(true);
+  });
+
   // Codex R15 重要2: 認証不要の受信口なので、改行や制御文字をそのままログへ通さない。
   it("改行や制御文字を含む値は空白に置き換えて返す（ログ注入を防ぐ）", () => {
     const body = {

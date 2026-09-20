@@ -3,6 +3,14 @@ import { describe, expect, it } from "vitest";
 import { checkRateLimit, createCspLimiterState, recordViolation } from "./rate-limit";
 
 describe("checkRateLimit", () => {
+  // Codex R17 重要1: 上限を超えた分は全体（500件）の枠を消費しない。
+  it("ある送信元が大量に送っても、全体の枠は消費されず、別の送信元は受け付ける", () => {
+    const state = createCspLimiterState(0);
+    for (let i = 0; i < 500; i += 1) checkRateLimit(state, 1000, "1.1.1.1");
+    expect(state.rateCount).toBe(20);
+    expect(checkRateLimit(state, 1000, "2.2.2.2")).toBe(true);
+  });
+
   // Codex R16 重要1: 1つの送信元が全体の枠を使い切って、他の送信元の本物の違反を
   // 記録させないようにできてはいけない。
   it("ある送信元が上限まで使っても、別の送信元は受け付ける", () => {
@@ -57,6 +65,19 @@ describe("recordViolation", () => {
     expect(recordViolation(state, { effectiveDirective: "style-src", blockedUriOrigin: "https://other.example" }, 1000).shouldLog).toBe(true);
   });
 
+  // Codex R17 重要3: 内訳が増えすぎたら上位だけ出し、残りは otherCount にまとめる。
+  it("内訳の種類が多いときは上位20件だけ出し、残りは otherCount に入れる", () => {
+    const state = createCspLimiterState(0);
+    for (let i = 0; i < 300; i += 1) {
+      recordViolation(state, { effectiveDirective: `d-${i}`, blockedUriOrigin: "https://evil.example" }, 1000);
+    }
+    const decision = recordViolation(state, { effectiveDirective: "d-0", blockedUriOrigin: "https://evil.example" }, 61_000);
+    expect(decision.summary?.breakdown).toHaveLength(20);
+    const shown = decision.summary?.breakdown.reduce((sum, b) => sum + b.count, 0) ?? 0;
+    expect(shown + (decision.summary?.otherCount ?? 0)).toBe(decision.summary?.total);
+    expect(decision.summary?.total).toBe(301);
+  });
+
   it("要約の間隔（60秒）に達すると、内訳を含む要約を構造化した値で返し、集計をリセットする", () => {
     const state = createCspLimiterState(0);
     expect(recordViolation(state, { effectiveDirective: "script-src", blockedUriOrigin: "https://evil.example" }, 1000).summary).toBeUndefined();
@@ -66,6 +87,7 @@ describe("recordViolation", () => {
       elapsedSeconds: 61,
       total: 2,
       breakdown: [{ effectiveDirective: "script-src", blockedUriOrigin: "https://evil.example", count: 2 }],
+      otherCount: 0,
     });
 
     // リセット直後はまだ要約を出さない

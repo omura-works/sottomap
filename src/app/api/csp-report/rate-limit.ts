@@ -26,6 +26,10 @@ const RATE_LIMIT_MAX_PER_SOURCE = 20;
 const RATE_LIMIT_MAX_TOTAL = 500;
 /** 送信元ごとの計数を保持する Map の最大エントリ数（古いものから捨てる）。 */
 const MAX_SOURCE_ENTRIES = 1_000;
+/** 要約の内訳として覚えておく種類の上限（超えた分は otherCount にまとめる）。 */
+const MAX_SUMMARY_ENTRIES = 200;
+/** 1行のログに出す内訳の最大件数（残りは otherCount）。Vercel のログは1行 256KB まで。 */
+const MAX_SUMMARY_BREAKDOWN_IN_LOG = 20;
 /** 重複排除の時間枠（ミリ秒）。この間は同じ鍵の違反をログに出さず件数だけ数える。 */
 const DEDUPE_WINDOW_MS = 60_000;
 /** 要約ログを出す間隔（ミリ秒）。 */
@@ -50,6 +54,8 @@ export interface CspLimiterState {
   dedupe: Map<string, DedupeEntry>;
   summaryWindowStart: number;
   summaryBreakdown: Map<string, number>;
+  /** 内訳の上限を超えて、種類を覚えずに数だけ足した件数。 */
+  summaryOther: number;
 }
 
 /** 初期状態を作る（`now` は `Date.now()` を渡す）。 */
@@ -61,6 +67,7 @@ export function createCspLimiterState(now: number): CspLimiterState {
     dedupe: new Map(),
     summaryWindowStart: now,
     summaryBreakdown: new Map(),
+    summaryOther: 0,
   };
 }
 
@@ -76,14 +83,18 @@ export function checkRateLimit(state: CspLimiterState, now: number, source: stri
     state.rateCount = 0;
     state.rateBySource = new Map();
   }
-  state.rateCount += 1;
   const perSource = (state.rateBySource.get(source) ?? 0) + 1;
   if (state.rateBySource.size >= MAX_SOURCE_ENTRIES && !state.rateBySource.has(source)) {
     const oldest = state.rateBySource.keys().next().value;
     if (oldest !== undefined) state.rateBySource.delete(oldest);
   }
   state.rateBySource.set(source, perSource);
-  return perSource <= RATE_LIMIT_MAX_PER_SOURCE && state.rateCount <= RATE_LIMIT_MAX_TOTAL;
+  // Codex R17 重要1: 送信元ごとの上限を超えた分は、全体（500件）の枠を消費しない。
+  // 消費してしまうと、1つの送信元が大量に送るだけで全体枠が埋まり、
+  // 他の送信元の本物の違反レポートを止められてしまう。
+  if (perSource > RATE_LIMIT_MAX_PER_SOURCE) return false;
+  state.rateCount += 1;
+  return state.rateCount <= RATE_LIMIT_MAX_TOTAL;
 }
 
 /** 一定間隔でまとめて出す要約（ログには JSON.stringify して出す）。 */
@@ -97,6 +108,8 @@ export interface ViolationSummary {
    * 値に区切り文字を含めて別の組と同じ鍵に見せられるため、分けたまま保持する。
    */
   breakdown: { effectiveDirective: string; blockedUriOrigin: string; count: number }[];
+  /** 内訳に出していない残りの件数（種類が多いときのまとめ）。 */
+  otherCount: number;
 }
 
 export interface ViolationDecision {
@@ -137,24 +150,35 @@ export function recordViolation(
     shouldLog = true;
   }
 
-  state.summaryBreakdown.set(key, (state.summaryBreakdown.get(key) ?? 0) + 1);
+  // Codex R17 重要3: 内訳の種類が増えすぎないよう上限を設ける（1行ログの上限を超えないため）。
+  if (!state.summaryBreakdown.has(key) && state.summaryBreakdown.size >= MAX_SUMMARY_ENTRIES) {
+    state.summaryOther += 1;
+  } else {
+    state.summaryBreakdown.set(key, (state.summaryBreakdown.get(key) ?? 0) + 1);
+  }
 
   // Codex R15 重要2: 要約も文字列組み立てにせず、構造化した値として返す
   // （キーは送信者が決められるため、区切り文字で連結するとログを誤読させられる）。
   let summary: ViolationSummary | undefined;
   if (now - state.summaryWindowStart >= SUMMARY_INTERVAL_MS) {
     const elapsedSeconds = Math.round((now - state.summaryWindowStart) / 1000);
-    const total = [...state.summaryBreakdown.values()].reduce((sum, n) => sum + n, 0);
+    const counted = [...state.summaryBreakdown.values()].reduce((sum, n) => sum + n, 0);
+    // 件数の多い順に上位だけを出し、残りは otherCount にまとめる（1行が大きくなりすぎないように）。
+    const sorted = [...state.summaryBreakdown.entries()].sort((a, b) => b[1] - a[1]);
+    const top = sorted.slice(0, MAX_SUMMARY_BREAKDOWN_IN_LOG);
+    const restCount = sorted.slice(MAX_SUMMARY_BREAKDOWN_IN_LOG).reduce((sum, [, n]) => sum + n, 0);
     summary = {
       elapsedSeconds,
-      total,
-      breakdown: [...state.summaryBreakdown.entries()].map(([entryKey, count]) => {
+      total: counted + state.summaryOther,
+      breakdown: top.map(([entryKey, count]) => {
         const [effectiveDirective, blockedUriOrigin] = JSON.parse(entryKey) as [string, string];
         return { effectiveDirective, blockedUriOrigin, count };
       }),
+      otherCount: restCount + state.summaryOther,
     };
     state.summaryWindowStart = now;
     state.summaryBreakdown = new Map();
+    state.summaryOther = 0;
   }
 
   return { shouldLog, summary };

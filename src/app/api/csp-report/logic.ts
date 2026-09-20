@@ -49,12 +49,12 @@ const MAX_FIELD_LENGTH = 200;
  * 文字列を200文字で切り、制御文字を取り除く。
  * Codex R15 重要2: この受信口は認証不要なので、改行入りの値をそのままログに出すと
  * 偽のログ行を差し込める（ログ注入）。C0/C1 制御文字に加えて、Unicode の行区切り（U+2028/U+2029）と
- * 表示順を変える双方向制御文字（U+200E/U+200F/U+202A-U+202E/U+2066-U+2069）も取り除く（Codex R16 重要2）。
+ * 表示順を変える双方向制御文字（Unicode の Bidi_Control。U+061C も含む）も取り除く（Codex R16 重要2、R17 重要2）。
  */
 function truncate(value: string): string {
   // eslint-disable-next-line no-control-regex
   const sanitized = value.replace(
-    /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u200e\u200f\u202a-\u202e\u2066-\u2069]/g,
+    /[\u0000-\u001f\u007f-\u009f\u2028\u2029]|\p{Bidi_Control}/gu,
     " ",
   );
   // Codex R16 軽微1: 文字（コードポイント）単位で切る。UTF-16 の単位で切ると絵文字などが割れて壊れる。
