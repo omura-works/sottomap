@@ -16,8 +16,16 @@
 
 /** レート制限の時間枠（ミリ秒）。 */
 const RATE_LIMIT_WINDOW_MS = 60_000;
-/** 時間枠あたりの最大受理件数。 */
-const RATE_LIMIT_MAX = 20;
+/**
+ * 時間枠あたりの最大受理件数（送信元ごと）。
+ * Codex R16 重要1: 全体で1つの枠にすると、攻撃者が最初の20件で枠を使い切り、
+ * 他の利用者の本物の違反レポートを記録させないようにできる。送信元ごとに数える。
+ */
+const RATE_LIMIT_MAX_PER_SOURCE = 20;
+/** 時間枠あたりの最大受理件数（全体の歯止め。送信元が多数に分散した場合の上限）。 */
+const RATE_LIMIT_MAX_TOTAL = 500;
+/** 送信元ごとの計数を保持する Map の最大エントリ数（古いものから捨てる）。 */
+const MAX_SOURCE_ENTRIES = 1_000;
 /** 重複排除の時間枠（ミリ秒）。この間は同じ鍵の違反をログに出さず件数だけ数える。 */
 const DEDUPE_WINDOW_MS = 60_000;
 /** 要約ログを出す間隔（ミリ秒）。 */
@@ -35,7 +43,10 @@ interface DedupeEntry {
 /** レート制限・重複排除・要約の状態。プロセス内の1つのインスタンスで共有する。 */
 export interface CspLimiterState {
   rateWindowStart: number;
+  /** この時間枠で受け取った全体の件数。 */
   rateCount: number;
+  /** 送信元ごとの件数（この時間枠内）。 */
+  rateBySource: Map<string, number>;
   dedupe: Map<string, DedupeEntry>;
   summaryWindowStart: number;
   summaryBreakdown: Map<string, number>;
@@ -46,6 +57,7 @@ export function createCspLimiterState(now: number): CspLimiterState {
   return {
     rateWindowStart: now,
     rateCount: 0,
+    rateBySource: new Map(),
     dedupe: new Map(),
     summaryWindowStart: now,
     summaryBreakdown: new Map(),
@@ -54,16 +66,24 @@ export function createCspLimiterState(now: number): CspLimiterState {
 
 /**
  * レート制限を確認し、状態を更新する（呼ぶたびに1件消費する）。
- * 60秒の固定時間枠で数え、時間枠が変わったら数え直す。
- * @returns 受理してよければ true、上限（20件/60秒）を超えていれば false（本文を読まずに204で終えること）。
+ * 60秒の固定時間枠で、送信元ごと（20件）と全体（500件）の両方を数え、時間枠が変わったら数え直す。
+ * @param source 送信元の識別子（`x-forwarded-for` の先頭など。取れなければ "unknown"）。
+ * @returns 受理してよければ true、上限を超えていれば false（本文を読まずに204で終えること）。
  */
-export function checkRateLimit(state: CspLimiterState, now: number): boolean {
+export function checkRateLimit(state: CspLimiterState, now: number, source: string): boolean {
   if (now - state.rateWindowStart >= RATE_LIMIT_WINDOW_MS) {
     state.rateWindowStart = now;
     state.rateCount = 0;
+    state.rateBySource = new Map();
   }
   state.rateCount += 1;
-  return state.rateCount <= RATE_LIMIT_MAX;
+  const perSource = (state.rateBySource.get(source) ?? 0) + 1;
+  if (state.rateBySource.size >= MAX_SOURCE_ENTRIES && !state.rateBySource.has(source)) {
+    const oldest = state.rateBySource.keys().next().value;
+    if (oldest !== undefined) state.rateBySource.delete(oldest);
+  }
+  state.rateBySource.set(source, perSource);
+  return perSource <= RATE_LIMIT_MAX_PER_SOURCE && state.rateCount <= RATE_LIMIT_MAX_TOTAL;
 }
 
 /** 一定間隔でまとめて出す要約（ログには JSON.stringify して出す）。 */
@@ -72,8 +92,11 @@ export interface ViolationSummary {
   elapsedSeconds: number;
   /** 期間内に受け取った違反の合計件数。 */
   total: number;
-  /** 内訳（キーは effective-directive と blocked-uri のオリジンの組）。 */
-  breakdown: { key: string; count: number }[];
+  /**
+   * 内訳。Codex R16 重要2: directive と origin を区切り文字で1本の文字列にすると、
+   * 値に区切り文字を含めて別の組と同じ鍵に見せられるため、分けたまま保持する。
+   */
+  breakdown: { effectiveDirective: string; blockedUriOrigin: string; count: number }[];
 }
 
 export interface ViolationDecision {
@@ -96,7 +119,13 @@ function evictOldestIfFull(dedupe: Map<string, DedupeEntry>): void {
  * 時間枠を過ぎていれば新しい時間枠として1件目をログに出す。
  * 要約ログの間隔（60秒）に達していたら、その時点までの内訳をまとめた1行を返し、要約の集計をリセットする。
  */
-export function recordViolation(state: CspLimiterState, key: string, now: number): ViolationDecision {
+export function recordViolation(
+  state: CspLimiterState,
+  violation: { effectiveDirective: string; blockedUriOrigin: string },
+  now: number,
+): ViolationDecision {
+  // Codex R16 重要2: 鍵は JSON 化した配列にする（値に区切り文字が入っても別の組と衝突しない）。
+  const key = JSON.stringify([violation.effectiveDirective, violation.blockedUriOrigin]);
   const existing = state.dedupe.get(key);
   let shouldLog: boolean;
   if (existing && now - existing.loggedAt < DEDUPE_WINDOW_MS) {
@@ -119,7 +148,10 @@ export function recordViolation(state: CspLimiterState, key: string, now: number
     summary = {
       elapsedSeconds,
       total,
-      breakdown: [...state.summaryBreakdown.entries()].map(([key, count]) => ({ key, count })),
+      breakdown: [...state.summaryBreakdown.entries()].map(([entryKey, count]) => {
+        const [effectiveDirective, blockedUriOrigin] = JSON.parse(entryKey) as [string, string];
+        return { effectiveDirective, blockedUriOrigin, count };
+      }),
     };
     state.summaryWindowStart = now;
     state.summaryBreakdown = new Map();

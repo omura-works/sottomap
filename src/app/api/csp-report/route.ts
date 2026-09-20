@@ -63,7 +63,10 @@ async function readBodyWithLimit(request: Request, limitBytes: number): Promise<
  */
 export async function POST(request: Request): Promise<NextResponse> {
   const now = Date.now();
-  if (!checkRateLimit(limiterState, now)) {
+  // Codex R16 重要1: 送信元ごとに数える（1人が全体の枠を使い切って、本物の違反を
+  // 記録させないようにできないため）。Vercel では x-forwarded-for の先頭が送信元。
+  const source = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  if (!checkRateLimit(limiterState, now, source)) {
     // 上限超え: 本文を読まず（ログも増やさず）に204で終える。
     return new NextResponse(null, { status: 204 });
   }
@@ -84,8 +87,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       const parsed = JSON.parse(rawBody) as unknown;
       const summary = summarizeCspReport(parsed);
       if (summary) {
-        const key = `${summary.effectiveDirective}|${summary.blockedUriOrigin}`;
-        const decision = recordViolation(limiterState, key, now);
+        const decision = recordViolation(
+          limiterState,
+          { effectiveDirective: summary.effectiveDirective, blockedUriOrigin: summary.blockedUriOrigin },
+          now,
+        );
         if (decision.shouldLog) {
           console.warn(
             "[csp-report]",
