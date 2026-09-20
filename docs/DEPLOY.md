@@ -153,10 +153,10 @@ select slug, name from cities order by slug;    -- asahikawa/furano/hakodate/kus
 
 | 変数 | Production | Preview | 種別 |
 | --- | --- | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | 本番Supabaseプロジェクトの値 | 本番と同じ、または別のSupabaseプロジェクトの値（運用方針による） | Config |
+| `NEXT_PUBLIC_SUPABASE_URL` | 本番Supabaseプロジェクトの値 | Preview専用のSupabaseプロジェクトの値（推奨）。本番と同じにすると、レビュー前のコードが本番データを読み書きし得る | Config |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 本番Supabaseプロジェクトの値 | 同上 | Config |
 | `NEXT_PUBLIC_SITE_URL` | `https://urasupo.jp` | Vercelが割り当てるPreview URL（`https://` 必須） | Config |
-| `SUPABASE_SERVICE_ROLE_KEY` | 本番Supabaseプロジェクトの値 | 同上（Previewでcronを検証しない場合は未設定でも起動には問題ないが、`/api/cron/verification`実行時にエラーになる） | **Secret** |
+| `SUPABASE_SERVICE_ROLE_KEY` | 本番Supabaseプロジェクトの値 | **本番と同じ値は使わない。**設定しない（推奨）か、Preview専用のSupabaseプロジェクトの値。未設定だと `/api/cron/verification` の手動実行だけがエラーになる | **Secret** |
 | `CRON_SECRET` | 32文字以上のランダムな値 | 設定してもよい（Preview環境でCronは自動実行されない。手動確認用） | **Secret** |
 | `URASUPO_DEMO_MODE` | **設定しない** | 設定しない（設定すると本番実行環境で起動時に例外） | - |
 | `NEXT_DIST_DIR` | 設定しない（実DB版E2E専用のローカル切替） | 設定しない | - |
@@ -222,6 +222,7 @@ select slug, name from cities order by slug;    -- asahikawa/furano/hakodate/kus
 
 ## 5. 公開直後の確認チェックリスト
 
+- [ ] **公開前に**、Vercel Firewall で `/api/csp-report` にレート制限をかける（8.3節）。アプリ側の制限は同じ関数プロセス内でしか効かないため、これが無いと、大量送信でログと費用が増え、本物の違反記録も埋もれる。
 - [ ] `check-production-env.mjs` は Vercel へ登録する**前に**、本人が値を入れた
       `.env.production.local` に対して実行する運用にする（Secret 種別にした環境変数は、
       登録後は `vercel env pull` 等で値を取り出せなくなるため）。
@@ -315,8 +316,9 @@ npx supabase db dump --linked -f migrations_data.sql --schema supabase_migration
 ```
 
 上記は Supabase 公式（[Backup and restore using the CLI](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore)、2026-09-19確認）どおりのコマンドです。`-x`（`--exclude`）・`--schema`（`-s`）オプションは
-`npx supabase db dump --help` で存在を確認済みです（今後のCLI更新で無くなっていた場合は、この
-オプションを付けずに実行してください）。
+`npx supabase db dump --help` で存在を確認済みです。今後のCLI更新で無くなっていた場合は、
+**そのまま実行せずに作業を止めて**、Supabase公式の最新手順（または `pg_dump` での代替）を確認して
+ください（オプション無しで実行すると、履行履歴が入らないダンプができてしまいます）。
 
 - 5ファイル（`roles.sql` / `schema.sql` / `data.sql` / `migrations_schema.sql` / `migrations_data.sql`）が
   揃って初めて復元可能なバックアップになります。いずれか1つだけでは不十分です。
@@ -426,23 +428,28 @@ select * from supabase_migrations.schema_migrations order by version;
   本番で目視確認する（Report-Onlyの間は違反があっても機能を壊さないため、切替直後だけ想定外の
   ブロックが起きるリスクがある）。
 
-### 8.3 `/api/csp-report` の濫用対策（R14レビュー重要3の追補。本人が公開後に行う作業）
+### 8.3 `/api/csp-report` の濫用対策（**公開前に必ず行う作業**）
 
 `POST /api/csp-report` はブラウザが送るため認証を求めない設計のままだが、アプリ側
 （`src/app/api/csp-report/rate-limit.ts`）で同一プロセス内の簡易レート制限（60秒あたり最大20件）・
 重複排除・要約ログを実装している。ただしこれは**関数実行環境（プロセス）ごとに独立したメモリ状態**
 であり、Vercel が複数インスタンスに処理を分散した場合は、合計の受理件数がこの上限を超えることがある。
-公開後は、プロセス外で効く制限として Vercel Firewall（WAF）を設定する。
+アプリ側の制限は**同じ関数プロセスの中だけ**で効くため、これだけでは足りない。送信元ごとに数える
+制限を Vercel Firewall（WAF）で先に置くこと。**公開前に設定する**（アプリ側の制限は、ログを間引く
+二段目として残す）。
 
-1. Vercel プロジェクトの **Settings → Firewall**（Pro プラン以上。Hobby プランでは基本的な
-   IP ブロックのみで、レート制限ルールの作成には Pro 以上が必要な場合がある。実際に使える機能は
-   契約プランの画面で確認する）を開く。
-2. **Rate Limiting** ルールを新規作成し、パス条件に `/api/csp-report` を指定する。
-3. しきい値は、アプリ側の制限（60秒/20件/プロセス）より緩め（インスタンス分散を考慮して、
-   例えば 60秒あたり数百件程度）に設定し、それを超えた場合はブロックまたはチャレンジ（Managed
-   Challenge）にする。しきい値は公開後のログ実測（8.1節）を見て調整する。
-4. ルール作成後、実際に短時間で多数リクエストを送るテスト（本人の環境から）を行い、Firewall の
-   アクティビティログにブロックが記録されることを確認する。
+1. Vercel プロジェクトのサイドバーから **Firewall** を開き、右上の **Configure** → **+ New Rule**。
+   レート制限は**全プランで使える**（Hobby は1プロジェクトに**1ルール**まで。Pro は40ルール）。
+2. **If** の条件にパス `/api/csp-report`、メソッド `POST` を指定する。
+3. **Then** で **Rate Limit** を選び、数える単位（key）に **IP** または **JA4 Digest** を指定する
+   （Hobby でもこの2つは使える）。集計方式は Fixed Window、時間窓は 10秒〜10分の範囲で指定する。
+4. しきい値はまず **60秒あたり20件／送信元** から始め、動作（**Deny** か **Challenge**）を選ぶ。
+   最初は **Log** にして様子を見てから切り替えてもよい。
+5. **Review Changes** → **Publish** で反映する。
+6. 反映後に、自分の環境から短時間に多数の POST を送り、Firewall のアクティビティログに記録が
+   残ることを確認する。
+7. しきい値は 8.1節のログ実測を見て調整する。件数はリージョンごとに数えるため、複数リージョンに
+   分散したアクセスでは合計が設定値を超えることがある（公式ドキュメントの注記）。
 
 ---
 

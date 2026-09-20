@@ -45,9 +45,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /** ログに残す各項目の上限文字数。ブラウザが送る値は通常もっと短いが、想定外に長い値を切って残す。 */
 const MAX_FIELD_LENGTH = 200;
 
-/** 文字列を200文字で切る（ログに個人情報や過大な値を残さないため）。 */
+/**
+ * 文字列を200文字で切り、制御文字（改行・タブ・エスケープ等）を取り除く。
+ * Codex R15 重要2: この受信口は認証不要なので、改行入りの値をそのままログに出すと
+ * 偽のログ行を差し込める（ログ注入）。切り詰めと同時に必ず取り除く。
+ */
 function truncate(value: string): string {
-  return value.length > MAX_FIELD_LENGTH ? value.slice(0, MAX_FIELD_LENGTH) : value;
+  // eslint-disable-next-line no-control-regex
+  const sanitized = value.replace(/[\u0000-\u001f\u007f-\u009f]/g, " ");
+  return sanitized.length > MAX_FIELD_LENGTH ? sanitized.slice(0, MAX_FIELD_LENGTH) : sanitized;
 }
 
 /** 古い report-uri 形式（`{ "csp-report": {...} }`）から要約を取り出す。 */

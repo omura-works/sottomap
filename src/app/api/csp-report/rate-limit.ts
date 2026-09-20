@@ -66,11 +66,21 @@ export function checkRateLimit(state: CspLimiterState, now: number): boolean {
   return state.rateCount <= RATE_LIMIT_MAX;
 }
 
+/** 一定間隔でまとめて出す要約（ログには JSON.stringify して出す）。 */
+export interface ViolationSummary {
+  /** 直近の集計期間（秒）。 */
+  elapsedSeconds: number;
+  /** 期間内に受け取った違反の合計件数。 */
+  total: number;
+  /** 内訳（キーは effective-directive と blocked-uri のオリジンの組）。 */
+  breakdown: { key: string; count: number }[];
+}
+
 export interface ViolationDecision {
   /** この違反を（初回として）ログに出すべきか。 */
   shouldLog: boolean;
   /** 要約を出す間隔に達していれば、1行ログにする文字列。達していなければ undefined。 */
-  summaryLine?: string;
+  summary?: ViolationSummary;
 }
 
 /** Map のサイズが上限に達していたら、最初に挿入された（最も古い）エントリを1つ捨てる。 */
@@ -100,17 +110,20 @@ export function recordViolation(state: CspLimiterState, key: string, now: number
 
   state.summaryBreakdown.set(key, (state.summaryBreakdown.get(key) ?? 0) + 1);
 
-  let summaryLine: string | undefined;
+  // Codex R15 重要2: 要約も文字列組み立てにせず、構造化した値として返す
+  // （キーは送信者が決められるため、区切り文字で連結するとログを誤読させられる）。
+  let summary: ViolationSummary | undefined;
   if (now - state.summaryWindowStart >= SUMMARY_INTERVAL_MS) {
     const elapsedSeconds = Math.round((now - state.summaryWindowStart) / 1000);
     const total = [...state.summaryBreakdown.values()].reduce((sum, n) => sum + n, 0);
-    const breakdown = [...state.summaryBreakdown.entries()]
-      .map(([k, count]) => `${k}=${count}`)
-      .join(", ");
-    summaryLine = `直近${elapsedSeconds}秒で${total}件（内訳: ${breakdown}）`;
+    summary = {
+      elapsedSeconds,
+      total,
+      breakdown: [...state.summaryBreakdown.entries()].map(([key, count]) => ({ key, count })),
+    };
     state.summaryWindowStart = now;
     state.summaryBreakdown = new Map();
   }
 
-  return { shouldLog, summaryLine };
+  return { shouldLog, summary };
 }

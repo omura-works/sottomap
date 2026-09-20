@@ -2,6 +2,21 @@ import { describe, expect, it } from "vitest";
 import { summarizeCspReport } from "./logic";
 
 describe("summarizeCspReport（CSP違反レポートの要点抽出）", () => {
+  // Codex R15 重要2: 認証不要の受信口なので、改行や制御文字をそのままログへ通さない。
+  it("改行や制御文字を含む値は空白に置き換えて返す（ログ注入を防ぐ）", () => {
+    const body = {
+      "csp-report": {
+        "document-uri": "https://urasupo.jp/sapporo",
+        "effective-directive": "script-src\n[csp-report] 偽のログ行",
+        "blocked-uri": "not-a-url\r\n偽の内訳",
+      },
+    };
+    const summary = summarizeCspReport(body);
+    expect(summary?.effectiveDirective).not.toMatch(/[\r\n]/);
+    expect(summary?.blockedUriOrigin).not.toMatch(/[\r\n]/);
+    expect(summary?.effectiveDirective).toBe("script-src [csp-report] 偽のログ行");
+  });
+
   it("report-uri 形式（csp-report）から effective-directive・blocked-uri のオリジン・document-uri のパスを取り出す", () => {
     const body = {
       "csp-report": {

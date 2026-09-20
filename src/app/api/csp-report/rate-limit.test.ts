@@ -48,15 +48,19 @@ describe("recordViolation", () => {
     expect(recordViolation(state, "style-src|https://other.example", 1000).shouldLog).toBe(true);
   });
 
-  it("要約の間隔（60秒）に達すると、内訳を含む要約行を返し、集計をリセットする", () => {
+  it("要約の間隔（60秒）に達すると、内訳を含む要約を構造化した値で返し、集計をリセットする", () => {
     const state = createCspLimiterState(0);
-    expect(recordViolation(state, "script-src|https://evil.example", 1000).summaryLine).toBeUndefined();
+    expect(recordViolation(state, "script-src|https://evil.example", 1000).summary).toBeUndefined();
     const decision = recordViolation(state, "script-src|https://evil.example", 61_000);
-    expect(decision.summaryLine).toContain("件");
-    expect(decision.summaryLine).toContain("script-src|https://evil.example");
+    // Codex R15 重要2: 文字列連結ではなく、そのまま JSON にできる形で返す。
+    expect(decision.summary).toEqual({
+      elapsedSeconds: 61,
+      total: 2,
+      breakdown: [{ key: "script-src|https://evil.example", count: 2 }],
+    });
 
     // リセット直後はまだ要約を出さない
-    expect(recordViolation(state, "script-src|https://evil.example", 61_500).summaryLine).toBeUndefined();
+    expect(recordViolation(state, "script-src|https://evil.example", 61_500).summary).toBeUndefined();
   });
 
   it("重複排除のMapはサイズ上限があり、上限を超えたら最も古いエントリを捨てる", () => {

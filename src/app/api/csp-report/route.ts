@@ -96,8 +96,8 @@ export async function POST(request: Request): Promise<NextResponse> {
             }),
           );
         }
-        if (decision.summaryLine) {
-          console.warn("[csp-report-summary]", decision.summaryLine);
+        if (decision.summary) {
+          console.warn("[csp-report-summary]", JSON.stringify(decision.summary));
         }
       } else {
         console.warn("[csp-report] 予期しない形式の本文を受信しました。");
