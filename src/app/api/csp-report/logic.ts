@@ -52,7 +52,6 @@ const MAX_FIELD_LENGTH = 200;
  * 表示順を変える双方向制御文字（Unicode の Bidi_Control。U+061C も含む）も取り除く（Codex R16 重要2、R17 重要2）。
  */
 function truncate(value: string): string {
-  // eslint-disable-next-line no-control-regex
   const sanitized = value.replace(
     /[\u0000-\u001f\u007f-\u009f\u2028\u2029]|\p{Bidi_Control}/gu,
     " ",

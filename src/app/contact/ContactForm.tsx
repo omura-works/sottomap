@@ -113,6 +113,8 @@ export function ContactForm({ spot }: ContactFormProps) {
           id={messageId}
           name="message"
           className="input"
+          // 複数行の入力欄は、1行用の丸い形だと文字が縁に寄って読みにくいので角を控えめにする
+          style={{ borderRadius: "var(--radius-md)", paddingBlock: "10px" }}
           rows={8}
           value={message}
           onChange={(event) => setMessage(event.target.value)}

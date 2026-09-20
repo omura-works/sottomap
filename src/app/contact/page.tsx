@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { getSpot } from "@/lib/db/spots";
-import { Disclaimer } from "@/components/profile/Disclaimer";
 import { ContactForm } from "./ContactForm";
 
 export const metadata: Metadata = {
@@ -57,8 +56,6 @@ export default async function ContactPage(props: PageProps<"/contact">) {
       </div>
 
       <ContactForm spot={spot} />
-
-      <Disclaimer />
     </div>
   );
 }
