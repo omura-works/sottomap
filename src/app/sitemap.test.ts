@@ -9,7 +9,15 @@ describe("sitemap", () => {
     expect(entries.some((entry) => /\/sapporo\/search$/.test(entry.url))).toBe(true);
   });
 
-  it("DB取得に失敗しても /start だけの sitemap を返し、console.errorに1行ログを出す（buildを落とさない）", async () => {
+  it("/terms・/privacy・/faq を含む", async () => {
+    const sitemap = (await import("./sitemap")).default;
+    const entries = await sitemap();
+    expect(entries.some((entry) => entry.url.endsWith("/terms"))).toBe(true);
+    expect(entries.some((entry) => entry.url.endsWith("/privacy"))).toBe(true);
+    expect(entries.some((entry) => entry.url.endsWith("/faq"))).toBe(true);
+  });
+
+  it("DB取得に失敗しても /start と静的ページだけの sitemap を返し、console.errorに1行ログを出す（buildを落とさない）", async () => {
     vi.resetModules();
     vi.doMock("@/lib/db/spots", () => ({
       listCities: () => {
@@ -20,7 +28,7 @@ describe("sitemap", () => {
 
     const sitemap = (await import("./sitemap")).default;
     const entries = await sitemap();
-    expect(entries).toHaveLength(1);
+    expect(entries).toHaveLength(4);
     expect(entries[0].url).toMatch(/\/start$/);
     expect(errorSpy).toHaveBeenCalledTimes(1);
     expect(errorSpy.mock.calls[0]?.join(" ")).toContain("db unreachable");
