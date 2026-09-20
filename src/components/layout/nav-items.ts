@@ -80,3 +80,17 @@ const CHROME_HIDDEN_PREFIXES = ["/start", "/verify", "/login", "/auth"];
 export function isChromeHidden(pathname: string): boolean {
   return CHROME_HIDDEN_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
+
+/**
+ * フッター（利用規約・プライバシーポリシー・よくある質問・お問い合わせ・掲載店舗の方への案内）を
+ * 隠すべきページか。
+ * - チロムなしのページ（isChromeHidden）ではフッターも出さない。
+ * - S2「地図」/ D1「PC版トップ」`/[city]` は原本どおり地図が画面いっぱいを占める設計
+ *   （`CityMapScreen` が `h-screen` 相当で組んでいる）ため、フッターを重ねない。
+ *   `/[city]/search` 等の一覧画面はスクロールする通常ページなのでフッターを出す。
+ */
+export function isFooterHidden(pathname: string): boolean {
+  if (isChromeHidden(pathname)) return true;
+  const segments = pathname.split("/").filter(Boolean);
+  return segments.length === 1 && KNOWN_CITY_SLUGS.includes(segments[0]);
+}

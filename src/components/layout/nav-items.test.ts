@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cityContextFromPathname, getNavItems, isNavItemActive } from "./nav-items";
+import { cityContextFromPathname, getNavItems, isFooterHidden, isNavItemActive } from "./nav-items";
 
 describe("cityContextFromPathname（SPEC §9.14-3）", () => {
   it("街のページにいるときはその街を使う", () => {
@@ -37,5 +37,27 @@ describe("isNavItemActive", () => {
     const search = items.find((i) => i.key === "search")!;
     expect(isNavItemActive(map, "/sapporo")).toBe(true);
     expect(isNavItemActive(search, "/sapporo")).toBe(false);
+  });
+});
+
+describe("isFooterHidden（指示書 pages-c-brief.md §2）", () => {
+  it("チロムなしのページでは隠す", () => {
+    expect(isFooterHidden("/start")).toBe(true);
+    expect(isFooterHidden("/verify/req-1")).toBe(true);
+    expect(isFooterHidden("/login")).toBe(true);
+  });
+
+  it("地図が画面いっぱいを占める街トップでは隠す", () => {
+    expect(isFooterHidden("/sapporo")).toBe(true);
+    expect(isFooterHidden("/otaru")).toBe(true);
+  });
+
+  it("街トップ以外（一覧・詳細・その他ページ）では出す", () => {
+    expect(isFooterHidden("/sapporo/search")).toBe(false);
+    expect(isFooterHidden("/sapporo/spots/abc")).toBe(false);
+    expect(isFooterHidden("/bookmarks")).toBe(false);
+    expect(isFooterHidden("/me")).toBe(false);
+    expect(isFooterHidden("/shops")).toBe(false);
+    expect(isFooterHidden("/contact")).toBe(false);
   });
 });

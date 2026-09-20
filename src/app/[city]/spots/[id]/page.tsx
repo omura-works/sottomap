@@ -113,6 +113,11 @@ export default async function SpotDetailPage({
       </div>
 
       <Disclaimer />
+
+      {/* 指示書 pages-c-brief.md §3: 店主向けの導線。目立たせすぎない小さなリンク。 */}
+      <p className="m-0 text-muted text-xs">
+        <Link href={`/contact?spot=${spot.id}`}>この店の情報について</Link>
+      </p>
     </div>
   );
 }
