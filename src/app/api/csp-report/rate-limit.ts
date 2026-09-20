@@ -151,10 +151,29 @@ export function recordViolation(
   }
 
   // Codex R17 重要3: 内訳の種類が増えすぎないよう上限を設ける（1行ログの上限を超えないため）。
-  if (!state.summaryBreakdown.has(key) && state.summaryBreakdown.size >= MAX_SUMMARY_ENTRIES) {
-    state.summaryOther += 1;
-  } else {
+  // Codex R18 重要1: 上限に達したあと新しい種類を捨てるだけだと、先に200種類を送っておけば、
+  // その後に多発した本物の違反を内訳から締め出せる。最も件数の少ない記録と入れ替えて、
+  // 後から増えた種類も上位に出られるようにする（追い出した分は otherCount に足す）。
+  if (state.summaryBreakdown.has(key)) {
     state.summaryBreakdown.set(key, (state.summaryBreakdown.get(key) ?? 0) + 1);
+  } else if (state.summaryBreakdown.size < MAX_SUMMARY_ENTRIES) {
+    state.summaryBreakdown.set(key, 1);
+  } else {
+    let leastKey: string | undefined;
+    let leastCount = Infinity;
+    for (const [entryKey, count] of state.summaryBreakdown) {
+      if (count < leastCount) {
+        leastKey = entryKey;
+        leastCount = count;
+      }
+    }
+    if (leastKey !== undefined && leastCount <= 1) {
+      state.summaryBreakdown.delete(leastKey);
+      state.summaryOther += leastCount;
+      state.summaryBreakdown.set(key, 1);
+    } else {
+      state.summaryOther += 1;
+    }
   }
 
   // Codex R15 重要2: 要約も文字列組み立てにせず、構造化した値として返す

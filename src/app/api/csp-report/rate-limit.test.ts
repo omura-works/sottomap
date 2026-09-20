@@ -65,6 +65,25 @@ describe("recordViolation", () => {
     expect(recordViolation(state, { effectiveDirective: "style-src", blockedUriOrigin: "https://other.example" }, 1000).shouldLog).toBe(true);
   });
 
+  // Codex R18 重要1: 先に200種類を埋めても、後から多発した違反が内訳の上位に出る。
+  it("上限に達した後に多発した種類も、内訳の上位に入る", () => {
+    const state = createCspLimiterState(0);
+    for (let i = 0; i < 200; i += 1) {
+      recordViolation(state, { effectiveDirective: `d-${i}`, blockedUriOrigin: "https://a.example" }, 1000);
+    }
+    for (let i = 0; i < 101; i += 1) {
+      recordViolation(state, { effectiveDirective: "late", blockedUriOrigin: "https://evil.example" }, 1000);
+    }
+    const decision = recordViolation(state, { effectiveDirective: "d-0", blockedUriOrigin: "https://a.example" }, 61_000);
+    const breakdown = decision.summary?.breakdown ?? [];
+    const late = breakdown.find((b) => b.effectiveDirective === "late");
+    expect(late).toBeDefined();
+    expect(breakdown[0]?.effectiveDirective).toBe("late");
+    // 件数の合計は必ず total と一致する。
+    const shown = breakdown.reduce((sum, b) => sum + b.count, 0);
+    expect(shown + (decision.summary?.otherCount ?? 0)).toBe(decision.summary?.total);
+  });
+
   // Codex R17 重要3: 内訳が増えすぎたら上位だけ出し、残りは otherCount にまとめる。
   it("内訳の種類が多いときは上位20件だけ出し、残りは otherCount に入れる", () => {
     const state = createCspLimiterState(0);
