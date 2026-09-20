@@ -201,7 +201,9 @@ select is_empty(
       and p.proname not in (
         'create_spot', 'endorse_spot', 'answer_verification', 'run_verification_cron',
         'is_profile_visible', 'award_lantern_points', 'publish_pending_spot', 'set_home_city',
-        'initialize_home_city'
+        'initialize_home_city',
+        -- §9.17 お問い合わせ（0009）。anon / authenticated が実行できる（権限の詳細は 0009_contact.sql）。
+        'submit_contact_message'
       )
       and (
         has_function_privilege('public', p.oid, 'EXECUTE')

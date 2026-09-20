@@ -25,6 +25,7 @@ export default defineConfig({
         "**/start-motion.spec.ts",
         "**/prodready.spec.ts",
         "**/legal-links.spec.ts",
+        "**/contact.spec.ts",
       ],
     },
     {

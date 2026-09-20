@@ -816,3 +816,62 @@ export function fixtureSpotsByAuthor(userId: string): Spot[] {
 }
 
 export { findCityById as fixtureCityById };
+
+// =========================================================
+// お問い合わせ（SPEC §9.17）
+// デモモードには DB が無いため、0009_contact_messages.sql の submit_contact_message と同じ規則を
+// インメモリで再現するだけにする（プロセスが終われば消える。どこにも保存しない）。
+// =========================================================
+
+export interface FixtureContactMessage {
+  id: string;
+  createdAt: string;
+  category: "removal" | "correction" | "other";
+  message: string;
+  replyTo: string | null;
+  spotId: string | null;
+  status: "new" | "in_progress" | "done";
+}
+
+/** mutable: addFixtureContactMessage だけが push する。 */
+export const FIXTURE_CONTACT_MESSAGES: FixtureContactMessage[] = [];
+
+/**
+ * 問い合わせを1件受け付ける（DB 関数 submit_contact_message と同じ規則）。
+ * 戻り値は作った id。直近1分以内に同じ内容（用件と本文が同一）があれば作らず null。
+ * 入力の形式検査は呼び出し元（src/lib/db/contact.ts の validateContactMessageInput）が済ませている。
+ */
+export function addFixtureContactMessage(
+  input: {
+    category: "removal" | "correction" | "other";
+    message: string;
+    replyTo: string | null;
+    spotId: string | null;
+  },
+  now: Date,
+): string | null {
+  if (input.spotId !== null) {
+    const spot = FIXTURE_SPOTS.find((s) => s.id === input.spotId && s.status === "published");
+    if (!spot) throw new Error("お店の情報が取得できませんでした");
+  }
+  const oneMinuteAgo = now.getTime() - 60_000;
+  const duplicated = FIXTURE_CONTACT_MESSAGES.some(
+    (m) =>
+      m.category === input.category &&
+      m.message === input.message &&
+      new Date(m.createdAt).getTime() > oneMinuteAgo,
+  );
+  if (duplicated) return null;
+
+  const id = crypto.randomUUID();
+  FIXTURE_CONTACT_MESSAGES.push({
+    id,
+    createdAt: now.toISOString(),
+    category: input.category,
+    message: input.message,
+    replyTo: input.replyTo,
+    spotId: input.spotId,
+    status: "new",
+  });
+  return id;
+}

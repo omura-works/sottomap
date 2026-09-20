@@ -512,3 +512,23 @@ S1（`/start`）は §4 の構成に代えて、次の構成にする（§4 の�
    - 「次に変えられる日」は東京の日付で表し、時刻の端数は翌日へ切り上げる（「◯日以降」がその日の0時から必ず正しいように）。
    - `public.initialize_home_city(p_city_id uuid) returns boolean`（初回設定専用。security definer、`search_path = ''`、EXECUTE は authenticated だけ）。本人の users 行を `for update` でロックし、現在 NULL のときだけ設定して true（`home_city_changed_at` は NULL）。設定済み（またはプロフィール行が無い）なら何もせず false（例外にしない）。未ログイン・存在しない街は `set_home_city` と同じ文言で拒否。
 4. デモモード（フィクスチャ）も同じ規則・同じ文言を再現する（`src/lib/domain/home-city.ts`）。
+
+### 9.17 お問い合わせ（2026-09-20）
+
+ウラスポは、実在の店を本人の許可なく地図に載せている。掲載を止めてほしいという申し出を受けられない状態で公開してはいけないため、窓口 `/contact` を置く（`/shops`・スポット詳細からも誘導する）。
+1. **保存先は DB。まだメールは送らない。** メール送信（SMTP）の仕組みが無いので、受け取った内容は `public.contact_messages` に保存し、運営者が Supabase の画面（service_role）で読む。
+   - `supabase/migrations/0009_contact_messages.sql`: `id` / `created_at` / `category` / `message` / `reply_to` / `spot_id`（`spots` を参照。削除時は NULL）/ `user_agent` / `status`（`new` / `in_progress` / `done`）。
+   - `category` は `removal`（掲載を止めてほしい）／`correction`（内容の訂正）／`other`（その他）。
+2. **受け取った内容は公開しない。** RLS を有効にし、ポリシーを1つも作らず、`anon` / `authenticated` には表への select / insert / update / delete を一切与えない。読めるのは `service_role`（運営）だけ。
+3. **書き込みは DB 関数だけ（§9.13.2 と同じ）。** `public.submit_contact_message(p_category text, p_message text, p_reply_to text, p_spot_id uuid) returns uuid`（security definer、`search_path = ''`、EXECUTE は `anon` と `authenticated`。未ログインでも問い合わせできる）。
+   - 検査と拒否文言: 用件が3種以外なら「用件を選んでください」、本文が空白（全角空白・改行を含む）だけなら「お問い合わせの内容を入力してください」、2000字を超えれば「お問い合わせの内容は2000字以内で入力してください」、返信先が320字超または `@` を含まない形なら「メールアドレスの形をご確認ください」、`spot_id` が存在しない・公開中でないなら「お店の情報が取得できませんでした」。
+   - 連投・二重送信: 直近1分以内に同じ内容（`category` と `message` が同一）があれば、新しい行を作らず `null` を返す（呼び出し側は成功として扱う）。同時送信も内容ごとの勧告ロックで1件に収める。
+   - `user_agent` は利用者に申告させず、PostgREST のリクエストヘッダから拾う（取れなければ NULL）。
+4. **画面 `/contact`。** h1「お問い合わせ」。用件のラジオ（上の3つの日本語ラベル）、本文（2000字まで・残り文字数を表示）、返信用のメールアドレス（任意。「返信が必要な場合だけ、ご記入ください。」）、「送る」。
+   - `?spot=<id>` が付いていれば、その公開中の店を対象として表示し、hidden で送る。
+   - 送信は Server Action。成功したら入力欄を閉じ、`role="status"` で「お送りしました。ありがとうございます。」。失敗は `role="alert"` で理由を、対象の入力欄のそばに出す。想定外の失敗は「お送りできませんでした。時間をおいて、もう一度お試しください。」。
+   - 二重送信は、送信中のボタンを `aria-disabled`（フォーカスを失わせない）にし、`isPending` の間の送信を無視して防ぐ。
+   - 「返信をお約束するものではありません。」「掲載停止のご連絡は、確認のうえ速やかに対応します。」を明記し、本文に個人情報を書かないよう案内する。
+   - ラベルと入力を関連付け、当たり判定は 44px 以上（WCAG 2.2 AA）。
+5. **掲載停止の扱い。** `removal` の申し出は、確認のうえ速やかに対応する（該当スポットを地図から外す運用は運営が Supabase の画面で行う）。対応状況は `status` で追う。
+6. デモモード（`URASUPO_DEMO_MODE=1`）は DB を持たないため、同じ規則をインメモリのフィクスチャで再現するだけで、どこにも保存しない（成功表示までを確かめられる）。
