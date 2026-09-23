@@ -25,10 +25,22 @@ describe("AppShell のフッター表示", () => {
     expect(screen.getByRole("link", { name: "利用規約" })).toBeInTheDocument();
   });
 
-  it("チロムなしのページ（/start）ではフッターもナビも出さない", () => {
-    mockPathname = "/start";
+  it.each(["/start", "/login", "/verify/req-1"])("ナビなしのページ（%s）ではナビは出さず、フッターは出す（R19 軽微）", (path) => {
+    mockPathname = path;
     render(<AppShell>content</AppShell>);
-    expect(screen.queryByRole("link", { name: "利用規約" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "利用規約" })).toHaveAttribute("href", "/terms");
+    expect(screen.getByRole("link", { name: "プライバシーポリシー" })).toHaveAttribute("href", "/privacy");
     expect(screen.queryByRole("navigation", { name: "主要ナビゲーション" })).not.toBeInTheDocument();
+  });
+
+  it("但し書きの「架空のデータ」はデモモードのときだけ出す", () => {
+    mockPathname = "/sapporo/search";
+    const { unmount } = render(<AppShell demoMode>content</AppShell>);
+    expect(screen.getByText(/架空のデータ/)).toBeInTheDocument();
+    unmount();
+
+    render(<AppShell>content</AppShell>);
+    expect(screen.queryByText(/架空のデータ/)).not.toBeInTheDocument();
+    expect(screen.getByText(/国土地理院/)).toBeInTheDocument();
   });
 });

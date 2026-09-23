@@ -84,13 +84,13 @@ export function isChromeHidden(pathname: string): boolean {
 /**
  * フッター（利用規約・プライバシーポリシー・よくある質問・お問い合わせ・掲載店舗の方への案内）を
  * 隠すべきページか。
- * - チロムなしのページ（isChromeHidden）ではフッターも出さない。
  * - S2「地図」/ D1「PC版トップ」`/[city]` は原本どおり地図が画面いっぱいを占める設計
  *   （`CityMapScreen` が `h-screen` 相当で組んでいる）ため、フッターを重ねない。
+ * - それ以外はすべて出す。チロムなしのページ（/login・/start・/verify）でも、ナビは隠すが
+ *   フッターは出す（ログイン画面から利用規約・プライバシーポリシーへ行けるように。R19 軽微）。
  *   `/[city]/search` 等の一覧画面はスクロールする通常ページなのでフッターを出す。
  */
 export function isFooterHidden(pathname: string): boolean {
-  if (isChromeHidden(pathname)) return true;
   const segments = pathname.split("/").filter(Boolean);
   return segments.length === 1 && KNOWN_CITY_SLUGS.includes(segments[0]);
 }

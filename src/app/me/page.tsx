@@ -7,7 +7,6 @@ import { resolveBadges } from "@/lib/domain/lantern";
 import { quietnessLabel } from "@/lib/domain/quietness";
 import type { Quietness, SpotStatus } from "@/lib/db/types";
 import { AnimatedCounter, Card, Divider, Tag } from "@/components/ui";
-import { Disclaimer } from "@/components/profile/Disclaimer";
 import { HomeCitySetting } from "@/components/profile/HomeCitySetting";
 import { canChangeHomeCity, formatHomeCityChangeDate, nextHomeCityChangeAt } from "@/lib/domain/home-city";
 
@@ -162,8 +161,6 @@ export default async function ProfilePage() {
         currentCitySlug={homeCity?.slug ?? null}
         nextChangeNote={nextChangeNote}
       />
-
-      <Disclaimer />
     </div>
   );
 }

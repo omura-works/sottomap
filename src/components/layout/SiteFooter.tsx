@@ -19,8 +19,9 @@ const FOOTER_LINKS: readonly FooterLink[] = [
  * 見本（genchikit.com）の並びに合わせる（指示書 pages-c-brief.md §2）。
  * `AppShell` 側で S2「地図」/ D1「PC版トップ」など地図が画面いっぱいを占めるページでは
  * 出さない（`isFooterHidden` 参照）。
+ * `demoMode` はサーバーの layout で `isDemoMode()` を判定して渡す（但し書きの「架空のデータ」はデモのときだけ）。
  */
-export function SiteFooter() {
+export function SiteFooter({ demoMode = false }: { demoMode?: boolean }) {
   return (
     <footer
       className="border-t px-4 py-6 space-y-4"
@@ -44,7 +45,7 @@ export function SiteFooter() {
           ))}
         </ul>
       </nav>
-      <Disclaimer />
+      <Disclaimer demoMode={demoMode} />
     </footer>
   );
 }

@@ -13,7 +13,7 @@ function siteOrigin(): string {
 /**
  * `/sitemap.xml`（本番公開前指示書 §4）。
  * 街の一覧から /start と各街の地図・検索ページを生成する。DB取得に失敗しても
- * build を落とさず、/start と静的ページ（/terms・/privacy・/faq）だけを含むsitemapにする
+ * build を落とさず、/start と静的ページ（/terms・/privacy・/faq・/shops・/contact）だけを含むsitemapにする
  * （公開スポット詳細は街ごとに数が変わるため、街の一覧からの生成という指示の範囲では含めない）。
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -23,6 +23,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${origin}/terms`, changeFrequency: "monthly", priority: 0.3 },
     { url: `${origin}/privacy`, changeFrequency: "monthly", priority: 0.3 },
     { url: `${origin}/faq`, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${origin}/shops`, changeFrequency: "monthly", priority: 0.3 },
+    { url: `${origin}/contact`, changeFrequency: "yearly", priority: 0.2 },
   ];
 
   try {

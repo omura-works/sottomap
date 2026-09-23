@@ -22,4 +22,15 @@ describe("ShopsPage（/shops）", () => {
     expect(screen.getByText(/宣伝や集客を目的とはしていません/)).toBeInTheDocument();
     expect(screen.getByText(/費用はかかりません/)).toBeInTheDocument();
   });
+
+  it("約束を実態に合わせる（R19 重要7）: 投稿者が確認した情報・確認でき次第・再投稿の抑止・本人確認はしない", () => {
+    render(<ShopsPage />);
+    expect(screen.getByText(/投稿者が確認して投稿した/)).toBeInTheDocument();
+    expect(screen.getByText(/内容を確認でき次第、地図から外すかどうかを判断します/)).toBeInTheDocument();
+    expect(screen.getByText(/同じ名前で近い場所への再投稿は受け付けないようにしています/)).toBeInTheDocument();
+    expect(screen.getByText(/店主ご本人かどうかの確認はしていません/)).toBeInTheDocument();
+    expect(screen.queryByText(/速やかに/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/再び載せることはありません/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/公開されている情報にもとづく/)).not.toBeInTheDocument();
+  });
 });

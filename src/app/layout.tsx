@@ -103,7 +103,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             デモモード（保存されません）
           </p>
         ) : null}
-        <AppShell homeCitySlug={homeCitySlug}>{children}</AppShell>
+        <AppShell homeCitySlug={homeCitySlug} demoMode={showDemoBanner}>{children}</AppShell>
       </body>
     </html>
   );

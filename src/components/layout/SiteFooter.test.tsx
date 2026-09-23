@@ -20,6 +20,16 @@ describe("SiteFooter", () => {
     expect(screen.getByText(/国土地理院/)).toBeInTheDocument();
   });
 
+  it("本番（既定）では「架空のデータ」と書かず、デモモードのときだけ書く（R19 軽微）", () => {
+    const { unmount } = render(<SiteFooter />);
+    expect(screen.queryByText(/架空のデータ/)).not.toBeInTheDocument();
+    expect(screen.getByText(/その街に住む投稿者が確認して投稿したもの/)).toBeInTheDocument();
+    unmount();
+
+    render(<SiteFooter demoMode />);
+    expect(screen.getByText(/架空のデータ/)).toBeInTheDocument();
+  });
+
   it("サイト名を先頭に出す", () => {
     render(<SiteFooter />);
     expect(screen.getByText("ウラスポ")).toBeInTheDocument();

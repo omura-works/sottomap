@@ -7,7 +7,6 @@ import { daysSince } from "@/lib/domain/lifecycle";
 import type { Quietness } from "@/lib/db/types";
 import { Card, Tag } from "@/components/ui";
 import type { TagKind } from "@/components/ui";
-import { Disclaimer } from "@/components/profile/Disclaimer";
 import { getCurrentUserId } from "@/lib/auth";
 import { BookmarkButton } from "./BookmarkButton";
 
@@ -111,8 +110,6 @@ export default async function SpotDetailPage({
           道順
         </Link>
       </div>
-
-      <Disclaimer />
 
       {/* 指示書 pages-c-brief.md §3: 店主向けの導線。目立たせすぎない小さなリンク。 */}
       <p className="m-0 text-muted text-xs">

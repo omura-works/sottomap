@@ -41,10 +41,10 @@ describe("isNavItemActive", () => {
 });
 
 describe("isFooterHidden（指示書 pages-c-brief.md §2）", () => {
-  it("チロムなしのページでは隠す", () => {
-    expect(isFooterHidden("/start")).toBe(true);
-    expect(isFooterHidden("/verify/req-1")).toBe(true);
-    expect(isFooterHidden("/login")).toBe(true);
+  it("ナビなしのページ（/start・/verify・/login）でもフッターは出す（R19 軽微）", () => {
+    expect(isFooterHidden("/start")).toBe(false);
+    expect(isFooterHidden("/verify/req-1")).toBe(false);
+    expect(isFooterHidden("/login")).toBe(false);
   });
 
   it("地図が画面いっぱいを占める街トップでは隠す", () => {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { Button } from "@/components/ui";
 import { sendLoginLink, type LoginActionState } from "./actions";
@@ -18,8 +19,20 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
       <input type="hidden" name="next" value={nextPath} />
       <label className="block space-y-2">
         <span className="text-sm">メールアドレス</span>
-        <input className="input w-full" type="email" name="email" autoComplete="email" required />
+        <input
+          className="input w-full"
+          type="email"
+          name="email"
+          autoComplete="email"
+          required
+          aria-describedby="login-email-note"
+        />
       </label>
+      {/* R19 軽微: メールを受け取る前に、利用目的と規約・プライバシーポリシーへの導線を置く。 */}
+      <p id="login-email-note" className="text-muted text-sm m-0">
+        メールアドレスはログインのためだけに使います。
+        <Link href="/terms">利用規約</Link>・<Link href="/privacy">プライバシーポリシー</Link>
+      </p>
       {state.error ? (
         <p role="alert" className="text-sm" style={{ color: "var(--color-accent-700)" }}>
           {state.error}

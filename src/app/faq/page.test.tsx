@@ -24,6 +24,17 @@ describe("FaqPage", () => {
     expect(screen.getByText(/8つの街/)).toBeInTheDocument();
   });
 
+  it("表示名の初期値・個人情報の請求・問い合わせの保存期間・掲載停止が、プライバシーポリシー・掲載店舗の方へと食い違わない（R19）", () => {
+    render(<FaqPage />);
+    const text = document.body.textContent ?? "";
+    expect(text).toMatch(/最初は「地元の人」と表示されます/);
+    expect(text).toMatch(/「自分の個人情報について」を選んで送って/);
+    expect(text).toMatch(/受付から1年で自動的に削除します/);
+    expect(text).toMatch(/同じ名前で近い場所への再投稿を受け付けない/);
+    expect(text).not.toMatch(/確認のうえ、掲載を取り下げます/);
+    expect(text).not.toMatch(/行く予定の日時をあわせて記録/);
+  });
+
   it("すべての summary がキーボードで開閉できる（ネイティブ要素）", () => {
     render(<FaqPage />);
     const summaries = document.querySelectorAll("summary");

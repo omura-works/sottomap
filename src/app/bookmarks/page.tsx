@@ -2,7 +2,6 @@ import { listBookmarks } from "@/lib/db/spots";
 import { getCurrentUserId } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
-import { Disclaimer } from "@/components/profile/Disclaimer";
 import { BookmarkList } from "./BookmarkList";
 import type { BookmarkListItem } from "./BookmarkList";
 import { formatPlannedAtInTokyo } from "@/lib/format/date-time";
@@ -42,8 +41,6 @@ export default async function BookmarksPage() {
       </header>
 
       <BookmarkList initialItems={items} />
-
-      <Disclaimer />
     </div>
   );
 }
