@@ -93,7 +93,7 @@ check("NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY", (messages) => 
 check("SUPABASE_SERVICE_ROLE_KEY", (messages) => {
   const value = readEnv("SUPABASE_SERVICE_ROLE_KEY")?.trim();
   if (!value) {
-    messages.push("NG: 未設定です。/api/cron/verification がSupabaseへ接続できません。");
+    messages.push("NG: 未設定です。/api/cron/verification とお問い合わせ（/contact）の保存がSupabaseへ接続できません。");
   } else {
     messages.push("OK: 設定済みです（値は表示しません）。");
   }
@@ -166,6 +166,54 @@ check("CRON_SECRET", (messages) => {
     return;
   }
   messages.push(`OK: 設定済みです（長さ${value.length}文字。値は表示しません）。`);
+});
+
+// --- CONTACT_RATE_SALT（お問い合わせの回数制限。SPEC §9.17） ---
+// 未設定でも起動はするが、/contact の送信がすべて拒否されるため公開前に必須とする。値は表示しない。
+check("CONTACT_RATE_SALT", (messages) => {
+  const value = readEnv("CONTACT_RATE_SALT")?.trim();
+  if (!value) {
+    messages.push("NG: 未設定です。お問い合わせ（/contact）の送信がすべて拒否されます。");
+    return;
+  }
+  if (value.length < 32) {
+    messages.push(`NG: 長さが${value.length}文字です。推測されにくいランダムな値（32文字以上）にしてください。`);
+    return;
+  }
+  messages.push(`OK: 設定済みです（長さ${value.length}文字。値は表示しません）。`);
+});
+
+// --- RESEND_API_KEY / CONTACT_NOTIFY_TO（お問い合わせの運営への通知。任意） ---
+// 未設定は「警告」扱い（失敗にはしない）。片方だけの設定は通知が送られないため警告する。
+check("RESEND_API_KEY / CONTACT_NOTIFY_TO（任意）", (messages) => {
+  const apiKey = readEnv("RESEND_API_KEY")?.trim();
+  const to = readEnv("CONTACT_NOTIFY_TO")?.trim();
+  if (!apiKey && !to) {
+    messages.push(
+      "警告: どちらも未設定です。お問い合わせが届いても運営へメールで通知されません（Supabase の画面で定期的に確認してください）。",
+    );
+    return;
+  }
+  if (!apiKey || !to) {
+    messages.push(
+      `警告: ${apiKey ? "CONTACT_NOTIFY_TO" : "RESEND_API_KEY"} が未設定です。両方そろわないと通知は送られません。`,
+    );
+    return;
+  }
+  const invalid = to
+    .split(",")
+    .map((address) => address.trim())
+    .filter((address) => address !== "" && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(address));
+  if (invalid.length > 0) {
+    messages.push(`警告: CONTACT_NOTIFY_TO にメールアドレスとして読めない値があります（${invalid.length}件）。`);
+    return;
+  }
+  const from = readEnv("CONTACT_NOTIFY_FROM")?.trim();
+  messages.push(
+    from
+      ? "OK: 通知の設定があります（値は表示しません）。"
+      : "OK: 通知の設定があります。ただし CONTACT_NOTIFY_FROM が未設定のため送信元は Resend の検証用アドレスになり、Resend のアカウントのアドレス以外には届きません。",
+  );
 });
 
 // --- URASUPO_DEMO_MODE（本番では設定しないこと） ---

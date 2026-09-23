@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
+import { getCurrentUserId } from "@/lib/auth";
 import { getSpot } from "@/lib/db/spots";
 import { ContactForm } from "./ContactForm";
 
 export const metadata: Metadata = {
   title: "お問い合わせ",
-  description: "掲載停止のご依頼、内容の訂正、その他のお問い合わせの窓口です。",
+  description: "掲載停止のご依頼、内容の訂正、ご自身の個人情報について、その他のお問い合わせの窓口です。",
 };
 
 /** `?spot=<id>` は文字列1つだけを受け取る。 */
@@ -17,11 +18,13 @@ function firstParam(value: string | string[] | undefined): string | undefined {
  * お問い合わせ `/contact`（SPEC §9.17）。
  * 掲載を止めてほしいという申し出を受ける窓口。内容は公開せず、運営だけが読む。
  * `?spot=<id>` が付いていれば、その店を対象として表示し、hidden で一緒に送る。
+ * 個人情報の請求（privacy）はログイン中だけ送れるため、ログインしているかをフォームに渡す。
  */
 export default async function ContactPage(props: PageProps<"/contact">) {
   await connection();
   const searchParams = await props.searchParams;
   const spotId = firstParam(searchParams.spot);
+  const isLoggedIn = (await getCurrentUserId()) !== null;
 
   let spot: { id: string; name: string; cityName: string } | null = null;
   if (spotId) {
@@ -55,7 +58,7 @@ export default async function ContactPage(props: PageProps<"/contact">) {
         </p>
       </div>
 
-      <ContactForm spot={spot} />
+      <ContactForm spot={spot} isLoggedIn={isLoggedIn} />
     </div>
   );
 }

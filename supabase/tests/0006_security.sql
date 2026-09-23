@@ -175,7 +175,10 @@ select is_empty(
       ('public.award_lantern_points(uuid, text, uuid, integer)', false, false, false),
       ('public.publish_pending_spot(uuid, timestamp with time zone)', false, false, false),
       ('public.set_home_city(uuid)', false, true, false),
-      ('public.initialize_home_city(uuid)', false, true, false)
+      ('public.initialize_home_city(uuid)', false, true, false),
+      -- §9.17 お問い合わせ（0010）。Server Action がサーバー専用の service_role 接続で呼ぶ。
+      ('public.submit_contact_message(text, text, text, uuid, text, uuid, text)', false, false, true),
+      ('public.purge_expired_contact_data()', false, false, true)
     )
     select f.fn, e.role_name, e.allowed
     from fns f
@@ -201,9 +204,7 @@ select is_empty(
       and p.proname not in (
         'create_spot', 'endorse_spot', 'answer_verification', 'run_verification_cron',
         'is_profile_visible', 'award_lantern_points', 'publish_pending_spot', 'set_home_city',
-        'initialize_home_city',
-        -- §9.17 お問い合わせ（0009）。anon / authenticated が実行できる（権限の詳細は 0009_contact.sql）。
-        'submit_contact_message'
+        'initialize_home_city'
       )
       and (
         has_function_privilege('public', p.oid, 'EXECUTE')

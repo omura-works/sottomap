@@ -819,17 +819,20 @@ export { findCityById as fixtureCityById };
 
 // =========================================================
 // お問い合わせ（SPEC §9.17）
-// デモモードには DB が無いため、0009_contact_messages.sql の submit_contact_message と同じ規則を
+// デモモードには DB が無いため、0010_contact_hardening.sql の submit_contact_message と同じ規則を
 // インメモリで再現するだけにする（プロセスが終われば消える。どこにも保存しない）。
+// 送信元ごと・全体の回数制限と容量の上限は再現しない（デモには送信元のハッシュもソルトも無い）。
 // =========================================================
 
 export interface FixtureContactMessage {
   id: string;
   createdAt: string;
-  category: "removal" | "correction" | "other";
+  category: "removal" | "correction" | "privacy" | "other";
   message: string;
   replyTo: string | null;
   spotId: string | null;
+  requesterId: string | null;
+  userAgent: string | null;
   status: "new" | "in_progress" | "done";
 }
 
@@ -838,18 +841,24 @@ export const FIXTURE_CONTACT_MESSAGES: FixtureContactMessage[] = [];
 
 /**
  * 問い合わせを1件受け付ける（DB 関数 submit_contact_message と同じ規則）。
- * 戻り値は作った id。直近1分以内に同じ内容（用件と本文が同一）があれば作らず null。
+ * 戻り値は作った id。直近1分以内に同じ送信（用件・本文・対象の店・返信先・送信者が同一）があれば作らず null。
+ * privacy（個人情報の請求）は送信者（requesterId）が無ければ拒否する。
  * 入力の形式検査は呼び出し元（src/lib/db/contact.ts の validateContactMessageInput）が済ませている。
  */
 export function addFixtureContactMessage(
   input: {
-    category: "removal" | "correction" | "other";
+    category: "removal" | "correction" | "privacy" | "other";
     message: string;
     replyTo: string | null;
     spotId: string | null;
+    requesterId: string | null;
+    userAgent: string | null;
   },
   now: Date,
 ): string | null {
+  if (input.category === "privacy" && input.requesterId === null) {
+    throw new Error("ログインしてから送ってください。本人確認のためです。");
+  }
   if (input.spotId !== null) {
     const spot = FIXTURE_SPOTS.find((s) => s.id === input.spotId && s.status === "published");
     if (!spot) throw new Error("お店の情報が取得できませんでした");
@@ -859,6 +868,9 @@ export function addFixtureContactMessage(
     (m) =>
       m.category === input.category &&
       m.message === input.message &&
+      m.spotId === input.spotId &&
+      m.replyTo === input.replyTo &&
+      m.requesterId === input.requesterId &&
       new Date(m.createdAt).getTime() > oneMinuteAgo,
   );
   if (duplicated) return null;
@@ -871,7 +883,19 @@ export function addFixtureContactMessage(
     message: input.message,
     replyTo: input.replyTo,
     spotId: input.spotId,
+    requesterId: input.requesterId,
+    userAgent: input.userAgent,
     status: "new",
   });
   return id;
+}
+
+/** 保存期間（受付から1年ちょうど）を過ぎた問い合わせを削除し、削除した件数を返す（DB 関数 purge_expired_contact_data と同じ規則）。 */
+export function purgeFixtureContactMessages(now: Date): number {
+  const limit = new Date(now);
+  limit.setUTCFullYear(limit.getUTCFullYear() - 1);
+  const before = FIXTURE_CONTACT_MESSAGES.length;
+  const kept = FIXTURE_CONTACT_MESSAGES.filter((m) => new Date(m.createdAt).getTime() > limit.getTime());
+  FIXTURE_CONTACT_MESSAGES.splice(0, FIXTURE_CONTACT_MESSAGES.length, ...kept);
+  return before - kept.length;
 }

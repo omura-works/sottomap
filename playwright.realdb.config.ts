@@ -53,6 +53,8 @@ export default defineConfig({
       SUPABASE_SERVICE_ROLE_KEY: process.env.REALDB_SERVICE_ROLE_KEY ?? "",
       NEXT_PUBLIC_SITE_URL: BASE_URL,
       CRON_SECRET: "local-realdb-e2e-cron-secret-not-used",
+      // お問い合わせの送信元ハッシュのソルト（SPEC §9.17。未設定だと送信時に拒否される）。
+      CONTACT_RATE_SALT: "local-realdb-e2e-contact-rate-salt",
       // ポート3100で動く別の dev サーバー（同じ .next ロックファイル）と競合しないよう、
       // このE2E専用のdistDirを使う。
       NEXT_DIST_DIR: ".next-realdb",

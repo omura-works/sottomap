@@ -245,6 +245,52 @@ select slug, name from cities order by slug;    -- asahikawa/furano/hakodate/kus
 9. しきい値は 8.1節のログ実測を見て調整する。件数はリージョンごとに数えるため、複数リージョンに
    分散したアクセスでは合計が設定値を超えることがある（公式ドキュメントの注記）。
 
+### 4.6 お問い合わせ（`/contact`）の回数制限・運営への通知・保存期間（SPEC §9.17）
+
+お問い合わせは Server Action がサーバー専用の service_role 接続で DB 関数 `submit_contact_message`
+を呼んで保存する（利用者のブラウザからは直接呼べない）。4.2節の表に加えて、次の変数を設定する。
+
+| 変数 | Production | Preview | 種別 |
+| --- | --- | --- | --- |
+| `CONTACT_RATE_SALT` | 32文字以上のランダムな値（**必須**。未設定だと送信がすべて拒否される） | 本番とは別の値 | **Secret** |
+| `RESEND_API_KEY` | 通知する場合だけ。Resend の API キー | 設定しない（推奨） | **Secret** |
+| `CONTACT_NOTIFY_TO` | 通知する場合だけ。運営のメールアドレス（複数はカンマ区切り） | 設定しない（推奨） | Config |
+| `CONTACT_NOTIFY_FROM` | 任意。Resend で検証済みのドメインの送信元（例: `ウラスポ <notify@urasupo.jp>`） | 設定しない | Config |
+
+**回数制限と容量。** 送信元IPはそのまま保存せず、`sha256(IP + CONTACT_RATE_SALT)` だけを
+`public.contact_rate` に24時間残す。上限は**1時間に5件・1日に20件／送信元**、全体で**1日に500件**。
+問い合わせが**10,000件**に達すると新規を受け付けない（Vercel の Logs に
+`[contact] 問い合わせの保存件数が上限（10,000件）に達しています` が出る）。その場合は Supabase の
+Table Editor で `contact_messages` の対応済み（`status = 'done'`）の古いものから削除する。
+送信元IPは、Vercel がリクエストに付ける `x-real-ip`（無ければ `x-forwarded-for` の先頭）から読む。
+
+**運営への通知（任意）。** `RESEND_API_KEY` と `CONTACT_NOTIFY_TO` の**両方**があるときだけ、保存に
+成功したあと Resend の HTTP API（`POST https://api.resend.com/emails`）で短いメールを送る。
+メールの本文は**用件・受付ID・受付時刻だけ**で、問い合わせの本文や返信先は載せない（内容は Supabase
+の Table Editor で `contact_messages` を開いて読む）。送信に失敗しても保存は取り消さず、Vercel の Logs に
+`[contact-notify]` で始まる行が残る。設定の手順:
+
+1. Resend にアカウントを作り、**Domains** で送信に使うドメイン（例: `urasupo.jp`）を追加して、表示される
+   DNS レコードを登録し、検証を済ませる。
+2. **API Keys** で送信専用（Sending access）のキーを作り、`RESEND_API_KEY` に Secret で登録する。
+3. `CONTACT_NOTIFY_TO` に運営の受信アドレス、`CONTACT_NOTIFY_FROM` に検証済みドメインの送信元を登録する。
+   `CONTACT_NOTIFY_FROM` が空だと送信元は `onboarding@resend.dev`（Resend の検証用）になり、Resend の
+   アカウントのアドレスにしか届かない。
+4. `/contact` から試しに1件送り、通知が届くこと・本文に問い合わせの内容が無いことを確かめる。
+
+> 要確認: Resend の API の仕様（エンドポイント、`Authorization: Bearer`、`from` / `to` / `subject` / `text`、
+> `Idempotency-Key` ヘッダー、Sending access のキー）は実装時に公式ドキュメント（https://resend.com/docs/api-reference/emails/send-email）
+> を参照できなかったため、記憶に基づく。公開前に公式ドキュメントと突き合わせること。
+
+**保存期間。** 日次 cron（4.3節、`/api/cron/verification`）の最後に DB 関数
+`purge_expired_contact_data()`（service_role 専用）を呼び、次を削除する。
+
+- お問い合わせ（`contact_messages`）: **受付から1年**で削除（対応中かどうかにかかわらない）。
+- 送信元の記録（`contact_rate`）: **24時間**で削除。
+
+削除に失敗すると cron の応答が500になり、Vercel の Logs に `[cron] お問い合わせの保存期間の処理に失敗しました`
+が出る（翌日の実行で取り戻せる）。
+
 ## 5. 公開直後の確認チェックリスト
 
 - [ ] 4.5節の Firewall 設定を**公開前に**終えていること（最終状態が 429／Deny で、11件目が実際に

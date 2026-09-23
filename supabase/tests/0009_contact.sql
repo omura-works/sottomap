@@ -69,9 +69,10 @@ select ok(
   '権限表: service_role（運営）は読めて、状態を更新できる'
 );
 select ok(
-  has_function_privilege('anon', 'public.submit_contact_message(text,text,text,uuid)', 'EXECUTE')
-  and has_function_privilege('authenticated', 'public.submit_contact_message(text,text,text,uuid)', 'EXECUTE'),
-  '権限表: submit_contact_message は anon / authenticated が実行できる'
+  not has_function_privilege('anon', 'public.submit_contact_message(text,text,text,uuid,text,uuid,text)', 'EXECUTE')
+  and not has_function_privilege('authenticated', 'public.submit_contact_message(text,text,text,uuid,text,uuid,text)', 'EXECUTE')
+  and has_function_privilege('service_role', 'public.submit_contact_message(text,text,text,uuid,text,uuid,text)', 'EXECUTE'),
+  '権限表: submit_contact_message は service_role だけが実行できる（0010。Server Action がサーバーから呼ぶ）'
 );
 select is(
   (select p.prosecdef from pg_catalog.pg_proc p
@@ -88,7 +89,7 @@ select ok(
 );
 
 -- =========================================================
--- 匿名（anon）からの直接アクセスと入力検査
+-- 匿名（anon）からの表への直接アクセス
 -- =========================================================
 set local role anon;
 set local request.jwt.claims to '{"role":"anon"}';
@@ -104,52 +105,59 @@ select throws_ok(
   '匿名: contact_messages へ直接 insert できない'
 );
 
+reset role;
+
+-- =========================================================
+-- 入力検査（0010 以降、RPC は Server Action が service_role の接続で呼ぶ）
+-- =========================================================
+set local role service_role;
+
 select throws_ok(
-  $$ select public.submit_contact_message('spam', '本文', null, null) $$,
+  $$ select public.submit_contact_message('spam', '本文', null, null, repeat('7', 64)) $$,
   '22023', '用件を選んでください',
   '用件が一覧にない値は拒否する'
 );
 select throws_ok(
-  $$ select public.submit_contact_message(null, '本文', null, null) $$,
+  $$ select public.submit_contact_message(null, '本文', null, null, repeat('7', 64)) $$,
   '22023', '用件を選んでください',
   '用件が NULL なら拒否する'
 );
 select throws_ok(
-  $$ select public.submit_contact_message('other', '', null, null) $$,
+  $$ select public.submit_contact_message('other', '', null, null, repeat('7', 64)) $$,
   '22023', 'お問い合わせの内容を入力してください',
   '本文が空なら拒否する'
 );
 select throws_ok(
-  $$ select public.submit_contact_message('other', '　 ' || chr(10), null, null) $$,
+  $$ select public.submit_contact_message('other', '　 ' || chr(10), null, null, repeat('7', 64)) $$,
   '22023', 'お問い合わせの内容を入力してください',
   '本文が空白（全角空白・改行を含む）だけなら拒否する'
 );
 select throws_ok(
-  $$ select public.submit_contact_message('other', repeat('あ', 2001), null, null) $$,
+  $$ select public.submit_contact_message('other', repeat('あ', 2001), null, null, repeat('7', 64)) $$,
   '22023', 'お問い合わせの内容は2000字以内で入力してください',
   '本文が2001字なら拒否する'
 );
 select lives_ok(
-  $$ select public.submit_contact_message('other', repeat('い', 2000), null, null) $$,
+  $$ select public.submit_contact_message('other', repeat('い', 2000), null, null, repeat('7', 64)) $$,
   '本文が2000字ちょうどなら受け付ける'
 );
 select throws_ok(
-  $$ select public.submit_contact_message('other', '本文', 'example.com', null) $$,
+  $$ select public.submit_contact_message('other', '本文', 'example.com', null, repeat('7', 64)) $$,
   '22023', 'メールアドレスの形をご確認ください',
   '返信先に @ が無ければ拒否する'
 );
 select throws_ok(
-  $$ select public.submit_contact_message('other', '本文', repeat('a', 320) || '@example.com', null) $$,
+  $$ select public.submit_contact_message('other', '本文', repeat('a', 320) || '@example.com', null, repeat('7', 64)) $$,
   '22023', 'メールアドレスの形をご確認ください',
   '返信先が320字を超えれば拒否する'
 );
 select throws_ok(
-  $$ select public.submit_contact_message('removal', '本文', null, '55550000-0000-4000-8000-0000000000ff') $$,
+  $$ select public.submit_contact_message('removal', '本文', null, '55550000-0000-4000-8000-0000000000ff', repeat('7', 64)) $$,
   'P0002', 'お店の情報が取得できませんでした',
   '存在しないスポットは拒否する'
 );
 select throws_ok(
-  $$ select public.submit_contact_message('removal', '本文', null, '55550000-0000-4000-8000-000000000002') $$,
+  $$ select public.submit_contact_message('removal', '本文', null, '55550000-0000-4000-8000-000000000002', repeat('7', 64)) $$,
   'P0002', 'お店の情報が取得できませんでした',
   '公開されていない（pending）スポットは拒否する'
 );
@@ -158,17 +166,17 @@ select throws_ok(
 -- 正常系と二重送信
 -- =========================================================
 select isnt(
-  public.submit_contact_message('removal', 'この店の掲載を止めてください。', ' owner@example.com ', '55550000-0000-4000-8000-000000000001'),
+  public.submit_contact_message('removal', 'この店の掲載を止めてください。', ' owner@example.com ', '55550000-0000-4000-8000-000000000001', repeat('7', 64)),
   null::uuid,
   '正常系: 保存して id を返す'
 );
 select is(
-  public.submit_contact_message('removal', 'この店の掲載を止めてください。', null, null),
+  public.submit_contact_message('removal', 'この店の掲載を止めてください。', ' owner@example.com ', '55550000-0000-4000-8000-000000000001', repeat('7', 64)),
   null::uuid,
-  '直近1分以内の同じ内容は保存せず null を返す'
+  '直近1分以内の同じ内容（用件・本文・対象・返信先・送信者・送信元が同一）は保存せず null を返す'
 );
 select isnt(
-  public.submit_contact_message('removal', '別の店の掲載を止めてください。', null, null),
+  public.submit_contact_message('removal', '別の店の掲載を止めてください。', null, null, repeat('7', 64)),
   null::uuid,
   '内容が違えば保存する'
 );
