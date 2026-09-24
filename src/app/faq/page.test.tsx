@@ -30,10 +30,20 @@ describe("FaqPage", () => {
     expect(text).toMatch(/最初は「地元の人」と表示されます/);
     expect(text).toMatch(/「自分の個人情報について」を選んで送って/);
     expect(text).toMatch(/受付から1年を過ぎたあとの日次の処理で削除します/);
-    expect(text).toMatch(/ログインできない場合や退会した場合/);
+    expect(text).toMatch(/ログインできない場合/);
     expect(text).toMatch(/同じ名前で近い場所への再投稿を受け付けない/);
     expect(text).not.toMatch(/確認のうえ、掲載を取り下げます/);
     expect(text).not.toMatch(/行く予定の日時をあわせて記録/);
+  });
+
+  it("退会と本人確認の答えが、プライバシーポリシーと実装（退会で問い合わせの記録も消える）に合う（R21 重要2）", () => {
+    render(<FaqPage />);
+    const text = document.body.textContent ?? "";
+    expect(text).not.toMatch(/退会したあとも、この期間までは残ります/);
+    expect(text).not.toMatch(/登録していた）メールアドレス/);
+    expect(text).toMatch(/登録しているメールアドレスと照合し/);
+    expect(text).toMatch(/ログインせずに返信用のメールアドレスを書いて送ったお問い合わせについてだけ/);
+    expect(text).toMatch(/ログインした状態で送ったお問い合わせの記録も一緒に削除されます/);
   });
 
   it("すべての summary がキーボードで開閉できる（ネイティブ要素）", () => {

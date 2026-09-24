@@ -72,10 +72,13 @@ export async function submitContactAction(
   try {
     const requestHeaders = await headers();
     const requesterId = await getCurrentUserId();
+    // ログイン中の個人情報の請求はアカウントのメールアドレス宛に回答するため、返信先は受け取っても保存しない
+    // （画面は欄を出さない。検査の validateContactMessageInput も同じく捨てる。R21 軽微1）。
+    const ignoresReplyTo = category === "privacy" && requesterId !== null;
     const receipt = await submitContactMessage({
       category: category === "" ? null : category,
       message: readString(formData, "message"),
-      replyTo: readString(formData, "replyTo") || null,
+      replyTo: ignoresReplyTo ? null : readString(formData, "replyTo") || null,
       spotId: spotId === "" ? null : spotId,
       requesterId,
       userAgent: truncateUserAgent(requestHeaders.get("user-agent")),

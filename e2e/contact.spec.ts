@@ -28,10 +28,19 @@ test("/contact の送るボタンは高さ44px以上", async ({ page }) => {
 
 test("/contact はログイン中（デモユーザー）なら個人情報の請求を送れる", async ({ page }) => {
   await page.goto("/contact");
-  await page.getByText("自分の個人情報について（開示・訂正・削除・利用停止）", { exact: true }).click();
-  // ログイン中は未ログイン向けの案内を出さず、返信先は任意のまま。
-  await expect(page.getByText(/ログインできない場合や退会した場合は/)).toHaveCount(0);
+  // 用件を選ぶ前は、返信先の欄がある（任意）。
   await expect(page.getByLabel("返信用のメールアドレス（任意）")).toBeVisible();
+  await page.getByText("自分の個人情報について（開示・訂正・削除・利用停止）", { exact: true }).click();
+  // ログイン中は未ログイン向けの案内を出さず、返信先の欄ごと出さない（回答はアカウントのメールアドレス宛。R21 軽微1）。
+  await expect(page.getByText(/ログインできない場合は、返信用のメールアドレスに/)).toHaveCount(0);
+  await expect(
+    page.getByText(
+      "個人情報についての回答は、アカウントに登録しているメールアドレス宛にお送りします。返信用のメールアドレスの入力は要りません。",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(page.getByLabel(/返信用のメールアドレス/)).toHaveCount(0);
+  await expect(page.locator('input[name="replyTo"]')).toHaveCount(0);
   await page.getByLabel("お問い合わせの内容（2000字まで）").fill("登録した情報を消してください。E2E-privacy");
   await page.getByRole("button", { name: "送る" }).click();
   await expect(page.getByRole("heading", { name: "お送りしました。ありがとうございます。" })).toBeFocused();

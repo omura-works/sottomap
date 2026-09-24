@@ -33,8 +33,8 @@ export const CONTACT_ERRORS = {
   replyTo: "メールアドレスの形をご確認ください",
   spot: "お店の情報が取得できませんでした",
   /**
-   * 個人情報の請求（privacy）を未ログインで送るときは、返信先が必須（R20 重要3）。
-   * 運営が、登録している（退会した場合は登録していた）メールアドレス宛に確認して本人確認するため。
+   * 個人情報の請求（privacy）を未ログインで送るときは、返信先が必須（R20 重要3・R21 重要2）。
+   * 運営が、登録しているメールアドレスと照合し、一致したらそのアドレス宛に確認して本人確認するため。
    */
   privacyReplyTo: "ログインせずに送る場合は、本人確認のため、返信用のメールアドレスを入力してください。",
   /** 送信元ごと・全体の回数制限、容量の上限に達したとき。 */
@@ -45,16 +45,21 @@ export const CONTACT_ERRORS = {
 export const CONTACT_LOGIN_HREF = "/login?next=%2Fcontact";
 
 /**
- * 個人情報の請求（privacy）の案内（SPEC §9.17-4。R20 重要3）。
+ * 個人情報の請求（privacy）の案内（SPEC §9.17-4。R20 重要3・R21 重要2・軽微1）。
  * - ログイン中: そのアカウントのご本人からの請求として受け付け、アカウントのメールアドレス宛に回答する。
- * - ログインできない人・退会した人: 返信先を必須にし、運営がそのアドレス宛にメールで確認して本人確認する。
+ *   返信先の欄は出さず、送られてきても保存しない（validateContactMessageInput が捨てる）。
+ * - ログインできない人: 返信先を必須にし、運営が登録しているメールアドレスと照合（find_account_by_email）し、
+ *   一致したらそのアドレス宛に確認のメールを送って本人確認する。
+ * - 退会した人: アカウントと、ログイン中に送った問い合わせの記録は削除済み（0014 の delete_account）。
+ *   請求できるのは、ログインせずに返信先を書いて送った問い合わせだけで、そのアドレスで確認のメールを受け取れることで本人確認する。
  */
 export const CONTACT_PRIVACY_COPY = {
   guestNote:
-    "ログインして送ると、そのアカウントのご本人からの請求として受け付けます。ログインできない場合や退会した場合は、返信用のメールアドレスに、登録している（退会した場合は、登録していた）メールアドレスを書いて送ってください。運営からそのアドレス宛にメールで確認し、ご本人であることを確かめてから回答します。",
+    "ログインして送ると、そのアカウントのご本人からの請求として受け付けます。ログインできない場合は、返信用のメールアドレスに、登録しているメールアドレスを書いて送ってください。運営が登録しているメールアドレスと照合し、一致した場合にそのアドレス宛に確認のメールを送って、ご本人であることを確かめてから回答します。退会した場合は、ログインせずに返信用のメールアドレスを書いて送ったお問い合わせについてだけ請求できます。そのときと同じメールアドレスを書いて送ってください。",
   guestReplyToHint:
-    "登録している（退会した場合は、登録していた）メールアドレスをご記入ください。本人確認のため、運営からこのアドレス宛にメールで確認します。",
-  memberReplyToHint: "個人情報についての回答は、アカウントに登録しているメールアドレス宛にお送りします。",
+    "登録しているメールアドレスをご記入ください（退会した場合は、以前のお問い合わせに書いたメールアドレス）。本人確認のため、運営からこのアドレス宛に確認のメールを送ります。",
+  memberNote:
+    "個人情報についての回答は、アカウントに登録しているメールアドレス宛にお送りします。返信用のメールアドレスの入力は要りません。",
 } as const;
 
 /** PostgreSQL の char_length と同じく、コードポイント単位で数える。 */
@@ -97,6 +102,7 @@ export function isContactCategory(value: unknown): value is ContactCategory {
  * submit_contact_message（0013）と同じ入力検査。検査の順序とエラー文も DB 関数に合わせる。
  * 戻り値は DB が保存する形（本文はそのまま、返信先は前後の空白を除き、空なら null）。
  * requesterId はログイン中の利用者の ID（未ログインなら null）。privacy では requesterId か返信先のどちらかが必須。
+ * ログイン中（requesterId あり）の privacy では、返信先は保存しない（null にする）。
  */
 export function validateContactMessageInput(input: {
   category: string | null;
@@ -116,7 +122,10 @@ export function validateContactMessageInput(input: {
     throw new Error(CONTACT_ERRORS.messageTooLong);
   }
 
-  const trimmedReplyTo = input.replyTo === null ? "" : stripBlank(input.replyTo);
+  // ログイン中の個人情報の請求は、アカウントのメールアドレス宛に回答するので、返信先は受け取っても捨てる
+  // （使わない連絡先を集めない。R21 軽微1）。捨てる値なので形の検査もしない。
+  const ignoresReplyTo = input.category === "privacy" && Boolean(input.requesterId);
+  const trimmedReplyTo = input.replyTo === null || ignoresReplyTo ? "" : stripBlank(input.replyTo);
   const replyTo = trimmedReplyTo === "" ? null : trimmedReplyTo;
   if (replyTo !== null && !isValidReplyTo(replyTo)) {
     throw new Error(CONTACT_ERRORS.replyTo);

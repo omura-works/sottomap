@@ -22,7 +22,7 @@ test("未ログインで個人情報の請求を選ぶと2つの経路を案内�
   await page.getByText(PRIVACY_LABEL, { exact: true }).click();
   await expect(page.getByRole("radio", { name: PRIVACY_LABEL })).toBeChecked();
 
-  await expect(page.getByText(/ログインできない場合や退会した場合は/)).toBeVisible();
+  await expect(page.getByText(/ログインできない場合は、返信用のメールアドレスに、登録しているメールアドレスを書いて/)).toBeVisible();
   await expect(page.getByRole("link", { name: "ログインする" })).toHaveAttribute("href", "/login?next=%2Fcontact");
   const replyTo = page.getByLabel("返信用のメールアドレス（必須）");
   await expect(replyTo).toHaveAttribute("aria-required", "true");
@@ -42,7 +42,7 @@ test("未ログインで個人情報の請求を選ぶと2つの経路を案内�
   expect(data ?? []).toHaveLength(0);
 });
 
-test("ログインできない人・退会した人は、返信先を書けば個人情報の請求を送れる（R20 重要3）", async ({ page }) => {
+test("ログインできない人は、返信先を書けば個人情報の請求を送れる（R20 重要3）", async ({ page }) => {
   const message = `未ログインの個人情報の請求（返信先あり） E2E-${Date.now()}`;
   await page.goto("/contact");
   await page.getByText(PRIVACY_LABEL, { exact: true }).click();

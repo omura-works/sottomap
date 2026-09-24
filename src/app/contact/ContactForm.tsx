@@ -20,7 +20,8 @@ export interface ContactFormProps {
   spot: { id: string; name: string; cityName: string } | null;
   /**
    * ログイン中か。個人情報の請求（privacy）は、ログイン中ならそのアカウントのご本人からの請求として受け付け、
-   * 未ログインなら返信先を必須にする（運営がそのアドレス宛に確認して本人確認する。R20 重要3）。
+   * 返信先の欄を出さない（アカウントのメールアドレス宛に回答する。R21 軽微1）。未ログインなら返信先を必須にする
+   * （運営が登録しているメールアドレスと照合し、そのアドレス宛に確認して本人確認する。R20 重要3・R21 重要2）。
    */
   isLoggedIn: boolean;
 }
@@ -83,15 +84,15 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
   const remaining = CONTACT_MESSAGE_MAX_LENGTH - charLength(message);
   const fieldError = state.status === "error" ? state.field : undefined;
   const formError = state.status === "error" && state.field === undefined ? state.message : null;
-  // 個人情報の請求: 未ログインなら2つの経路（ログイン／返信先を書いて運営が確認）を案内し、返信先を必須にする。
+  // 個人情報の請求: 未ログインなら経路（ログイン／返信先を書いて運営が照合・確認）を案内し、返信先を必須にする。
+  // ログイン中なら返信先の欄を出さず（送らない）、アカウントのメールアドレス宛に回答すると案内する。
   const isPrivacy = category === "privacy";
   const isGuestPrivacy = isPrivacy && !isLoggedIn;
+  const isMemberPrivacy = isPrivacy && isLoggedIn;
   const categoryErrorMessage = fieldError === "category" && state.status === "error" ? state.message : null;
   const replyToHint = isGuestPrivacy
     ? CONTACT_PRIVACY_COPY.guestReplyToHint
-    : isPrivacy
-      ? CONTACT_PRIVACY_COPY.memberReplyToHint
-      : "返信が必要な場合だけ、ご記入ください。";
+    : "返信が必要な場合だけ、ご記入ください。";
 
   if (state.status === "success") {
     return (
@@ -136,7 +137,7 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
         className="space-y-2"
         style={{ border: 0, padding: 0, margin: 0 }}
         aria-describedby={
-          [categoryErrorMessage ? categoryErrorId : null, isGuestPrivacy ? privacyNoteId : null]
+          [categoryErrorMessage ? categoryErrorId : null, isPrivacy ? privacyNoteId : null]
             .filter(Boolean)
             .join(" ") || undefined
         }
@@ -166,6 +167,10 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
           {isGuestPrivacy ? (
             <p id={privacyNoteId} className="text-sm m-0">
               {CONTACT_PRIVACY_COPY.guestNote} <Link href={CONTACT_LOGIN_HREF}>ログインする</Link>
+            </p>
+          ) : isMemberPrivacy ? (
+            <p id={privacyNoteId} className="text-sm m-0">
+              {CONTACT_PRIVACY_COPY.memberNote}
             </p>
           ) : null}
         </div>
@@ -203,34 +208,37 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
         ) : null}
       </div>
 
-      <div className="field">
-        <label htmlFor={replyToId}>
-          {isGuestPrivacy ? "返信用のメールアドレス（必須）" : "返信用のメールアドレス（任意）"}
-        </label>
-        <input
-          ref={replyToRef}
-          id={replyToId}
-          name="replyTo"
-          type="email"
-          className="input"
-          maxLength={CONTACT_REPLY_TO_MAX_LENGTH}
-          style={{ minHeight: 44 }}
-          // required 属性はブラウザ独自の吹き出しで送信を止めてしまうため使わず、検査はサーバーの文言で出す。
-          aria-required={isGuestPrivacy || undefined}
-          aria-invalid={fieldError === "replyTo" ? true : undefined}
-          aria-describedby={
-            [replyToHintId, fieldError === "replyTo" ? replyToErrorId : null].filter(Boolean).join(" ")
-          }
-        />
-        <div id={replyToHintId} className="field-hint">
-          {replyToHint}
-        </div>
-        {fieldError === "replyTo" ? (
-          <div id={replyToErrorId} role="alert" className="field-hint" style={{ color: "var(--color-accent-700)" }}>
-            {state.status === "error" ? state.message : null}
+      {/* ログイン中の個人情報の請求では、返信先の欄ごと出さない（使わない連絡先を入力・送信させない）。 */}
+      {isMemberPrivacy ? null : (
+        <div className="field">
+          <label htmlFor={replyToId}>
+            {isGuestPrivacy ? "返信用のメールアドレス（必須）" : "返信用のメールアドレス（任意）"}
+          </label>
+          <input
+            ref={replyToRef}
+            id={replyToId}
+            name="replyTo"
+            type="email"
+            className="input"
+            maxLength={CONTACT_REPLY_TO_MAX_LENGTH}
+            style={{ minHeight: 44 }}
+            // required 属性はブラウザ独自の吹き出しで送信を止めてしまうため使わず、検査はサーバーの文言で出す。
+            aria-required={isGuestPrivacy || undefined}
+            aria-invalid={fieldError === "replyTo" ? true : undefined}
+            aria-describedby={
+              [replyToHintId, fieldError === "replyTo" ? replyToErrorId : null].filter(Boolean).join(" ")
+            }
+          />
+          <div id={replyToHintId} className="field-hint">
+            {replyToHint}
           </div>
-        ) : null}
-      </div>
+          {fieldError === "replyTo" ? (
+            <div id={replyToErrorId} role="alert" className="field-hint" style={{ color: "var(--color-accent-700)" }}>
+              {state.status === "error" ? state.message : null}
+            </div>
+          ) : null}
+        </div>
+      )}
 
       {formError ? (
         <p role="alert" className="text-sm m-0" style={{ color: "var(--color-accent-700)" }}>

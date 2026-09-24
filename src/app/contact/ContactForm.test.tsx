@@ -1,6 +1,6 @@
 // /contact のフォーム（SPEC §9.17）。成功したらお礼の見出しへ、失敗したら最初の不正な入力欄へ
 // フォーカスを移すこと、送るボタンが44px以上であること、個人情報の請求（privacy）の2つの経路
-// （ログイン中／ログインできない・退会した人は返信先必須）の案内と、用件ごとの成功時の文言を確かめる。
+// （ログイン中は返信先の欄を出さない／ログインできない人は返信先必須）の案内と、用件ごとの成功時の文言を確かめる。
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { submitContactAction } from "@/app/actions/contact";
@@ -102,10 +102,10 @@ describe("ContactForm", () => {
       message: CONTACT_ERRORS.category,
       field: "category",
     });
-    render(<ContactForm spot={null} isLoggedIn />);
+    render(<ContactForm spot={null} isLoggedIn={false} />);
     const privacy = screen.getByRole("radio", { name: "自分の個人情報について（開示・訂正・削除・利用停止）" });
     fireEvent.click(privacy);
-    fireEvent.change(screen.getByLabelText("返信用のメールアドレス（任意）"), {
+    fireEvent.change(screen.getByLabelText("返信用のメールアドレス（必須）"), {
       target: { value: "owner@example.com" },
     });
 
@@ -113,7 +113,7 @@ describe("ContactForm", () => {
 
     expect(privacy).toBeChecked();
     expect(privacy).toHaveFocus();
-    expect(screen.getByLabelText("返信用のメールアドレス（任意）")).toHaveValue("owner@example.com");
+    expect(screen.getByLabelText("返信用のメールアドレス（必須）")).toHaveValue("owner@example.com");
   });
 
   it("未ログインで個人情報の請求を選ぶと、2つの経路を案内し、返信先を必須にする（R20 重要3）", () => {
@@ -144,12 +144,25 @@ describe("ContactForm", () => {
     expect(screen.getByLabelText("返信用のメールアドレス（必須）")).toHaveFocus();
   });
 
-  it("ログイン中なら個人情報の請求を選んでも返信先は任意で、回答先はアカウントのメールアドレスと案内する", () => {
-    render(<ContactForm spot={null} isLoggedIn />);
-    fireEvent.click(screen.getByRole("radio", { name: "自分の個人情報について（開示・訂正・削除・利用停止）" }));
+  it("ログイン中に個人情報の請求を選ぶと、返信先の欄を出さず（送らず）、アカウントのメールアドレス宛に回答すると案内する（R21 軽微1）", async () => {
+    vi.mocked(submitContactAction).mockResolvedValue({ status: "success", category: "privacy" });
+    const { container } = render(<ContactForm spot={null} isLoggedIn />);
+    // 用件を選ぶ前は、返信先の欄がある（任意）。
+    expect(screen.getByLabelText("返信用のメールアドレス（任意）")).toBeInTheDocument();
+
+    const privacy = screen.getByRole("radio", { name: "自分の個人情報について（開示・訂正・削除・利用停止）" });
+    fireEvent.click(privacy);
+
     expect(screen.queryByText(CONTACT_PRIVACY_COPY.guestNote, { exact: false })).toBeNull();
-    expect(screen.getByLabelText("返信用のメールアドレス（任意）")).toHaveAccessibleDescription(
-      CONTACT_PRIVACY_COPY.memberReplyToHint,
-    );
+    expect(screen.queryByLabelText(/返信用のメールアドレス/)).toBeNull();
+    expect(container.querySelector('input[name="replyTo"]')).toBeNull();
+    const note = screen.getByText(CONTACT_PRIVACY_COPY.memberNote);
+    expect(note).not.toHaveAttribute("role", "alert");
+    expect(screen.getByRole("group", { name: "用件" })).toHaveAccessibleDescription(CONTACT_PRIVACY_COPY.memberNote);
+
+    await submit();
+    const sent = vi.mocked(submitContactAction).mock.calls[0]?.[1];
+    expect(sent?.get("category")).toBe("privacy");
+    expect(sent?.has("replyTo")).toBe(false);
   });
 });

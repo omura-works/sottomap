@@ -74,11 +74,31 @@ describe("validateContactMessageInput", () => {
     expect(validateContactMessageInput({ ...base, category: "privacy", requesterId: "user-1" }).category).toBe(
       "privacy",
     );
-    // ログインできない人・退会した人は、返信先（登録している／していたメールアドレス）を書けば送れる。
+    // ログインできない人は、返信先（登録しているメールアドレス）を書けば送れる。
     expect(
       validateContactMessageInput({ ...base, category: "privacy", requesterId: null, replyTo: " owner@example.com " })
         .replyTo,
     ).toBe("owner@example.com");
+  });
+
+  it("ログイン中の個人情報の請求（privacy）は、返信先を受け取っても捨てる（回答はアカウントのメールアドレス宛。R21 軽微1）", () => {
+    const value = validateContactMessageInput({
+      ...base,
+      category: "privacy",
+      requesterId: "user-1",
+      replyTo: "someone-else@example.com",
+    });
+    expect(value.replyTo).toBeNull();
+    // 使わない値なので、形が違っていても拒否せずに捨てる。
+    expect(
+      validateContactMessageInput({ ...base, category: "privacy", requesterId: "user-1", replyTo: "a@@example.com" })
+        .replyTo,
+    ).toBeNull();
+    // privacy 以外の用件では、ログイン中でも返信先を残す。
+    expect(
+      validateContactMessageInput({ ...base, category: "other", requesterId: "user-1", replyTo: "me@example.com" })
+        .replyTo,
+    ).toBe("me@example.com");
   });
 
   it("個人情報の請求（privacy）は、未ログインで返信先も無ければ返信先の欄の文言で拒否する", () => {

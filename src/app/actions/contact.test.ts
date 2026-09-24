@@ -91,6 +91,38 @@ describe("submitContactAction", () => {
     expect(FIXTURE_CONTACT_MESSAGES[0]?.requesterId).toBe("b0000000-0000-4000-8000-000000000004");
   });
 
+  it("ログイン中の privacy は、フォームに返信先が含まれていても保存しない（R21 軽微1）", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue("b0000000-0000-4000-8000-000000000004");
+    const state = await submitContactAction(
+      { status: "idle" },
+      form({ category: "privacy", message: MESSAGE, replyTo: REPLY_TO }),
+    );
+    expect(state).toEqual({ status: "success", category: "privacy" });
+    expect(FIXTURE_CONTACT_MESSAGES[0]?.requesterId).toBe("b0000000-0000-4000-8000-000000000004");
+    expect(FIXTURE_CONTACT_MESSAGES[0]?.replyTo).toBeNull();
+  });
+
+  it("Supabase 経路でも、ログイン中の privacy は RPC に返信先を渡さない（R21 軽微1）", async () => {
+    vi.stubEnv("URASUPO_DEMO_MODE", "");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-role-key");
+    vi.stubEnv("CONTACT_RATE_SALT", "test-salt");
+    vi.mocked(getCurrentUserId).mockResolvedValue("44440000-0000-4000-8000-00000000000a");
+    rpc.mockResolvedValueOnce({ data: "aaaa0000-0000-4000-8000-000000000002", error: null });
+
+    const state = await submitContactAction(
+      { status: "idle" },
+      form({ category: "privacy", message: MESSAGE, replyTo: REPLY_TO }),
+    );
+
+    expect(state).toEqual({ status: "success", category: "privacy" });
+    expect(rpc.mock.calls[0]?.[1]).toMatchObject({
+      p_requester_id: "44440000-0000-4000-8000-00000000000a",
+      p_reply_to: null,
+    });
+  });
+
   it("未ログインで privacy を選び、返信先が無ければ、返信先の欄の文言で拒否する", async () => {
     const state = await submitContactAction({ status: "idle" }, form({ category: "privacy", message: MESSAGE }));
     expect(state).toEqual({ status: "error", message: CONTACT_ERRORS.privacyReplyTo, field: "replyTo" });

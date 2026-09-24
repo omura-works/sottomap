@@ -77,11 +77,37 @@ describe("PrivacyPage", () => {
   it("個人情報の請求は、ログインできない人・退会した人の経路と回答の手段を書く（R20 重要3）", () => {
     render(<PrivacyPage />);
     const text = document.body.textContent ?? "";
-    expect(text).toMatch(/ログインできない場合や退会した場合/);
+    expect(text).toMatch(/ログインできない場合/);
+    expect(text).toMatch(/退会した場合/);
     expect(text).toMatch(/本人確認のうえ回答します/);
     expect(text).toMatch(/個人情報の請求への回答/);
     expect(text).toMatch(/お問い合わせの記録も、請求の対象です/);
     expect(text).not.toMatch(/この区分は、ログインしていないと送れません/);
+  });
+
+  it("退会と本人確認を、退会で問い合わせの記録も消える実装どおりに書く（R21 重要2）", () => {
+    render(<PrivacyPage />);
+    const text = document.body.textContent ?? "";
+    // 0010 の set null をやめ、0014 で requester_id は on delete cascade。IDとの結び付きを外して残す、とは書かない。
+    expect(text).not.toMatch(/結び付きだけを外して/);
+    expect(text).not.toMatch(/登録していた）メールアドレス/);
+    expect(text).toMatch(/ログインした状態で送ったお問い合わせの記録も一緒に削除されます/);
+    // ログインできない人: 返信先を登録しているメールアドレスと照合し、一致したときにそのアドレス宛に確認する。
+    expect(text).toMatch(/登録しているメールアドレスと照合し、一致した場合に/);
+    expect(text).toMatch(/一致しない場合は、アカウントの登録が見つからないものとして扱います/);
+    // 退会した人: 請求できるのは、ログインせずに返信先を書いて送ったお問い合わせだけ。
+    expect(text).toMatch(/退会したあとに請求できるのは、ログインせずに返信用のメールアドレスを書いて送ったお問い合わせについてだけです/);
+    expect(text).toMatch(/そのアドレスで運営からの確認のメールを受け取れること/);
+    expect(text).toMatch(/返信用のメールアドレスを書かずに送ったお問い合わせは、どなたのものかを特定できないため/);
+    // ログイン中の請求では返信先を受け付けない（R21 軽微1）。
+    expect(text).toMatch(/ログインした状態で個人情報について請求する場合は、返信用のメールアドレスの欄を出さず、保存しません/);
+  });
+
+  it("確認の回答で集めるのは答えと日時だけで、備考は書かない（R21 重要1）", () => {
+    render(<PrivacyPage />);
+    const text = document.body.textContent ?? "";
+    expect(text).toMatch(/確認の回答で集めるのは、どの店への回答か、答え（静かなまま／並びはじめた／もう観光地になった）と日時だけです/);
+    expect(text).not.toMatch(/備考/);
   });
 
   it("お問い合わせ先へのリンクを持つ", () => {
