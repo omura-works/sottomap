@@ -45,16 +45,12 @@ const CSP_REPORT_PATH = "/api/csp-report";
  * 最小限で戻すこと。
  *
  * `img-src`: `photoUrl`（spots）はアプリ内に書き込み経路が無く（フィクスチャ・シードは常に null）
- * 常に null か Supabase Storage 由来の値になる想定。`avatarUrl`（users）は、0006マイグレーションの
- * 列単位 GRANT（`grant update (display_name, avatar_url, ...) on table public.users to authenticated`）
- * により、本人が PostgREST 経由で任意のURLを書き込めるが、表示（`<img>`）しているのは本人の `/me`
- * ページだけ（他者の avatarUrl は `public_profiles` 経由で読めるが、現状どの画面でも表示していない）。
- * この権限自体は変えていない（列単位 GRANT はこのアプリの意図した設計であり、書ける値の制限は
- * アプリ側の入力フォームが無い現状に依っている）。任意オリジンの画像URLが書き込める以上、img-src は
- * 引き続き Supabase Storage と同一オリジンに絞る（`<project>.supabase.co/storage/v1/...`。
- * connect-src と同じオリジンを img-src にも許可する）。他者の avatarUrl を表示する画面を追加する
- * 場合は、このコメントと許可リストの見直しが必要（具体的な経路が増えたら DEPLOY.md の強制移行判断にも
- * 反映する）。
+ * 常に null か Supabase Storage 由来の値になる想定。`avatarUrl`（users）は、0011 マイグレーション
+ * （SPEC §9.18）で authenticated の INSERT/UPDATE 権限から外し、`public_profiles` からも外したため、
+ * 利用者が任意のURLを書き込む経路も、他者の値を読む経路も無い。img-src は引き続き Supabase Storage と
+ * 同一オリジンに絞る（`<project>.supabase.co/storage/v1/...`。connect-src と同じオリジンを img-src にも
+ * 許可する）。画像のアップロードや表示の機能を追加する場合は、このコメントと許可リストの見直しが必要
+ * （具体的な経路が増えたら DEPLOY.md の強制移行判断にも反映する）。
  */
 function contentSecurityPolicy(isProduction: boolean): string {
   const supabase = supabaseOrigin();

@@ -405,8 +405,8 @@ npx supabase db dump --linked -f migrations_data.sql --schema supabase_migration
   取得してください。**メールアドレス等の個人情報を含むため、取得したファイルは暗号化して保管する。**
 - **Storage**（画像等の実オブジェクト）は `db dump` の対象外です。バケット単位でオブジェクトを
   別途エクスポートする必要があります（本アプリは現時点で `photoUrl`（spots）の書き込み経路が無く
-  常に null のため、実体は無い想定。`avatarUrl`（users）は本人が PostgREST 経由で任意のURLを
-  書き込める列だが、値そのもの（URL文字列）は `data.sql` に含まれるため別途のオブジェクト取得は不要。
+  常に null のため、実体は無い想定。`avatarUrl`（users）は 0011 で利用者からの書き込み権限を外しており、
+  値（URL文字列）がある場合も `data.sql` に含まれるため別途のオブジェクト取得は不要。
   将来 `photoUrl` にアップロード機能を追加したら、この節にオブジェクトのバックアップ手順を追加すること）。
 
 ### 7.2 保存先
