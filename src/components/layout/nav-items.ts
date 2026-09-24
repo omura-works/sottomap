@@ -55,16 +55,13 @@ export function isNavItemActive(item: NavItem, pathname: string): boolean {
       return pathname === "/bookmarks" || pathname.startsWith("/bookmarks/");
     case "me":
       return pathname === "/me" || pathname.startsWith("/me/");
-    case "map":
-      // 街のルート直下（/[city]）かつ他タブに該当しない場合のみ。
-      return (
-        !pathname.endsWith("/search") &&
-        !pathname.startsWith("/bookmarks") &&
-        !pathname.startsWith("/me") &&
-        !pathname.startsWith("/start") &&
-        !pathname.startsWith("/verify") &&
-        pathname !== "/"
-      );
+    case "map": {
+      // 街のページ（/[city] とその下。/[city]/search を除く）のときだけ。
+      // 「他のタブに当てはまらなければ地図」にすると、/faq・/terms などの単独ページまで
+      // 地図として aria-current="page" になってしまうため、先頭が既知の街 slug かで判定する。
+      const firstSegment = pathname.split("/")[1] ?? "";
+      return KNOWN_CITY_SLUGS.includes(firstSegment) && !pathname.endsWith("/search");
+    }
     default:
       return false;
   }

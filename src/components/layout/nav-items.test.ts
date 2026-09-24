@@ -38,6 +38,22 @@ describe("isNavItemActive", () => {
     expect(isNavItemActive(map, "/sapporo")).toBe(true);
     expect(isNavItemActive(search, "/sapporo")).toBe(false);
   });
+
+  it("街のページ（店の詳細を含む）では地図タブをアクティブにする", () => {
+    const map = getNavItems("otaru").find((i) => i.key === "map")!;
+    expect(isNavItemActive(map, "/otaru")).toBe(true);
+    expect(isNavItemActive(map, "/otaru/spots/abc")).toBe(true);
+  });
+
+  // FAQ・規約などの単独ページを「地図」と取り違えない（aria-current="page" の誤り）。
+  it("街ではないページ（/faq・/terms・/privacy・/contact・/shops）ではどのタブもアクティブにしない", () => {
+    const items = getNavItems("sapporo");
+    for (const path of ["/faq", "/terms", "/privacy", "/contact", "/shops", "/styleguide"]) {
+      for (const item of items) {
+        expect(isNavItemActive(item, path), `${item.key} @ ${path}`).toBe(false);
+      }
+    }
+  });
 });
 
 describe("isFooterHidden（指示書 pages-c-brief.md §2）", () => {
