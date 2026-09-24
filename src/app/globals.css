@@ -659,6 +659,8 @@ button.tag::after {
   }
   .motion-accordion::details-content {
     block-size: 0;
+    /* .card は flex の縦並びのため、中身の min-block-size: auto が高さの補間を止めてしまう */
+    min-block-size: 0;
     opacity: 0;
     overflow: clip;
     transition:
