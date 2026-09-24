@@ -615,7 +615,9 @@ select * from supabase_migrations.schema_migrations order by version;
    select public.reapply_account_deletions();
    ```
 
-   `account_deletion_log` にあるユーザーIDのアカウントが戻したDBに残っていれば、改めて削除される。実行後、
+   `account_deletion_log` にあるユーザーIDのアカウントが戻したDBに残っていれば、改めて削除される（`delete_account` と同じ
+   cascade。戻り値は消した件数）。`account_deletion_log` は利用者から読み書きできず、service_role も読むだけなので、
+   入れ直しは SQL Editor で行う。実行後、
    `select count(*) from auth.users where id in (select user_id from public.account_deletion_log);` が 0 であることを確かめる。
 5. 7.3節の復元試験（試験用の空プロジェクト）でも、4. を実行して、退会したアカウントが残らないことを確かめる。
 6. 稼働中のDBが読めず 3. の控えが取れない場合に、バックアップより後の退会を洗い出す方法は、この手順書にはまだ無い（要確認）。
