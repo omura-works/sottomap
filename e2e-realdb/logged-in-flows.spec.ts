@@ -339,7 +339,7 @@ test.describe("実DB: はじめてのログインと表示名", () => {
     // メールアドレスの形は拒否される（role="alert"）
     await page.getByRole("button", { name: "表示名を変更する" }).click();
     const input = page.getByLabel("新しい表示名");
-    await input.fill(NEWCOMER_EMAIL);
+    await input.fill("taro@example.jp");
     await page.getByRole("button", { name: "保存する" }).click();
     await expect(page.getByRole("alert").filter({ hasText: "表示名にメールアドレスは使えません" })).toBeVisible();
     expect(await readDisplayNameByEmail(NEWCOMER_EMAIL)).toBe("地元の人");
