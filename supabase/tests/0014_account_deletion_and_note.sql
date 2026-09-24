@@ -313,51 +313,51 @@ select is(
 -- =========================================================
 -- 4. 表示名の見えない文字（R21 軽微2）
 -- =========================================================
-set local role authenticated;
-set local request.jwt.claims to '{"sub":"a4140000-0000-4000-8000-00000000000c","role":"authenticated"}';
+-- 0016（R23 重要1）から set_display_name は service_role だけ。
+set local role service_role;
 
 select is(
-  set_display_name('灯り' || chr(128104) || chr(8205) || chr(128105) || chr(8205) || chr(128103)),
+  set_display_name('a4140000-0000-4000-8000-00000000000c', '灯り' || chr(128104) || chr(8205) || chr(128105) || chr(8205) || chr(128103)),
   '灯り' || chr(128104) || chr(8205) || chr(128105) || chr(8205) || chr(128103),
   'set_display_name: ZWJ（U+200D）でつないだ家族の絵文字は使える'
 );
 select is(
-  set_display_name(chr(127988) || chr(917607) || chr(917602) || chr(917605) || chr(917614) || chr(917607) || chr(917631) || '灯り'),
+  set_display_name('a4140000-0000-4000-8000-00000000000c', chr(127988) || chr(917607) || chr(917602) || chr(917605) || chr(917614) || chr(917607) || chr(917631) || '灯り'),
   chr(127988) || chr(917607) || chr(917602) || chr(917605) || chr(917614) || chr(917607) || chr(917631) || '灯り',
   'set_display_name: タグ文字（U+E0020–U+E007F）で作る地域旗は使える'
 );
-select is(
-  set_display_name(chr(1605) || chr(1740) || chr(8204) || chr(1582) || chr(1608) || chr(1575) || chr(1607) || chr(1605)),
-  chr(1605) || chr(1740) || chr(8204) || chr(1582) || chr(1608) || chr(1575) || chr(1607) || chr(1605),
-  'set_display_name: ZWNJ（U+200C）を使う言語の名前は使える'
+select throws_ok(
+  $$ select set_display_name('a4140000-0000-4000-8000-00000000000c', chr(1605) || chr(1740) || chr(8204) || chr(1582) || chr(1608) || chr(1575) || chr(1607) || chr(1605)) $$,
+  '22023', '表示名に見えない文字は使えません',
+  'set_display_name: ZWNJ（U+200C）は 0016（R23 重要1）から全面禁止'
 );
 select throws_ok(
-  $$ select set_display_name('灯り' || chr(8238) || 'の人') $$,
+  $$ select set_display_name('a4140000-0000-4000-8000-00000000000c', '灯り' || chr(8238) || 'の人') $$,
   '22023', '表示名に見えない文字は使えません',
   'set_display_name: U+202E（右から左への上書き）は「見えない文字」として不可'
 );
 select throws_ok(
-  $$ select set_display_name('灯り' || chr(8203) || 'の人') $$,
+  $$ select set_display_name('a4140000-0000-4000-8000-00000000000c', '灯り' || chr(8203) || 'の人') $$,
   '22023', '表示名に見えない文字は使えません',
   'set_display_name: U+200B（ゼロ幅空白）は不可'
 );
 select throws_ok(
-  $$ select set_display_name('灯り' || chr(8288) || 'の人') $$,
+  $$ select set_display_name('a4140000-0000-4000-8000-00000000000c', '灯り' || chr(8288) || 'の人') $$,
   '22023', '表示名に見えない文字は使えません',
   'set_display_name: U+2060（単語結合子）は不可'
 );
 select throws_ok(
-  $$ select set_display_name(chr(65279)) $$,
+  $$ select set_display_name('a4140000-0000-4000-8000-00000000000c', chr(65279)) $$,
   '22023', '表示名に見えない文字は使えません',
   'set_display_name: U+FEFF だけの名前も「見えない文字」（アプリと同じ）'
 );
 select throws_ok(
-  $$ select set_display_name('灯りの人' || chr(917505)) $$,
+  $$ select set_display_name('a4140000-0000-4000-8000-00000000000c', '灯りの人' || chr(917505)) $$,
   '22023', '表示名に見えない文字は使えません',
   'set_display_name: U+E0001（言語タグ。許すタグ文字の範囲の外）は不可'
 );
 select throws_ok(
-  $$ select set_display_name('灯り' || chr(10) || 'の人') $$,
+  $$ select set_display_name('a4140000-0000-4000-8000-00000000000c', '灯り' || chr(10) || 'の人') $$,
   '22023', '表示名に改行や制御文字は使えません',
   'set_display_name: 改行はこれまでどおり「改行や制御文字」'
 );

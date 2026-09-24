@@ -42,7 +42,11 @@ export async function createClient(): Promise<SupabaseClient> {
  * - cron（run_verification_cron と、保存期間を過ぎた問い合わせの削除）（Spec §9.13.2）
  * - お問い合わせの保存（submit_contact_message は anon・authenticated から直接実行できないため、
  *   サーバーの Server Action からだけ呼ぶ。Spec §9.17）
- * 利用者の操作（承認・確認・投稿）はすべて本人のセッション（createClient）で DB 関数を呼ぶ。
+ * - 表示名の変更（set_display_name(p_user_id, p_name) は anon・authenticated から直接実行できない。
+ *   Server Action が本人の ID をサーバー側で確かめ〈auth.getUser〉、アプリの検査を通した名前だけを渡す。
+ *   利用者が RPC を直接呼んでアプリの検査を回避できないようにするため。Spec §9.18-1、R23 重要1、0016）
+ * - 退会の記録の整理（purge_expired_account_deletion_log。cron から。Spec §9.17）
+ * それ以外の利用者の操作（承認・確認・投稿・住んでいる街）は本人のセッション（createClient）で DB 関数を呼ぶ。
  */
 export function createServiceRoleClient(): SupabaseClient {
   const env = getSupabaseEnv();

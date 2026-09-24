@@ -98,7 +98,7 @@ select is_empty(
 select is_empty(
   $$
     with fns(fn, anon_ok, auth_ok, service_ok) as (values
-      ('public.set_display_name(text)', false, true, false),
+      ('public.set_display_name(uuid, text)', false, false, true),  -- 0016（R23 重要1）で service_role だけ
       ('public.ensure_user_profile()', false, true, false),
       ('public.remove_place(uuid, text)', false, false, true),
       ('public.normalize_place_name(text)', false, false, false),
@@ -115,7 +115,7 @@ select is_empty(
 );
 select is(
   (select p.prosecdef and p.proconfig @> array['search_path=""']
-   from pg_proc p where p.oid = 'public.set_display_name(text)'::regprocedure),
+   from pg_proc p where p.oid = 'public.set_display_name(uuid, text)'::regprocedure),
   true,
   'set_display_name は security definer・search_path 空'
 );
@@ -177,7 +177,7 @@ select throws_ok(
   $$ insert into removed_places (name_normalized, lat, lng) values ('x', 43.0, 141.0) $$,
   '42501', null, '匿名: removed_places に書けない'
 );
-select throws_ok($$ select set_display_name('匿名') $$, '42501', null, '匿名: set_display_name を実行できない');
+select throws_ok($$ select set_display_name('66660000-0000-4000-8000-00000000000d', '匿名') $$, '42501', null, '匿名: set_display_name を実行できない');
 select throws_ok($$ select ensure_user_profile() $$, '42501', null, '匿名: ensure_user_profile を実行できない');
 select throws_ok(
   $$ select remove_place('77770000-0000-4000-8000-000000000001', null) $$,
@@ -227,40 +227,43 @@ select throws_ok(
   '42501', null, 'ログイン済み: remove_place を実行できない'
 );
 
--- set_display_name の検査
-select is(set_display_name('  灯りの人  '), '灯りの人', 'set_display_name: 前後の空白を除いて保存し、保存した名前を返す');
+-- set_display_name の検査（0016 から service_role だけ。Server Action が本人の ID を確かめて呼ぶ）
+set local role service_role;
+select is(set_display_name('66660000-0000-4000-8000-00000000000d', '  灯りの人  '), '灯りの人', 'set_display_name: 前後の空白を除いて保存し、保存した名前を返す');
 select is(
   (select display_name from users where id = '66660000-0000-4000-8000-00000000000d'),
   '灯りの人',
   'set_display_name: 本人の表示名が変わる'
 );
+set local role authenticated;
 select lives_ok($$ select ensure_user_profile() $$, 'ensure_user_profile は2回目も失敗しない');
 select is(
   (select display_name from users where id = '66660000-0000-4000-8000-00000000000d'),
   '灯りの人',
   'ensure_user_profile は既存の表示名を上書きしない'
 );
-select throws_ok($$ select set_display_name('　 ') $$, '22023', '表示名を入力してください', 'set_display_name: 空白だけは不可');
-select throws_ok($$ select set_display_name(null) $$, '22023', '表示名を入力してください', 'set_display_name: NULL は不可');
-select is(set_display_name('あいうえおかきくけこさしすせそたちつてと'), 'あいうえおかきくけこさしすせそたちつてと', 'set_display_name: 20文字は可');
+set local role service_role;
+select throws_ok($$ select set_display_name('66660000-0000-4000-8000-00000000000d', '　 ') $$, '22023', '表示名を入力してください', 'set_display_name: 空白だけは不可');
+select throws_ok($$ select set_display_name('66660000-0000-4000-8000-00000000000d', null) $$, '22023', '表示名を入力してください', 'set_display_name: NULL は不可');
+select is(set_display_name('66660000-0000-4000-8000-00000000000d', 'あいうえおかきくけこさしすせそたちつてと'), 'あいうえおかきくけこさしすせそたちつてと', 'set_display_name: 20文字は可');
 select throws_ok(
-  $$ select set_display_name('あいうえおかきくけこさしすせそたちつてとな') $$,
+  $$ select set_display_name('66660000-0000-4000-8000-00000000000d', 'あいうえおかきくけこさしすせそたちつてとな') $$,
   '22023', '表示名は20文字以内で入力してください', 'set_display_name: 21文字は不可'
 );
 select throws_ok(
-  $$ select set_display_name(E'灯り\nの人') $$,
+  $$ select set_display_name('66660000-0000-4000-8000-00000000000d', E'灯り\nの人') $$,
   '22023', '表示名に改行や制御文字は使えません', 'set_display_name: 改行は不可'
 );
 select throws_ok(
-  $$ select set_display_name(E'灯り\tの人') $$,
+  $$ select set_display_name('66660000-0000-4000-8000-00000000000d', E'灯り\tの人') $$,
   '22023', '表示名に改行や制御文字は使えません', 'set_display_name: 制御文字（タブ）は不可'
 );
 select throws_ok(
-  $$ select set_display_name('foo@example.com') $$,
+  $$ select set_display_name('66660000-0000-4000-8000-00000000000d', 'foo@example.com') $$,
   '22023', '表示名にメールアドレスは使えません', 'set_display_name: メールアドレスの形は不可'
 );
 select throws_ok(
-  $$ select set_display_name('foo＠example') $$,
+  $$ select set_display_name('66660000-0000-4000-8000-00000000000d', 'foo＠example') $$,
   '22023', '表示名にメールアドレスは使えません', 'set_display_name: 全角の＠を使ったメールアドレスの形も不可'
 );
 reset role;

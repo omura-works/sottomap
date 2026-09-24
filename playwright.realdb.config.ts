@@ -45,7 +45,7 @@ export default defineConfig({
   projects: [{ name: "chromium-realdb", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     command: `npm run dev -- --port ${PORT}`,
-    // URASUPO_DEMO_MODE は渡さない（実DB接続）。SUPABASE_SERVICE_ROLE_KEY は cron 用だがアプリの起動条件に合わせて渡す。
+    // URASUPO_DEMO_MODE は渡さない（実DB接続）。SUPABASE_SERVICE_ROLE_KEY は cron・問い合わせの保存・表示名の変更（0016）に使う。
     env: {
       URASUPO_DEMO_MODE: "",
       NEXT_PUBLIC_SUPABASE_URL: process.env.REALDB_SUPABASE_URL ?? "",

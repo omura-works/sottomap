@@ -331,19 +331,19 @@ select is(
 -- =========================================================
 -- 8. 表示名の書式文字（R20 軽微。文言と許す文字は 0014〈R21 軽微2〉で改訂）
 -- =========================================================
-set local role authenticated;
-set local request.jwt.claims to '{"sub":"99990000-0000-4000-8000-00000000000c","role":"authenticated"}';
+-- 0016（R23 重要1）から set_display_name は service_role だけ。
+set local role service_role;
 
-select throws_ok($$ select set_display_name(E'灯り\u202Eの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+202E（右から左への上書き）は不可');
-select throws_ok($$ select set_display_name(E'\u2066灯りの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+2066（左から右への分離）は不可');
-select throws_ok($$ select set_display_name(E'灯り\u200Bの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+200B（ゼロ幅空白）は不可');
-select throws_ok($$ select set_display_name(E'灯り\u200Fの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+200F（右から左への記号）は不可（U+200D の ZWJ は 0014 から使える）');
-select throws_ok($$ select set_display_name(E'灯り\u061Cの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+061C は不可');
-select throws_ok($$ select set_display_name(E'灯り\u00ADの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+00AD（ソフトハイフン）は不可');
-select throws_ok($$ select set_display_name(E'\uFEFF灯りの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 先頭の U+FEFF は不可');
-select throws_ok($$ select set_display_name(E'\uFEFF') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+FEFF だけの名前も見えない文字として不可（アプリと同じ）');
-select throws_ok($$ select set_display_name(E'灯りの人\U000E0001') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 言語タグ（U+E0001）は不可（U+E0020–U+E007F のタグ文字は 0014 から使える）');
-select is(set_display_name(E'灯り\u2764\uFE0F'), E'灯り\u2764\uFE0F', 'set_display_name: 異体字セレクタ（Cf ではない）は使える');
+select throws_ok($$ select set_display_name('99990000-0000-4000-8000-00000000000c', E'灯り\u202Eの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+202E（右から左への上書き）は不可');
+select throws_ok($$ select set_display_name('99990000-0000-4000-8000-00000000000c', E'\u2066灯りの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+2066（左から右への分離）は不可');
+select throws_ok($$ select set_display_name('99990000-0000-4000-8000-00000000000c', E'灯り\u200Bの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+200B（ゼロ幅空白）は不可');
+select throws_ok($$ select set_display_name('99990000-0000-4000-8000-00000000000c', E'灯り\u200Fの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+200F（右から左への記号）は不可（U+200D の ZWJ は 0014 から使える）');
+select throws_ok($$ select set_display_name('99990000-0000-4000-8000-00000000000c', E'灯り\u061Cの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+061C は不可');
+select throws_ok($$ select set_display_name('99990000-0000-4000-8000-00000000000c', E'灯り\u00ADの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+00AD（ソフトハイフン）は不可');
+select throws_ok($$ select set_display_name('99990000-0000-4000-8000-00000000000c', E'\uFEFF灯りの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 先頭の U+FEFF は不可');
+select throws_ok($$ select set_display_name('99990000-0000-4000-8000-00000000000c', E'\uFEFF') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+FEFF だけの名前も見えない文字として不可（アプリと同じ）');
+select throws_ok($$ select set_display_name('99990000-0000-4000-8000-00000000000c', E'灯りの人\U000E0001') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 言語タグ（U+E0001）は不可（U+E0020–U+E007F のタグ文字は 0014 から使える）');
+select is(set_display_name('99990000-0000-4000-8000-00000000000c', E'灯り\u2764\uFE0F'), E'灯り\u2764\uFE0F', 'set_display_name: 異体字セレクタ（Cf ではない）は使える');
 
 reset role;
 

@@ -5,7 +5,8 @@
 //     **本人のセッションの接続**（createClient）で `rpc()` するだけにする。
 //     authenticated ロールからは spots / endorsements / verifications / verification_requests /
 //     lantern_events への直接の書き込み権限が取り上げられている。
-//   - service-role の接続（createServiceRoleClient）は cron（run_verification_cron）だけが使う。
+//   - service-role の接続（createServiceRoleClient）は cron（run_verification_cron）と、表示名の変更
+//     （set_display_name。R23 重要1、0016。本人の ID は Server Action がサーバーで確かめて渡す）だけが使う。
 //   - デモモード（Spec §9.13.1。URASUPO_DEMO_MODE=1 のときだけ）は、フィクスチャ（./fixtures.ts の
 //     インメモリ配列）に **DB 関数と同じ規則** を実装して反映する。Vitest はこの経路で規則を検証する。
 
@@ -582,8 +583,12 @@ export async function initializeUserHomeCity(userId: string, cityId: string): Pr
 
 /**
  * 表示名を変える。前後の空白を除いた、保存した名前を返す。
- * 規則（1〜20文字・改行や制御文字なし・メールアドレスの形なし）は validateDisplayName と
+ * 規則（1〜20文字・改行や制御文字なし・見えない文字なし・メールアドレスの形なし）は validateDisplayName と
  * DB 関数 set_display_name の両方が同じ文言で強制する。利用者は users.display_name を直接書き換えられない。
+ *
+ * R23 重要1（0016）: DB 関数 set_display_name(p_user_id, p_name) は service_role にしか EXECUTE が無い。
+ * userId は呼び出し側（Server Action）がサーバーで確かめた本人の ID（getCurrentUserId = auth.getUser）でなければならない。
+ * アプリの検査に通った名前だけを、サーバー専用の service_role 接続で送る（問い合わせと同じ作り）。
  */
 export async function setUserDisplayName(userId: string, rawName: string): Promise<string> {
   const checked = validateDisplayName(rawName);
@@ -593,8 +598,8 @@ export async function setUserDisplayName(userId: string, rawName: string): Promi
     return setFixtureUserDisplayName(userId, checked.name);
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("set_display_name", { p_name: checked.name });
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase.rpc("set_display_name", { p_user_id: userId, p_name: checked.name });
   if (error) throw rpcError("表示名の保存", error);
   return typeof data === "string" ? data : checked.name;
 }

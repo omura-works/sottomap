@@ -1,7 +1,6 @@
 -- 0015_name_context_and_deletion_log.sql（docs/SPEC.md §9.18-1・§9.17、最終レビュー R22 重要2・決定事項）を検証する pgTAP テスト。
 --
---   1. 表示名: ZWJ・ZWNJ・タグ文字は正しい並びの中だけ使える。見える文字が1つも無い名前は不可
---      （src/lib/domain/display-name.test.ts と同じ入力・同じ結果）。
+--   1. 表示名: 並びの検査の関数がある（規則と一覧は 0016 で改め、supabase/tests/0016_display_name_server_only.sql に移した）。
 --   2. 退会の記録: delete_account が account_deletion_log に書く。reapply_account_deletions() がバックアップから
 --      戻した後のアカウントを再び削除する。purge_expired_account_deletion_log() が30日を過ぎた記録を消す。
 --   3. 権限: 記録の表は利用者から読めず書けない（service_role は読むだけ）。運営用 RPC は service_role のみ、
@@ -14,7 +13,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(67);
+select plan(29);
 
 -- =========================================================
 -- テストデータ（postgres として作成）
@@ -46,66 +45,13 @@ insert into contact_messages (category, message, reply_to, requester_id) values
 
 -- =========================================================
 -- 1. 表示名の見えない文字の並び（R22 重要2）
---    受け付ける11件・拒否する24件は src/lib/domain/display-name.test.ts と同じ入力。
+--    （0016 で規則を改め、一覧は supabase/tests/0016_display_name_server_only.sql に移した）
 -- =========================================================
 select has_function('public', 'display_name_has_invisible_sequence', array['text'], '関数 display_name_has_invisible_sequence(text) がある');
 
-set local role authenticated;
-set local request.jwt.claims to '{"sub":"a4150000-0000-4000-8000-000000000001","role":"authenticated"}';
-
-select is(set_display_name(chr(128104) || chr(8205) || chr(128105) || chr(8205) || chr(128103) || chr(8205) || chr(128102)), chr(128104) || chr(8205) || chr(128105) || chr(8205) || chr(128103) || chr(8205) || chr(128102), 'set_display_name: 家族の絵文字（ZWJ） は使える');
-select is(set_display_name(chr(129489) || chr(8205) || chr(127859)), chr(129489) || chr(8205) || chr(127859), 'set_display_name: 職業の絵文字（ZWJ） は使える');
-select is(set_display_name(chr(129489) || chr(127997) || chr(8205) || chr(128658)), chr(129489) || chr(127997) || chr(8205) || chr(128658), 'set_display_name: 肌の色を付けた職業の絵文字（修飾子の後の ZWJ） は使える');
-select is(set_display_name(chr(127987) || chr(65039) || chr(8205) || chr(127752)), chr(127987) || chr(65039) || chr(8205) || chr(127752), 'set_display_name: VS16 の後の ZWJ（レインボーフラッグ） は使える');
-select is(set_display_name(chr(10084) || chr(65039) || chr(8205) || chr(128293) || 'の人'), chr(10084) || chr(65039) || chr(8205) || chr(128293) || 'の人', 'set_display_name: ハートに火（VS16 の後の ZWJ） は使える');
-select is(set_display_name(chr(127988) || chr(917607) || chr(917602) || chr(917605) || chr(917614) || chr(917607) || chr(917631) || '灯り'), chr(127988) || chr(917607) || chr(917602) || chr(917605) || chr(917614) || chr(917607) || chr(917631) || '灯り', 'set_display_name: イングランドの旗（タグ列） は使える');
-select is(set_display_name(chr(127988) || chr(917607) || chr(917602) || chr(917619) || chr(917603) || chr(917620) || chr(917631) || chr(127988) || chr(917607) || chr(917602) || chr(917619) || chr(917603) || chr(917620) || chr(917631)), chr(127988) || chr(917607) || chr(917602) || chr(917619) || chr(917603) || chr(917620) || chr(917631) || chr(127988) || chr(917607) || chr(917602) || chr(917619) || chr(917603) || chr(917620) || chr(917631), 'set_display_name: スコットランドの旗を2つ並べる は使える');
-select is(set_display_name(chr(1605) || chr(1740) || chr(8204) || chr(1582) || chr(1608) || chr(1575) || chr(1607) || chr(1605)), chr(1605) || chr(1740) || chr(8204) || chr(1582) || chr(1608) || chr(1575) || chr(1607) || chr(1605), 'set_display_name: ZWNJ を使う言語の名前（ペルシア語） は使える');
-select is(set_display_name('ab' || chr(8204) || 'cd'), 'ab' || chr(8204) || 'cd', 'set_display_name: ラテン文字の間の ZWNJ は使える');
-select is(set_display_name(chr(127988)), chr(127988), 'set_display_name: 黒旗だけ（タグ列なし） は使える');
-select is(set_display_name(chr(127997)), chr(127997), 'set_display_name: 肌の色の修飾子だけ は使える');
-select throws_ok($$ select set_display_name(chr(8205)) $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: ZWJ だけ は不可');
-select throws_ok($$ select set_display_name(chr(8204)) $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: ZWNJ だけ は不可');
-select throws_ok($$ select set_display_name(chr(8205) || chr(8204) || chr(8205)) $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: ZWJ と ZWNJ だけ は不可');
-select throws_ok($$ select set_display_name(chr(917607) || chr(917602)) $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: タグ文字だけ は不可');
-select throws_ok($$ select set_display_name(chr(917631)) $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: タグの終端だけ は不可');
-select throws_ok($$ select set_display_name('灯り' || chr(8205) || 'の人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 文字の間の ZWJ は不可');
-select throws_ok($$ select set_display_name(chr(127982) || chr(8205) || 'の人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 絵文字の後・文字の前の ZWJ は不可');
-select throws_ok($$ select set_display_name('灯り' || chr(8205) || chr(127982)) $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 文字の後・絵文字の前の ZWJ は不可');
-select throws_ok($$ select set_display_name(chr(127982) || chr(8205)) $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 末尾の ZWJ は不可');
-select throws_ok($$ select set_display_name(chr(8205) || chr(127982)) $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 先頭の ZWJ は不可');
-select throws_ok($$ select set_display_name(chr(128104) || chr(8205) || chr(8205) || chr(128105)) $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: ZWJ の連続 は不可');
-select throws_ok($$ select set_display_name('1' || chr(8204) || '2') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 数字の間の ZWNJ は不可');
-select throws_ok($$ select set_display_name(chr(127982) || chr(8204) || chr(127982)) $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 絵文字の間の ZWNJ は不可');
-select throws_ok($$ select set_display_name(chr(8204) || chr(1605) || chr(1740)) $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 先頭の ZWNJ は不可');
-select throws_ok($$ select set_display_name(chr(1605) || chr(1740) || chr(8204)) $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 末尾の ZWNJ は不可');
-select throws_ok($$ select set_display_name(chr(127988) || chr(917607) || chr(917602) || chr(917605) || chr(917614) || chr(917607) || '灯り') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 終端の無いタグ列 は不可');
-select throws_ok($$ select set_display_name('灯り' || chr(917607) || chr(917602) || chr(917605) || chr(917614) || chr(917607) || chr(917631)) $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 黒旗の無いタグ列 は不可');
-select throws_ok($$ select set_display_name(chr(127982) || chr(917607) || chr(917602) || chr(917631)) $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 黒旗以外の絵文字に付けたタグ列 は不可');
-select throws_ok($$ select set_display_name('灯り' || chr(917608) || chr(917609) || 'の人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 文字の中に隠したタグ列 は不可');
-select throws_ok($$ select set_display_name(chr(127988) || chr(917631)) $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: タグの中身が無い終端 は不可');
-select throws_ok($$ select set_display_name('ㅤ') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: ハングルの埋め字だけ は不可');
-select throws_ok($$ select set_display_name(chr(10240)) $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 点字の空白だけ は不可');
-select throws_ok($$ select set_display_name(chr(65039)) $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 異体字セレクタだけ は不可');
-select throws_ok($$ select set_display_name(chr(769)) $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 結合文字だけ は不可');
-
-select throws_ok(
-  $$ select set_display_name(chr(1)) $$,
-  '22023', '表示名に改行や制御文字は使えません',
-  'set_display_name: 制御文字だけは、見えない文字より先に「改行や制御文字」（アプリと同じ順）'
-);
-select throws_ok(
-  $$ select set_display_name(chr(8205) || 'a@b') $$,
-  '22023', '表示名に見えない文字は使えません',
-  'set_display_name: 並びの検査はメールアドレスの形より先（アプリと同じ順）'
-);
-select is(
-  (select display_name from users where id = 'a4150000-0000-4000-8000-000000000001'),
-  chr(127997),
-  '拒否された名前は保存されず、最後に受け付けた名前（肌の色の修飾子）のまま'
-);
-
-reset role;
+-- 0016（R23 重要1）で規則を単純にし（ZWNJ は全面禁止・タグ文字は3つの旗だけ）、set_display_name を service_role 専用に
+-- した。受け付ける名前・拒否する名前の一覧は supabase/tests/0016_display_name_server_only.sql に移した
+-- （src/lib/domain/display-name.cases.ts と同じ一覧）。ここでは並びの検査の関数があることだけを見る。
 
 select ok(
   not public.display_name_has_invisible_sequence('灯りの人')
@@ -149,8 +95,6 @@ select is_empty(
       ('public.reapply_account_deletions()', true),
       ('public.purge_expired_account_deletion_log()', true),
       ('public.display_name_is_pictographic(integer)', false),
-      ('public.display_name_is_letter(integer)', false),
-      ('public.display_name_is_invisible(integer)', false),
       ('public.display_name_has_invisible_sequence(text)', false)
     )
     select f.fn, e.role_name

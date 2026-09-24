@@ -1,5 +1,6 @@
-// SPEC §9.18-1: 表示名の規則。DB 関数 set_display_name（0011・0012・0014・0015）と同じ規則・同じ文言にそろえる。
+// SPEC §9.18-1: 表示名の規則。DB 関数 set_display_name（0011・0012・0014・0015・0016）と同じ規則・同じ文言にそろえる。
 // Server Action は通信の前にここで弾き、デモモード（フィクスチャ）もこの規則で保存する。
+// R23 重要1（0016）: DB 関数 set_display_name は service_role だけが実行でき、表示名はこのアプリの検査を必ず通ってから保存される。
 
 /** ログイン時に作るプロフィールの表示名（メールアドレスの一部は使わない）。 */
 export const DEFAULT_DISPLAY_NAME = "地元の人";
@@ -46,25 +47,33 @@ export const FORMAT_CHARACTER_RANGES: ReadonlyArray<readonly [number, number]> =
 ];
 
 /**
- * 書式文字のうち、表示名に使ってよいもの（R21 軽微2、§9.18-1）。ただし正しい並びの中だけ（R22 重要2）。
- * ZWNJ（U+200C）: 前後が文字（Letter）のときだけ（ZWNJ を使う言語の名前のため）。
+ * 書式文字のうち、表示名に使ってよいもの（R21 軽微2、§9.18-1）。ただし正しい並びの中だけ（R22 重要2・R23 重要1）。
  * ZWJ（U+200D）: 前後が絵文字のときだけ（家族・職業などの絵文字の合字のため）。
- * タグ文字（U+E0020–U+E007F）: 「黒旗 U+1F3F4 ＋ タグ列 ＋ 終端 U+E007F」の中だけ（イングランドなどの地域旗のため）。
- * DB 関数 public.contains_format_character（0014）はこの範囲を除いた書式文字を、
- * public.display_name_has_invisible_sequence（0015）は並びを調べる。
+ * タグ文字（U+E0020–U+E007F）: イングランド・スコットランド・ウェールズの旗の並びの中だけ。
+ * ZWNJ（U+200C）は R23 重要1 で全面禁止にした（ここに含めない）。
+ * DB 関数 public.contains_format_character（0016）はこの範囲を除いた書式文字を、
+ * public.display_name_has_invisible_sequence（0016）は並びを調べる。
  */
 export const ALLOWED_FORMAT_CHARACTER_RANGES: ReadonlyArray<readonly [number, number]> = [
-  [0x200c, 0x200d],
+  [0x200d, 0x200d],
   [0xe0020, 0xe007f],
 ];
 
-const ZWNJ = 0x200c;
 const ZWJ = 0x200d;
 const BLACK_FLAG = 0x1f3f4;
-const TAG_SPEC_FROM = 0xe0020;
-const TAG_SPEC_TO = 0xe007e;
+const TAG_FROM = 0xe0020;
 const TAG_END = 0xe007f;
 const VS16 = 0xfe0f;
+
+/**
+ * タグ文字を使ってよい並び: Unicode の正式な（RGI の）地域旗の3つだけ（黒旗 U+1F3F4 ＋ タグ5文字 ＋ 終端 U+E007F）。
+ * イングランド（gbeng）・スコットランド（gbsct）・ウェールズ（gbwls）。これ以外のタグ文字の並びは拒否する。
+ */
+export const ALLOWED_TAG_SEQUENCES: ReadonlyArray<readonly number[]> = [
+  [BLACK_FLAG, 0xe0067, 0xe0062, 0xe0065, 0xe006e, 0xe0067, TAG_END],
+  [BLACK_FLAG, 0xe0067, 0xe0062, 0xe0073, 0xe0063, 0xe0074, TAG_END],
+  [BLACK_FLAG, 0xe0067, 0xe0062, 0xe0077, 0xe006c, 0xe0073, TAG_END],
+];
 
 /**
  * 文字のカテゴリには見える記号として入っているが、何も描かれない文字（見える文字に数えない）。
@@ -72,21 +81,16 @@ const VS16 = 0xfe0f;
  */
 const BLANK_LOOKING_CHARACTERS: ReadonlySet<number> = new Set([0x115f, 0x1160, 0x3164, 0xffa0, 0x2800]);
 
-const LETTER = /^\p{L}$/u;
-const MARK = /^\p{M}$/u;
 const PICTOGRAPHIC = /^\p{Extended_Pictographic}$/u;
 const EMOJI_MODIFIER = /^\p{Emoji_Modifier}$/u;
+/** 見える文字: Letter・Number・Punctuation・Symbol（結合文字 Mn・Mc・Me、空白、書式文字などは数えない）。 */
 const VISIBLE = /^[\p{L}\p{N}\p{P}\p{S}]$/u;
 
 function inRanges(cp: number, ranges: ReadonlyArray<readonly [number, number]>): boolean {
   return ranges.some(([from, to]) => cp >= from && cp <= to);
 }
 
-function isTagSpec(cp: number | undefined): boolean {
-  return cp !== undefined && cp >= TAG_SPEC_FROM && cp <= TAG_SPEC_TO;
-}
-
-/** 表示名に使えない見えない文字（許すもの以外の書式文字）を含むか。 */
+/** 表示名に使えない見えない文字（許すもの以外の書式文字。ZWNJ を含む）を含むか。 */
 function containsInvisibleCharacter(value: string): boolean {
   for (const ch of value) {
     const cp = ch.codePointAt(0) ?? 0;
@@ -95,20 +99,25 @@ function containsInvisibleCharacter(value: string): boolean {
   return false;
 }
 
-/**
- * ZWJ の前が絵文字か。絵文字の後の肌の色の修飾子・VS16・地域旗のタグ列（終端まで）は絵文字の並びの一部として遡る。
- * chars[index] は ZWJ の直前の文字。
- */
-function endsWithPictograph(chars: readonly string[], index: number): boolean {
-  let i = index;
-  // 地域旗のタグ列の終端なら、黒旗まで遡る（並びの正しさは別に調べる）。
-  if (chars[i]?.codePointAt(0) === TAG_END) {
-    i -= 1;
-    while (i >= 0 && isTagSpec(chars[i]?.codePointAt(0))) i -= 1;
+/** cps[index] から始まる、許されたタグの並び（3つの旗）の長さ。当たらなければ 0。 */
+function allowedTagSequenceLength(cps: readonly number[], index: number): number {
+  for (const sequence of ALLOWED_TAG_SEQUENCES) {
+    if (sequence.every((cp, k) => cps[index + k] === cp)) return sequence.length;
   }
+  return 0;
+}
+
+/**
+ * ZWJ の前が絵文字か。cps[index] は ZWJ の直前の文字。
+ * 肌の色の修飾子・VS16 は遡る。3つの旗の終端（U+E007F）なら旗（黒旗は絵文字）とみなす
+ * （タグ文字は3つの旗の中にしか置けないので、終端の前は必ず旗）。
+ */
+function endsWithPictograph(cps: readonly number[], index: number): boolean {
+  let i = index;
   while (i >= 0) {
-    const ch = chars[i] ?? "";
-    const cp = ch.codePointAt(0);
+    const cp = cps[i] ?? -1;
+    if (cp === TAG_END) return true;
+    const ch = String.fromCodePoint(cp);
     if (cp === VS16 || EMOJI_MODIFIER.test(ch)) {
       i -= 1;
       continue;
@@ -118,42 +127,33 @@ function endsWithPictograph(chars: readonly string[], index: number): boolean {
   return false;
 }
 
-/** ZWNJ の前が文字か（文字に付いた結合文字は遡る）。chars[index] は ZWNJ の直前の文字。 */
-function endsWithLetter(chars: readonly string[], index: number): boolean {
-  let i = index;
-  while (i >= 0 && MARK.test(chars[i] ?? "")) i -= 1;
-  return i >= 0 && LETTER.test(chars[i] ?? "");
-}
-
 /**
- * ZWJ・ZWNJ・タグ文字が正しい並びの外にあるか、見える文字が1つも無いか（R22 重要2、§9.18-1）。
- * DB 関数 public.display_name_has_invisible_sequence（0015）と同じ規則（DB は絵文字・文字の判定を代表的な範囲で行う）。
+ * ZWJ・タグ文字が正しい並びの外にあるか、見える文字が1つも無いか（R22 重要2・R23 重要1、§9.18-1）。
+ * DB 関数 public.display_name_has_invisible_sequence（0016）と同じ規則。DB は Unicode の性質の代わりに、
+ * 実行環境の Unicode と同じ範囲の表を持つ（./display-name.test.ts が照合する）。
  */
 function hasInvisibleSequence(value: string): boolean {
-  const chars = Array.from(value);
+  const cps = Array.from(value, (ch) => ch.codePointAt(0) ?? 0);
   let visible = false;
-  for (let i = 0; i < chars.length; i += 1) {
-    const ch = chars[i] ?? "";
-    const cp = ch.codePointAt(0) ?? 0;
-    if (cp === BLACK_FLAG && isTagSpec(chars[i + 1]?.codePointAt(0))) {
-      // 黒旗 ＋ タグ列（1文字以上）＋ 終端。終端が無ければ不可。
-      let j = i + 1;
-      while (isTagSpec(chars[j]?.codePointAt(0))) j += 1;
-      if (chars[j]?.codePointAt(0) !== TAG_END) return true;
+  for (let i = 0; i < cps.length; i += 1) {
+    const cp = cps[i] ?? 0;
+    if (cp === BLACK_FLAG && (cps[i + 1] ?? 0) >= TAG_FROM && (cps[i + 1] ?? 0) <= TAG_END) {
+      // 黒旗の後にタグ文字が続くなら、3つの旗のどれかと完全に一致しなければ不可。
+      const length = allowedTagSequenceLength(cps, i);
+      if (length === 0) return true;
       visible = true;
-      i = j;
+      i += length - 1;
       continue;
     }
-    if (cp >= TAG_SPEC_FROM && cp <= TAG_END) return true;
+    if (cp >= TAG_FROM && cp <= TAG_END) return true;
     if (cp === ZWJ) {
-      if (!endsWithPictograph(chars, i - 1) || !PICTOGRAPHIC.test(chars[i + 1] ?? "")) return true;
+      const next = cps[i + 1];
+      if (!endsWithPictograph(cps, i - 1) || next === undefined || !PICTOGRAPHIC.test(String.fromCodePoint(next))) {
+        return true;
+      }
       continue;
     }
-    if (cp === ZWNJ) {
-      if (!endsWithLetter(chars, i - 1) || !LETTER.test(chars[i + 1] ?? "")) return true;
-      continue;
-    }
-    if (VISIBLE.test(ch) && !BLANK_LOOKING_CHARACTERS.has(cp)) visible = true;
+    if (VISIBLE.test(String.fromCodePoint(cp)) && !BLANK_LOOKING_CHARACTERS.has(cp)) visible = true;
   }
   return !visible;
 }
@@ -171,7 +171,7 @@ export function validateDisplayName(raw: string): DisplayNameValidation {
   if (name.length === 0) return { ok: false, message: DISPLAY_NAME_MESSAGES.empty };
   if ([...name].length > DISPLAY_NAME_MAX_LENGTH) return { ok: false, message: DISPLAY_NAME_MESSAGES.tooLong };
   if (CONTROL_CHARACTERS.test(name)) return { ok: false, message: DISPLAY_NAME_MESSAGES.control };
-  // R22 重要2: ZWJ・ZWNJ・タグ文字の並びと、見える文字が1つはあること（制御文字の検査の後。DB と同じ順）。
+  // R22 重要2・R23 重要1: ZWJ・タグ文字の並びと、見える文字が1つはあること（制御文字の検査の後。DB と同じ順）。
   if (hasInvisibleSequence(name)) return { ok: false, message: DISPLAY_NAME_MESSAGES.invisible };
   if (EMAIL_SHAPE.test(name)) return { ok: false, message: DISPLAY_NAME_MESSAGES.email };
   return { ok: true, name };

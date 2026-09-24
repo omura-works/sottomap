@@ -181,7 +181,8 @@ select is_empty(
       ('public.initialize_home_city(uuid)', false, true, false),
       -- §9.18 表示名・掲載停止リスト（0011）。
       ('public.ensure_user_profile()', false, true, false),
-      ('public.set_display_name(text)', false, true, false),
+      -- 0016（R23 重要1）: 表示名の変更はサーバー経由だけ（service_role）。
+      ('public.set_display_name(uuid, text)', false, false, true),
       ('public.remove_place(uuid, text)', false, false, true),
       -- §9.18 公開データの絞り込み（0012）。集計 RPC は件数だけ、本人専用 RPC は auth.uid() の分だけ。
       ('public.spot_verifier_counts(uuid[])', true, true, false),
@@ -218,7 +219,8 @@ select is_empty(
         'is_profile_visible', 'award_lantern_points', 'publish_pending_spot', 'set_home_city',
         'initialize_home_city',
         -- §9.18（0011）。authenticated が実行できる（権限の詳細は 0011_profile_privacy_and_removed_places.sql）。
-        'ensure_user_profile', 'set_display_name',
+        -- set_display_name は 0016 から service_role だけなので、この一覧に入れない。
+        'ensure_user_profile',
         -- §9.18（0012）。spot_verifier_counts は anon / authenticated、list_my_verification_times は authenticated。
         'spot_verifier_counts', 'list_my_verification_times'
       )

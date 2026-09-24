@@ -1,5 +1,8 @@
 // SPEC §9.18-1: 表示名の検査（DB 関数 set_display_name と同じ規則・同じ文言）。
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { DISPLAY_NAME_CASES } from "./display-name.cases";
 import {
   ALLOWED_FORMAT_CHARACTER_RANGES,
   DEFAULT_DISPLAY_NAME,
@@ -42,8 +45,8 @@ describe("validateDisplayName", () => {
 });
 
 // R20 軽微・R21 軽微2（§9.18-1）: 双方向制御文字・不可視の書式文字（Unicode の Cf。Bidi_Control を含む）は
-// 見た目を偽装できるので拒否する。ただし ZWJ（U+200D）・ZWNJ（U+200C）・タグ文字（U+E0020–U+E007F）は、
-// 絵文字・地域旗・ZWNJ を使う言語の名前のために許す。
+// 見た目を偽装できるので拒否する。ただし ZWJ（U+200D）・タグ文字（U+E0020–U+E007F）は、絵文字・地域旗のために許す
+// （並びの規則は下の一覧）。ZWNJ（U+200C）は R23 重要1 で全面禁止にした。
 describe("validateDisplayName（見えない文字）", () => {
   const INVISIBLE = { ok: false, message: "表示名に見えない文字は使えません" };
 
@@ -73,14 +76,13 @@ describe("validateDisplayName（見えない文字）", () => {
     ["ZWJ でつないだ家族の絵文字", "灯り\u{1F468}\u200D\u{1F469}\u200D\u{1F467}"],
     ["ZWJ でつないだ職業の絵文字", "\u{1F9D1}\u200D\u{1F373}の人"],
     ["タグ文字で作るイングランドの旗", "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}灯り"],
-    ["ZWNJ を使う言語の名前", "می\u200Cخواهم"],
   ])("%s は使える", (_label, name) => {
     expect(validateDisplayName(name)).toEqual({ ok: true, name });
   });
 
-  it("許す書式文字は ZWNJ・ZWJ・タグ文字（U+E0020–U+E007F）だけ", () => {
+  it("許す書式文字は ZWJ・タグ文字（U+E0020–U+E007F）だけ（ZWNJ は許さない。R23 重要1）", () => {
     expect(ALLOWED_FORMAT_CHARACTER_RANGES).toEqual([
-      [0x200c, 0x200d],
+      [0x200d, 0x200d],
       [0xe0020, 0xe007f],
     ]);
   });
@@ -106,61 +108,85 @@ describe("validateDisplayName（見えない文字）", () => {
   });
 });
 
-// R22 重要2（§9.18-1）: ZWJ・ZWNJ・タグ文字は、正しい並びの中だけ許す。見える文字が1つも無い名前は拒否する。
-// DB 関数 public.display_name_has_invisible_sequence（0015）も同じ入力で同じ結果になる（supabase/tests/0015）。
-describe("validateDisplayName（見えない文字の並び）", () => {
-  const INVISIBLE = { ok: false, message: "表示名に見えない文字は使えません" };
-  const TAG_ENGLAND = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}";
-  const TAG_SCOTLAND = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}";
-
-  it.each([
-    ["家族の絵文字（ZWJ）", "\u{1F468}‍\u{1F469}‍\u{1F467}‍\u{1F466}"],
-    ["職業の絵文字（ZWJ）", "\u{1F9D1}‍\u{1F373}"],
-    ["肌の色を付けた職業の絵文字（修飾子の後の ZWJ）", "\u{1F9D1}\u{1F3FD}‍\u{1F692}"],
-    ["異体字セレクタ VS16 の後の ZWJ（レインボーフラッグ）", "\u{1F3F3}️‍\u{1F308}"],
-    ["ハートに火（VS16 の後の ZWJ）", "❤️‍\u{1F525}の人"],
-    ["イングランドの旗（タグ列）", `${TAG_ENGLAND}灯り`],
-    ["スコットランドの旗を2つ並べる", `${TAG_SCOTLAND}${TAG_SCOTLAND}`],
-    ["ZWNJ を使う言語の名前（ペルシア語）", "می‌خواهم"],
-    ["ラテン文字の間の ZWNJ", "ab‌cd"],
-  ])("%s は使える", (_label, name) => {
-    expect(validateDisplayName(name)).toEqual({ ok: true, name });
+// R23 重要1（§9.18-1）: 表示名の並びの規則。アプリと DB（set_display_name）は同じ一覧で同じ結果になる。
+//   - ZWNJ（U+200C）は全面禁止。
+//   - タグ文字は、イングランド・スコットランド・ウェールズの旗の3つの並びだけ。
+//   - ZWJ（U+200D）は前後が絵文字（前は肌の色の修飾子・VS16・3つの旗を遡る）のときだけ。
+//   - 見える文字（Letter・Number・Punctuation・Symbol）が1つも無い名前は不可（結合文字だけの名前も不可）。
+describe("validateDisplayName（アプリと DB で同じ一覧）", () => {
+  it.each(DISPLAY_NAME_CASES.map((c) => [c.label, c] as const))("%s", (_label, c) => {
+    const name = String.fromCodePoint(...c.codePoints);
+    const expected = c.expected === "ok" ? { ok: true, name } : { ok: false, message: c.expected };
+    expect(validateDisplayName(name)).toEqual(expected);
   });
 
-  it.each([
-    ["ZWJ だけ", "‍"],
-    ["ZWNJ だけ", "‌"],
-    ["ZWJ と ZWNJ だけ", "‍‌‍"],
-    ["タグ文字だけ", "\u{E0067}\u{E0062}"],
-    ["タグの終端だけ", "\u{E007F}"],
-    ["文字の間の ZWJ", "灯り‍の人"],
-    ["絵文字の後・文字の前の ZWJ", "\u{1F3EE}‍の人"],
-    ["文字の後・絵文字の前の ZWJ", "灯り‍\u{1F3EE}"],
-    ["末尾の ZWJ", "\u{1F3EE}‍"],
-    ["先頭の ZWJ", "‍\u{1F3EE}"],
-    ["ZWJ の連続", "\u{1F468}‍‍\u{1F469}"],
-    ["数字の間の ZWNJ", "1‌2"],
-    ["絵文字の間の ZWNJ", "\u{1F3EE}‌\u{1F3EE}"],
-    ["先頭の ZWNJ", "‌می"],
-    ["末尾の ZWNJ", "می‌"],
-    ["終端の無いタグ列", "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}灯り"],
-    ["黒旗の無いタグ列", "灯り\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}"],
-    ["黒旗以外の絵文字に付けたタグ列", "\u{1F3EE}\u{E0067}\u{E0062}\u{E007F}"],
-    ["文字の中に隠したタグ列", "灯り\u{E0068}\u{E0069}の人"],
-    ["タグの中身が無い終端", "\u{1F3F4}\u{E007F}"],
-    ["ハングルの埋め字だけ", "ㅤ"],
-    ["点字の空白だけ", "⠀"],
-    ["異体字セレクタだけ", "️"],
-    ["結合文字だけ", "́"],
-  ])("%s は不可", (_label, name) => {
-    expect(validateDisplayName(name)).toEqual(INVISIBLE);
-  });
-
-  it("黒旗だけ（タグ列なし）は普通の絵文字として使える", () => {
-    expect(validateDisplayName("\u{1F3F4}")).toEqual({ ok: true, name: "\u{1F3F4}" });
-  });
-
-  it("肌の色の修飾子だけでも、見える記号なので使える", () => {
-    expect(validateDisplayName("\u{1F3FD}")).toEqual({ ok: true, name: "\u{1F3FD}" });
+  it("pgTAP（supabase/tests/0016_display_name_server_only.sql）の一覧はこの一覧と同じ", () => {
+    const sql = readRepoFile("supabase/tests/0016_display_name_server_only.sql");
+    const block = between(sql, "-- BEGIN display_name_cases", "-- END display_name_cases");
+    const rows = Array.from(
+      block.matchAll(/\(\d+, '((?:[^']|'')*)', array\[([\d, ]*)\]::integer\[\], '((?:[^']|'')*)'\)/g),
+      (m) => ({
+        label: (m[1] ?? "").replaceAll("''", "'"),
+        codePoints: (m[2] ?? "").split(",").map((v) => Number(v.trim())),
+        expected: (m[3] ?? "").replaceAll("''", "'"),
+      }),
+    );
+    expect(rows).toEqual(DISPLAY_NAME_CASES.map((c) => ({ ...c, codePoints: [...c.codePoints] })));
   });
 });
+
+// R23 重要1: DB（0016）は Unicode の性質を正規表現で調べられないので、範囲の表を持つ。
+// 表が実行環境の Unicode（アプリの判定）と一致することを確かめる。
+describe("DB の文字の表（0016_display_name_server_only.sql）", () => {
+  const migration = () => readRepoFile("supabase/migrations/0016_display_name_server_only.sql");
+
+  function tableOf(name: string): Array<[number, number]> {
+    const block = between(migration(), `-- BEGIN ${name}`, `-- END ${name}`);
+    return Array.from(block.matchAll(/\[(\d+),(\d+)\]/g), (m) => [Number(m[1]), Number(m[2])] as [number, number]);
+  }
+
+  function rangesOf(test: (cp: number) => boolean): Array<[number, number]> {
+    const ranges: Array<[number, number]> = [];
+    let start = -1;
+    for (let cp = 0; cp <= 0x110000; cp += 1) {
+      const hit = cp <= 0x10ffff && !(cp >= 0xd800 && cp <= 0xdfff) && test(cp);
+      if (hit && start < 0) start = cp;
+      if (!hit && start >= 0) {
+        ranges.push([start, cp - 1]);
+        start = -1;
+      }
+    }
+    return ranges;
+  }
+
+  it("見える文字の表 = Letter・Number・Punctuation・Symbol から、ハングルの埋め字と点字の空白を除いたもの", () => {
+    const visible = /^[\p{L}\p{N}\p{P}\p{S}]$/u;
+    const blank = new Set([0x115f, 0x1160, 0x3164, 0xffa0, 0x2800]);
+    expect(tableOf("display_name_visible_ranges")).toEqual(
+      rangesOf((cp) => visible.test(String.fromCodePoint(cp)) && !blank.has(cp)),
+    );
+  });
+
+  it("絵文字の表 = Extended_Pictographic", () => {
+    const pictographic = /^\p{Extended_Pictographic}$/u;
+    expect(tableOf("display_name_pictographic_ranges")).toEqual(
+      rangesOf((cp) => pictographic.test(String.fromCodePoint(cp))),
+    );
+  });
+
+  it("肌の色の修飾子（Emoji_Modifier）は U+1F3FB–U+1F3FF（DB はこの範囲で調べる）", () => {
+    const modifier = /^\p{Emoji_Modifier}$/u;
+    expect(rangesOf((cp) => modifier.test(String.fromCodePoint(cp)))).toEqual([[0x1f3fb, 0x1f3ff]]);
+  });
+});
+
+function readRepoFile(relative: string): string {
+  return readFileSync(join(process.cwd(), relative), "utf8");
+}
+
+function between(text: string, begin: string, end: string): string {
+  const from = text.indexOf(begin);
+  const to = text.indexOf(end, from);
+  if (from < 0 || to < 0) throw new Error(`${begin} 〜 ${end} が見つかりません`);
+  return text.slice(from + begin.length, to);
+}

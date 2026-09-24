@@ -12,6 +12,8 @@ const GENERIC_ERROR = "表示名を変えられませんでした。もう一度
 /**
  * /me「表示名」の変更（SPEC §9.18-1）。表示名を変えられる唯一の操作。
  * 規則は DB 関数 set_display_name（デモモードはフィクスチャ）が強制し、通信の前に同じ規則で弾く。
+ * R23 重要1（0016）: set_display_name は service_role 専用。本人の ID はここでサーバー側で確かめた
+ * getCurrentUserId（auth.getUser）だけを使い、画面から送られた値は使わない。
  * 失敗は例外にせず状態として返す（画面は role="alert" で知らせる）。
  */
 export async function changeDisplayNameAction(name: string): Promise<ChangeDisplayNameResult> {
