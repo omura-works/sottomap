@@ -6,7 +6,7 @@
 // ブラウザから直接は渡せない情報（ログイン中の利用者・User-Agent・送信元 IP）をリクエストから集める。
 
 import { headers } from "next/headers";
-import { CONTACT_ERRORS } from "@/app/contact/schema";
+import { CONTACT_ERRORS, isContactCategory, type ContactCategory } from "@/app/contact/schema";
 import { getCurrentUserId } from "@/lib/auth";
 import { submitContactMessage } from "@/lib/db/contact";
 import { notifyContactReceived } from "@/lib/notify/contact";
@@ -15,7 +15,8 @@ export type ContactField = "category" | "message" | "replyTo";
 
 export type ContactActionState =
   | { status: "idle" }
-  | { status: "success" }
+  /** category: 成功時の文言を用件で変える（privacy は「本人確認のうえ回答します。」）。 */
+  | { status: "success"; category: ContactCategory }
   | { status: "error"; message: string; field?: ContactField };
 
 const GENERIC_ERROR = "お送りできませんでした。時間をおいて、もう一度お試しください。";
@@ -26,7 +27,7 @@ const USER_AGENT_MAX_LENGTH = 200;
 /** 利用者にそのまま見せてよい拒否理由と、その理由が属する入力欄。 */
 const FIELD_BY_MESSAGE = new Map<string, ContactField | undefined>([
   [CONTACT_ERRORS.category, "category"],
-  [CONTACT_ERRORS.privacyLogin, "category"],
+  [CONTACT_ERRORS.privacyReplyTo, "replyTo"],
   [CONTACT_ERRORS.messageEmpty, "message"],
   [CONTACT_ERRORS.messageTooLong, "message"],
   [CONTACT_ERRORS.replyTo, "replyTo"],
@@ -83,7 +84,8 @@ export async function submitContactAction(
     if (receipt) {
       await notifyContactReceived(receipt);
     }
-    return { status: "success" };
+    // ここに来たなら用件は検査済み（submitContactMessage が不正な用件を拒否する）。
+    return { status: "success", category: isContactCategory(category) ? category : "other" };
   } catch (error) {
     const raw = error instanceof Error ? error.message : "";
     if (FIELD_BY_MESSAGE.has(raw)) {

@@ -18,7 +18,8 @@ function firstParam(value: string | string[] | undefined): string | undefined {
  * お問い合わせ `/contact`（SPEC §9.17）。
  * 掲載を止めてほしいという申し出を受ける窓口。内容は公開せず、運営だけが読む。
  * `?spot=<id>` が付いていれば、その店を対象として表示し、hidden で一緒に送る。
- * 個人情報の請求（privacy）はログイン中だけ送れるため、ログインしているかをフォームに渡す。
+ * 個人情報の請求（privacy）は、ログイン中かどうかで経路が変わる（未ログインなら返信先が必須）ため、
+ * ログインしているかをフォームに渡す。
  */
 export default async function ContactPage(props: PageProps<"/contact">) {
   await connection();
@@ -51,8 +52,10 @@ export default async function ContactPage(props: PageProps<"/contact">) {
       </header>
 
       <div className="space-y-2">
-        <p className="text-sm m-0">返信をお約束するものではありません。</p>
-        <p className="text-sm m-0">掲載停止のご連絡は、確認のうえ速やかに対応します。</p>
+        <p className="text-sm m-0">
+          返信をお約束するものではありません。ただし、ご自身の個人情報についての請求には、本人確認のうえ回答します。
+        </p>
+        <p className="text-sm m-0">掲載停止のご連絡は、内容を確認でき次第、対応します。</p>
         <p className="text-sm text-muted m-0">
           本文には、お名前・電話番号などの個人情報は書かないでください。
         </p>

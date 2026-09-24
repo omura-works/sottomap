@@ -2,7 +2,7 @@
 //
 // 画面（クライアントコンポーネント）と Server Action / データアクセス層の両方から使うため、
 // サーバー専用の依存（next/headers を辿る Supabase クライアント）を一切持たない。
-// 検査の規則と拒否文言は DB 関数 submit_contact_message（0010_contact_hardening.sql）に合わせる。
+// 検査の規則と拒否文言は DB 関数 submit_contact_message（0013_contact_privacy_requests.sql）に合わせる。
 
 export const CONTACT_CATEGORIES = ["removal", "correction", "privacy", "other"] as const;
 export type ContactCategory = (typeof CONTACT_CATEGORIES)[number];
@@ -32,14 +32,30 @@ export const CONTACT_ERRORS = {
   messageTooLong: `お問い合わせの内容は${CONTACT_MESSAGE_MAX_LENGTH}字以内で入力してください`,
   replyTo: "メールアドレスの形をご確認ください",
   spot: "お店の情報が取得できませんでした",
-  /** 個人情報の請求（privacy）は本人確認のためログイン中だけ受け付ける。 */
-  privacyLogin: "ログインしてから送ってください。本人確認のためです。",
+  /**
+   * 個人情報の請求（privacy）を未ログインで送るときは、返信先が必須（R20 重要3）。
+   * 運営が、登録している（退会した場合は登録していた）メールアドレス宛に確認して本人確認するため。
+   */
+  privacyReplyTo: "ログインせずに送る場合は、本人確認のため、返信用のメールアドレスを入力してください。",
   /** 送信元ごと・全体の回数制限、容量の上限に達したとき。 */
   rateLimited: "しばらく時間をおいてから送ってください。",
 } as const;
 
 /** 未ログインで privacy を選んだときのログインへの導線（戻り先は /contact）。 */
 export const CONTACT_LOGIN_HREF = "/login?next=%2Fcontact";
+
+/**
+ * 個人情報の請求（privacy）の案内（SPEC §9.17-4。R20 重要3）。
+ * - ログイン中: そのアカウントのご本人からの請求として受け付け、アカウントのメールアドレス宛に回答する。
+ * - ログインできない人・退会した人: 返信先を必須にし、運営がそのアドレス宛にメールで確認して本人確認する。
+ */
+export const CONTACT_PRIVACY_COPY = {
+  guestNote:
+    "ログインして送ると、そのアカウントのご本人からの請求として受け付けます。ログインできない場合や退会した場合は、返信用のメールアドレスに、登録している（退会した場合は、登録していた）メールアドレスを書いて送ってください。運営からそのアドレス宛にメールで確認し、ご本人であることを確かめてから回答します。",
+  guestReplyToHint:
+    "登録している（退会した場合は、登録していた）メールアドレスをご記入ください。本人確認のため、運営からこのアドレス宛にメールで確認します。",
+  memberReplyToHint: "個人情報についての回答は、アカウントに登録しているメールアドレス宛にお送りします。",
+} as const;
 
 /** PostgreSQL の char_length と同じく、コードポイント単位で数える。 */
 function charLength(value: string): number {
@@ -78,9 +94,9 @@ export function isContactCategory(value: unknown): value is ContactCategory {
 }
 
 /**
- * submit_contact_message（0010）と同じ入力検査。検査の順序とエラー文も DB 関数に合わせる。
+ * submit_contact_message（0013）と同じ入力検査。検査の順序とエラー文も DB 関数に合わせる。
  * 戻り値は DB が保存する形（本文はそのまま、返信先は前後の空白を除き、空なら null）。
- * requesterId はログイン中の利用者の ID（未ログインなら null）。privacy では必須。
+ * requesterId はログイン中の利用者の ID（未ログインなら null）。privacy では requesterId か返信先のどちらかが必須。
  */
 export function validateContactMessageInput(input: {
   category: string | null;
@@ -91,9 +107,6 @@ export function validateContactMessageInput(input: {
 }): ContactMessageInput {
   if (!isContactCategory(input.category)) {
     throw new Error(CONTACT_ERRORS.category);
-  }
-  if (input.category === "privacy" && !input.requesterId) {
-    throw new Error(CONTACT_ERRORS.privacyLogin);
   }
   const message = input.message;
   if (stripBlank(message) === "") {
@@ -107,6 +120,9 @@ export function validateContactMessageInput(input: {
   const replyTo = trimmedReplyTo === "" ? null : trimmedReplyTo;
   if (replyTo !== null && !isValidReplyTo(replyTo)) {
     throw new Error(CONTACT_ERRORS.replyTo);
+  }
+  if (input.category === "privacy" && !input.requesterId && replyTo === null) {
+    throw new Error(CONTACT_ERRORS.privacyReplyTo);
   }
 
   return { category: input.category, message, replyTo, spotId: input.spotId };

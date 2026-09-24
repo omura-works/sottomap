@@ -29,10 +29,21 @@ test("/contact の送るボタンは高さ44px以上", async ({ page }) => {
 test("/contact はログイン中（デモユーザー）なら個人情報の請求を送れる", async ({ page }) => {
   await page.goto("/contact");
   await page.getByText("自分の個人情報について（開示・訂正・削除・利用停止）", { exact: true }).click();
-  await expect(page.getByText("ログインしてから送ってください。本人確認のためです。")).toHaveCount(0);
+  // ログイン中は未ログイン向けの案内を出さず、返信先は任意のまま。
+  await expect(page.getByText(/ログインできない場合や退会した場合は/)).toHaveCount(0);
+  await expect(page.getByLabel("返信用のメールアドレス（任意）")).toBeVisible();
   await page.getByLabel("お問い合わせの内容（2000字まで）").fill("登録した情報を消してください。E2E-privacy");
   await page.getByRole("button", { name: "送る" }).click();
   await expect(page.getByRole("heading", { name: "お送りしました。ありがとうございます。" })).toBeFocused();
+  // 個人情報の請求には「返信をお約束するものではありません」を出さない（R20 重要3）。
+  await expect(page.getByText("本人確認のうえ回答します。", { exact: true })).toBeVisible();
+  await expect(page.getByText(/返信をお約束するものではありません。掲載停止/)).toHaveCount(0);
+});
+
+test("/contact は掲載停止の対応を「内容を確認でき次第」と書き、「速やかに」とは約束しない（R20 重要5）", async ({ page }) => {
+  await page.goto("/contact");
+  await expect(page.getByText("掲載停止のご連絡は、内容を確認でき次第、対応します。", { exact: true })).toBeVisible();
+  await expect(page.getByText(/速やかに/)).toHaveCount(0);
 });
 
 test("/contact は用件・本文が空のまま送れない", async ({ page }) => {

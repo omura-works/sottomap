@@ -62,7 +62,7 @@ describe("submitContactAction", () => {
 
     const state = await submitContactAction({ status: "idle" }, form({ category: "other", message: MESSAGE }));
 
-    expect(state).toEqual({ status: "success" });
+    expect(state).toEqual({ status: "success", category: "other" });
     expect(rpc).toHaveBeenCalledTimes(1);
     expect(rpc.mock.calls[0]?.[1]).toMatchObject({
       p_source_hash: createHash("sha256").update("203.0.113.7test-salt").digest("hex"),
@@ -87,14 +87,24 @@ describe("submitContactAction", () => {
     vi.mocked(getCurrentUserId).mockResolvedValue("b0000000-0000-4000-8000-000000000004");
     const state = await submitContactAction({ status: "idle" }, form({ category: "other", message: MESSAGE }));
 
-    expect(state).toEqual({ status: "success" });
+    expect(state).toEqual({ status: "success", category: "other" });
     expect(FIXTURE_CONTACT_MESSAGES[0]?.requesterId).toBe("b0000000-0000-4000-8000-000000000004");
   });
 
-  it("未ログインで privacy を選ぶと、ログインへの案内の文言で拒否する", async () => {
+  it("未ログインで privacy を選び、返信先が無ければ、返信先の欄の文言で拒否する", async () => {
     const state = await submitContactAction({ status: "idle" }, form({ category: "privacy", message: MESSAGE }));
-    expect(state).toEqual({ status: "error", message: CONTACT_ERRORS.privacyLogin, field: "category" });
+    expect(state).toEqual({ status: "error", message: CONTACT_ERRORS.privacyReplyTo, field: "replyTo" });
     expect(FIXTURE_CONTACT_MESSAGES).toHaveLength(0);
+  });
+
+  it("未ログインでも返信先を書けば privacy を受け付け、成功の状態に用件を載せる（R20 重要3）", async () => {
+    const state = await submitContactAction(
+      { status: "idle" },
+      form({ category: "privacy", message: MESSAGE, replyTo: REPLY_TO }),
+    );
+    expect(state).toEqual({ status: "success", category: "privacy" });
+    expect(FIXTURE_CONTACT_MESSAGES[0]?.requesterId).toBeNull();
+    expect(FIXTURE_CONTACT_MESSAGES[0]?.replyTo).toBe(REPLY_TO);
   });
 
   it("通知の設定があれば、保存のあと運営へ1回だけ通知し、本文と返信先を載せない", async () => {
@@ -106,7 +116,7 @@ describe("submitContactAction", () => {
       form({ category: "removal", message: MESSAGE, replyTo: REPLY_TO }),
     );
 
-    expect(state).toEqual({ status: "success" });
+    expect(state).toEqual({ status: "success", category: "removal" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const init = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1];
     const body = String(init.body);
@@ -119,7 +129,7 @@ describe("submitContactAction", () => {
     vi.stubEnv("RESEND_API_KEY", "");
     vi.stubEnv("CONTACT_NOTIFY_TO", "");
     const state = await submitContactAction({ status: "idle" }, form({ category: "other", message: MESSAGE }));
-    expect(state).toEqual({ status: "success" });
+    expect(state).toEqual({ status: "success", category: "other" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -139,7 +149,7 @@ describe("submitContactAction", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const state = await submitContactAction({ status: "idle" }, form({ category: "other", message: MESSAGE }));
-    expect(state).toEqual({ status: "success" });
+    expect(state).toEqual({ status: "success", category: "other" });
     expect(FIXTURE_CONTACT_MESSAGES).toHaveLength(1);
     expect(errorSpy).toHaveBeenCalledTimes(1);
     errorSpy.mockRestore();

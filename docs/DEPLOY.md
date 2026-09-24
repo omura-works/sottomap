@@ -285,14 +285,43 @@ Table Editor で `contact_messages` の対応済み（`status = 'done'`）の古
 > APIキーは送信だけできる **sending_access** の権限で作り、送信元ドメインに限定するとよい
 > （[Create API key](https://resend.com/docs/api-reference/api-keys/create-api-key)）。
 
-**保存期間。** 日次 cron（4.3節、`/api/cron/verification`）の最後に DB 関数
-`purge_expired_contact_data()`（service_role 専用）を呼び、次を削除する。
+**保存期間。** 日次 cron（4.3節、`/api/cron/verification`。1日1回）の最後に DB 関数
+`purge_expired_contact_data()`（service_role 専用）を呼び、次を削除する。実行が1日1回なので、
+期限を過ぎたものは「そのあとの日次の処理」で消える（利用者向けの `/privacy`・`/faq` もこの書き方）。
 
-- お問い合わせ（`contact_messages`）: **受付から1年**で削除（対応中かどうかにかかわらない）。
-- 送信元の記録（`contact_rate`）: **24時間**で削除。
+- お問い合わせ（`contact_messages`）: **受付から1年を過ぎたあとの日次の処理**で削除（対応中かどうかにかかわらない。
+  退会で `requester_id` が NULL になった行も同じ）。
+- 送信元の記録（`contact_rate`）: **24時間を過ぎたあとの日次の処理**で削除（最大でおよそ48時間残る）。
 
 削除に失敗すると cron の応答が500になり、Vercel の Logs に `[cron] お問い合わせの保存期間の処理に失敗しました`
 が出る（翌日の実行で取り戻せる）。
+
+**問い合わせの確認（担当・頻度）。** 問い合わせを読むのは運営者（Supabase の本番プロジェクトの管理者）。
+
+- **週1回以上**、Supabase の Table Editor で `contact_messages` を開き、`status = 'new'` の行を確かめる。
+  運営への通知を設定した場合は、通知を受けたらその都度確かめる（通知が届かないこともあるので、週1回の確認は続ける）。
+- 読み始めたら `status` を `in_progress`、対応を終えたら `done` にする。
+- `/contact` の約束は「内容を確認でき次第、対応します」（「速やかに」とは約束していない。SPEC §9.17-5）。
+
+**掲載停止（`removal`）の対応。** 店を地図から外すときは、**必ず** SQL Editor で次を実行する（SPEC §9.17-8・§9.18-3）。
+
+```sql
+select public.remove_place('<スポットのID>', '<メモ（受付IDなど）>');
+```
+
+`spots.status` を Table Editor で直接 `expired` などに変えてはいけない。掲載停止リスト（`removed_places`）に
+記録されず、同じ店の再投稿（同名・100m 以内）を止められない。同じ店の別の投稿が公開中なら、それぞれ
+`remove_place` で外す。
+
+**個人情報の請求（`privacy`）の対応。** 受付の経路は2つ（SPEC §9.17-4）。
+
+- `requester_id` がある: そのアカウントのご本人からの請求として扱う。Supabase の **Authentication → Users** で
+  `requester_id` のメールアドレスを確かめ、そのアドレス宛に回答する（プライバシーポリシーでメールの利用目的に
+  「個人情報の請求への回答」を挙げている）。
+- `requester_id` が無い（ログインできない人・退会した人。`reply_to` は必須）: `reply_to` 宛に運営からメールで確認し、
+  ご本人であることを確かめてから回答する。アカウントが残っている場合は、`reply_to` が登録しているメールアドレスと
+  一致することを Authentication で確かめる。
+- 請求の対象には、その人の問い合わせの記録（`contact_messages`）も含む。回答は、本人確認のうえ遅滞なく行う。
 
 ## 5. 公開直後の確認チェックリスト
 

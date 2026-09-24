@@ -29,7 +29,8 @@ describe("FaqPage", () => {
     const text = document.body.textContent ?? "";
     expect(text).toMatch(/最初は「地元の人」と表示されます/);
     expect(text).toMatch(/「自分の個人情報について」を選んで送って/);
-    expect(text).toMatch(/受付から1年で自動的に削除します/);
+    expect(text).toMatch(/受付から1年を過ぎたあとの日次の処理で削除します/);
+    expect(text).toMatch(/ログインできない場合や退会した場合/);
     expect(text).toMatch(/同じ名前で近い場所への再投稿を受け付けない/);
     expect(text).not.toMatch(/確認のうえ、掲載を取り下げます/);
     expect(text).not.toMatch(/行く予定の日時をあわせて記録/);

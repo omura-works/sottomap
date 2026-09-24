@@ -513,32 +513,37 @@ S1（`/start`）は §4 の構成に代えて、次の構成にする（§4 の�
    - `public.initialize_home_city(p_city_id uuid) returns boolean`（初回設定専用。security definer、`search_path = ''`、EXECUTE は authenticated だけ）。本人の users 行を `for update` でロックし、現在 NULL のときだけ設定して true（`home_city_changed_at` は NULL）。設定済み（またはプロフィール行が無い）なら何もせず false（例外にしない）。未ログイン・存在しない街は `set_home_city` と同じ文言で拒否。
 4. デモモード（フィクスチャ）も同じ規則・同じ文言を再現する（`src/lib/domain/home-city.ts`）。
 
-### 9.17 お問い合わせ（2026-09-20、2026-09-23 最終レビュー R19 重要1・3・4・5・6 で改訂）
+### 9.17 お問い合わせ（2026-09-20、2026-09-23 最終レビュー R19 重要1・3・4・5・6、2026-09-24 R20 重要3・4・5 で改訂）
 
 ウラスポは、実在の店を本人の許可なく地図に載せている。掲載を止めてほしいという申し出を受けられない状態で公開してはいけないため、窓口 `/contact` を置く（`/shops`・スポット詳細からも誘導する）。
 1. **保存先は DB。運営へのメール通知は任意。** 受け取った内容は `public.contact_messages` に保存し、運営者が Supabase の画面（service_role）で読む。
-   - `supabase/migrations/0009_contact_messages.sql`・`0010_contact_hardening.sql`: `id` / `created_at` / `category` / `message` / `reply_to` / `spot_id`（`spots` を参照。削除時は NULL）/ `user_agent` / `requester_id`（`auth.users` を参照。削除時は NULL）/ `status`（`new` / `in_progress` / `done`）。
+   - `supabase/migrations/0009_contact_messages.sql`・`0010_contact_hardening.sql`・`0013_contact_privacy_requests.sql`: `id` / `created_at` / `category` / `message` / `reply_to` / `spot_id`（`spots` を参照。削除時は NULL）/ `user_agent` / `requester_id`（`auth.users` を参照。削除時は NULL）/ `status`（`new` / `in_progress` / `done`）。
    - `category` は `removal`（掲載を止めてほしい）／`correction`（内容の訂正）／`privacy`（自分の個人情報について（開示・訂正・削除・利用停止））／`other`（その他）。
 2. **受け取った内容は公開しない。** RLS を有効にし、ポリシーを1つも作らず、`anon` / `authenticated` には表への select / insert / update / delete を一切与えない。読めるのは `service_role`（運営）だけ。送信元の記録 `public.contact_rate` も同じく利用者からは一切触れない。
 3. **書き込みは DB 関数だけ。利用者からは直接呼べない。** `public.submit_contact_message(p_category text, p_message text, p_reply_to text, p_spot_id uuid, p_source_hash text, p_requester_id uuid, p_user_agent text) returns uuid`（security definer、`search_path = ''`、**EXECUTE は `service_role` だけ**）。Server Action がサーバー専用の service_role 接続（`SUPABASE_SERVICE_ROLE_KEY`。ブラウザには出さない）で呼ぶ。公開 RPC を直接呼んで回数制限を迂回できないようにするため（R19 重要5）。
-   - 検査と拒否文言（順に）: 用件が4種以外なら「用件を選んでください」、`privacy` で `requester_id` が無ければ「ログインしてから送ってください。本人確認のためです。」、本文が空白（全角空白・改行を含む）だけなら「お問い合わせの内容を入力してください」、2000字を超えれば「お問い合わせの内容は2000字以内で入力してください」、返信先の形が違えば「メールアドレスの形をご確認ください」、`spot_id` が存在しない・公開中でないなら「お店の情報が取得できませんでした」。
+   - 検査と拒否文言（順に）: 用件が4種以外なら「用件を選んでください」、本文が空白（全角空白・改行を含む）だけなら「お問い合わせの内容を入力してください」、2000字を超えれば「お問い合わせの内容は2000字以内で入力してください」、返信先の形が違えば「メールアドレスの形をご確認ください」、`privacy` で `requester_id` も返信先（前後の空白を除いて空でないもの）も無ければ「ログインせずに送る場合は、本人確認のため、返信用のメールアドレスを入力してください。」（0013。画面では返信先の欄の誤りとして出す）、`spot_id` が存在しない・公開中でないなら「お店の情報が取得できませんでした」。
    - 返信先メールアドレスの検査（前後の空白を除いたうえで。画面・Server Action と DB の両方）: 空白・改行・制御文字を含まない、`@` がちょうど1つ、ローカル部とドメイン部が空でない、ドメインに `.` を含む、320字以内。
    - **送信元ごとの回数制限（永続）。** 送信元は `sha256(送信元IP + CONTACT_RATE_SALT)` の16進64文字（`p_source_hash`）で表し、IP そのものは保存しない。上限は**1時間に5件・1日に20件／送信元**、全体で**1日に500件**。超えたら「しばらく時間をおいてから送ってください。」。判定と記録（`contact_rate` への1行）は RPC の中で、勧告ロックで直列化して同じトランザクションで行う。`CONTACT_RATE_SALT` が未設定なら、起動時ではなく送信時に拒否する（デモモードでは不要）。
    - **容量の上限。** `contact_messages` が全体で10,000件に達したら新規を受け付けない（同じ文言。運営が古いものを整理するまで。サーバーのログに記録する）。
    - **重複排除。** `category + message + spot_id + reply_to + requester_id + 送信元` がすべて同じ送信が直近1分以内にあれば、新しい行を作らず `null` を返す（呼び出し側は成功として扱う。回数にも数えない）。店・返信先・送信者・送信元のどれかが違えば別件として保存する（R19 重要6）。
    - **送信者の記録。** ログイン中なら Server Action が本人の ID を `requester_id` に渡す（未ログインなら NULL）。`user_agent` はブラウザの User-Agent ヘッダーを Server Action が読み取り、200字で切って渡す（R19 重要1）。
-4. **個人情報の請求（`privacy`）。** 本人確認のため、ログイン中でないと送れない。未ログインで選ぶと、その場で `role="alert"` の「ログインしてから送ってください。本人確認のためです。」と「ログインする」（`/login?next=%2Fcontact`）を出す。送っても Server Action と DB が拒否する（R19 重要3）。
+4. **個人情報の請求（`privacy`）。** 受付の経路は2つ（R20 重要3。`0013_contact_privacy_requests.sql`）。
+   - **ログイン中:** そのアカウントのご本人からの請求として受け付ける（`requester_id` を保存）。返信先は任意。回答はアカウントに登録しているメールアドレス宛に送る（運営が `requester_id` から Supabase の Authentication で確かめる）。
+   - **ログインできない人・退会した人:** ログインせずに送れる。返信先が**必須**で、登録している（退会した場合は、登録していた）メールアドレスを書いてもらう。運営がそのアドレス宛にメールで確認し、本人であることを確かめてから回答する。
+   - DB は `privacy` で `requester_id` か返信先のどちらかを必須にする（RPC の検査。表の check 制約にはしない。`requester_id` は退会で NULL になるため、制約にすると返信先の無い請求をした利用者のアカウントを削除できなくなる）。退会後も問い合わせの行は残り（`requester_id` だけが NULL）、受付から1年を過ぎるまで請求の対象になる。
+   - 画面: 未ログインで `privacy` を選ぶと、用件の下に案内（`role="alert"` にしない。`aria-live="polite"`）「ログインして送ると、そのアカウントのご本人からの請求として受け付けます。ログインできない場合や退会した場合は、返信用のメールアドレスに、登録している（退会した場合は、登録していた）メールアドレスを書いて送ってください。運営からそのアドレス宛にメールで確認し、ご本人であることを確かめてから回答します。」と「ログインする」（`/login?next=%2Fcontact`）を出し、返信先のラベルを「返信用のメールアドレス（必須）」（`aria-required="true"`。`required` 属性はブラウザ独自の吹き出しで送信を止めるため使わない）、案内を「登録している（退会した場合は、登録していた）メールアドレスをご記入ください。本人確認のため、運営からこのアドレス宛にメールで確認します。」にする。ログイン中に `privacy` を選ぶと、返信先は任意のまま、案内を「個人情報についての回答は、アカウントに登録しているメールアドレス宛にお送りします。」にする。
 5. **画面 `/contact`。** h1「お問い合わせ」。用件のラジオ（上の4つの日本語ラベル）、本文（2000字まで・残り文字数を表示）、返信用のメールアドレス（任意。「返信が必要な場合だけ、ご記入ください。」）、「送る」。
    - `?spot=<id>` が付いていれば、その公開中の店を対象として表示し、hidden で送る。
-   - 送信は Server Action。成功したら入力欄を閉じ、`role="status"` の中の見出し（h2、`tabIndex=-1`）「お送りしました。ありがとうございます。」へフォーカスを移す。失敗は `role="alert"` で理由を対象の入力欄のそばに出し、最初の不正な入力欄（用件なら選んでいる選択肢、無ければ最初の選択肢）へフォーカスを移す。想定外の失敗は「お送りできませんでした。時間をおいて、もう一度お試しください。」。
+   - 送信は Server Action。成功したら入力欄を閉じ、`role="status"` の中の見出し（h2、`tabIndex=-1`）「お送りしました。ありがとうございます。」へフォーカスを移す。見出しの下は、`privacy` なら「本人確認のうえ回答します。」、それ以外は「返信をお約束するものではありません。掲載停止のご連絡は、内容を確認でき次第、対応します。」（Server Action は成功の状態に用件を載せる）。失敗は `role="alert"` で理由を対象の入力欄のそばに出し、最初の不正な入力欄（用件なら選んでいる選択肢、無ければ最初の選択肢）へフォーカスを移す。想定外の失敗は「お送りできませんでした。時間をおいて、もう一度お試しください。」。
    - 二重送信は、送信中のボタンを `aria-disabled`（フォーカスを失わせない）にし、`isPending` の間の送信を無視して防ぐ。
    - 失敗しても入力（用件・本文・返信先）は消さない（JS が動いているときは送信時のフォームの自動リセットをさせない）。
-   - 「返信をお約束するものではありません。」「掲載停止のご連絡は、確認のうえ速やかに対応します。」を明記し、本文に個人情報を書かないよう案内する。
+   - 「返信をお約束するものではありません。ただし、ご自身の個人情報についての請求には、本人確認のうえ回答します。」「掲載停止のご連絡は、内容を確認でき次第、対応します。」を明記し、本文に個人情報を書かないよう案内する（「速やかに」は約束しない。R20 重要5）。
    - ラベルと入力を関連付け、当たり判定（送るボタンを含む）は 44px 以上（WCAG 2.2 AA）。
 6. **運営への通知（任意）。** `RESEND_API_KEY` と `CONTACT_NOTIFY_TO` が両方設定されていれば、保存に成功したあと Resend の HTTP API（`POST https://api.resend.com/emails`、fetch。依存は追加しない）で運営へ短いメールを送る。本文は**用件・受付ID・受付時刻だけ**で、問い合わせの本文や返信先は載せない（メールに個人情報を流さない）。送信失敗は保存を取り消さず `console.error` に記録する。重複として保存しなかった送信は通知しない。未設定なら何もしない（`scripts/check-production-env.mjs` は警告を出す）。
-7. **保存期間。** 問い合わせは**受付から1年**で、`contact_rate` は**24時間**で削除する。日次 cron（`/api/cron/verification`）の最後に `public.purge_expired_contact_data() returns jsonb`（security definer、`search_path = ''`、EXECUTE は `service_role` だけ）を呼ぶ。境界はちょうど（`created_at <= now() - interval '1 year'` / `'24 hours'`）で削除する（R19 重要4）。
-8. **掲載停止の扱い。** `removal` の申し出は、確認のうえ速やかに対応する（該当スポットを地図から外す運用は運営が Supabase の画面で行う）。対応状況は `status` で追う。
-9. デモモード（`URASUPO_DEMO_MODE=1`）は DB を持たないため、同じ規則（検査・privacy・重複排除・保存期間）をインメモリのフィクスチャで再現するだけで、どこにも保存しない（成功表示までを確かめられる）。送信元ごと・全体の回数制限と容量の上限は再現しない。デモユーザーは常にログイン中なので、未ログインの `privacy` は実DB版E2E（`e2e-realdb/contact.spec.ts`）で確かめる。
+7. **保存期間。** 問い合わせは**受付から1年を過ぎたあとの日次の処理**で、`contact_rate` は**24時間を過ぎたあとの日次の処理**で削除する。日次 cron（`/api/cron/verification`、`vercel.json` で1日1回）の最後に `public.purge_expired_contact_data() returns jsonb`（security definer、`search_path = ''`、EXECUTE は `service_role` だけ）を呼ぶ。削除の条件はちょうど（`created_at <= now() - interval '1 year'` / `'24 hours'`）だが、実行が1日1回のため、`contact_rate` は**最大でおよそ48時間**残る（R19 重要4、R20 重要4）。処理に失敗した日は、次の日以降の実行で削除する。利用者向けの文書（`/privacy`・`/faq`）もこの書き方にそろえ、「最大24時間」とは書かない。
+8. **掲載停止の扱い。** `removal` の申し出は、内容を確認でき次第、対応する。店を地図から外すときは、**必ず §9.18-3 の `public.remove_place(p_spot_id, p_note)` を使う**（Supabase の SQL Editor で `select public.remove_place('<スポットのID>', '<メモ>');`）。`spots.status` を Table Editor などで直接変えてはいけない（掲載停止リスト `removed_places` に記録されず、同じ店の再投稿を止められない。R20 重要5）。同じ店の別の投稿（同名・100m 以内）が公開中なら、それぞれ `remove_place` で外す。対応状況は `contact_messages.status` で追う。
+   - 問い合わせの確認は運営者が行い、**週1回以上** Supabase の Table Editor で `contact_messages` の `status = 'new'` を確かめる。運営への通知（6.）を設定した場合は、通知を受けたら確かめる（手順は `docs/DEPLOY.md` 4.6節）。
+9. デモモード（`URASUPO_DEMO_MODE=1`）は DB を持たないため、同じ規則（検査・privacy・重複排除・保存期間）をインメモリのフィクスチャで再現するだけで、どこにも保存しない（成功表示までを確かめられる）。送信元ごと・全体の回数制限と容量の上限は再現しない。デモユーザーは常にログイン中なので、未ログインの `privacy`（返信先が無ければ拒否・あれば保存）は実DB版E2E（`e2e-realdb/contact.spec.ts`）で確かめる。
 
 ### 9.18 表示名・公開プロフィール・掲載停止リスト（2026-09-23、最終レビュー R19 重要2・重要7）
 

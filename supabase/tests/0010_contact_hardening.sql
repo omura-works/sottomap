@@ -1,5 +1,5 @@
 -- 0010_contact_hardening.sql（docs/SPEC.md §9.17）を検証する pgTAP テスト。
---   直接実行の禁止、送信元ごと・全体の回数制限、容量上限、重複排除の鍵、privacy の本人必須、
+--   直接実行の禁止、送信元ごと・全体の回数制限、容量上限、重複排除の鍵、privacy の送信者か返信先の必須（0013）、
 --   返信先メールアドレスの検査、User-Agent の切り詰め、保存期間（purge）の境界。
 --
 -- 実行方法: npx supabase db reset → npx supabase test db
@@ -240,12 +240,13 @@ select is(
 set local role service_role;
 
 -- =========================================================
--- 個人情報の請求（privacy）は requester_id が必須
+-- 個人情報の請求（privacy）は requester_id か reply_to のどちらかが必須
+--   （0013 で「requester_id 必須」から変更。詳しくは tests/0013_contact_privacy_requests.sql）
 -- =========================================================
 select throws_ok(
   $$ select public.submit_contact_message('privacy', '登録した情報を消してください', null, null, repeat('1', 64)) $$,
-  '42501', 'ログインしてから送ってください。本人確認のためです。',
-  'privacy は requester_id が無ければ拒否する'
+  '22023', 'ログインせずに送る場合は、本人確認のため、返信用のメールアドレスを入力してください。',
+  'privacy は requester_id も reply_to も無ければ拒否する'
 );
 select isnt(
   public.submit_contact_message('privacy', '登録した情報を消してください', null, null, repeat('1', 64), '44440000-0000-4000-8000-000000000010'),

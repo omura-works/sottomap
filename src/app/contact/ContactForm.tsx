@@ -5,9 +5,9 @@ import { startTransition, useActionState, useEffect, useId, useRef, useState } f
 import { Button, Card } from "@/components/ui";
 import {
   CONTACT_CATEGORY_OPTIONS,
-  CONTACT_ERRORS,
   CONTACT_LOGIN_HREF,
   CONTACT_MESSAGE_MAX_LENGTH,
+  CONTACT_PRIVACY_COPY,
   CONTACT_REPLY_TO_MAX_LENGTH,
 } from "./schema";
 import { submitContactAction, type ContactActionState } from "@/app/actions/contact";
@@ -18,7 +18,10 @@ const INITIAL_STATE: ContactActionState = { status: "idle" };
 export interface ContactFormProps {
   /** `?spot=<id>` で指定された、公開中のスポット。見つからなければ null。 */
   spot: { id: string; name: string; cityName: string } | null;
-  /** ログイン中か。個人情報の請求（privacy）はログイン中だけ送れる（本人確認のため）。 */
+  /**
+   * ログイン中か。個人情報の請求（privacy）は、ログイン中ならそのアカウントのご本人からの請求として受け付け、
+   * 未ログインなら返信先を必須にする（運営がそのアドレス宛に確認して本人確認する。R20 重要3）。
+   */
   isLoggedIn: boolean;
 }
 
@@ -33,6 +36,7 @@ function charLength(value: string): number {
  * 二重送信は、送信中のボタンを `aria-disabled`（フォーカスを失わせない）にし、
  * `isPending` の間は送信そのものを無視することで防ぐ。
  * フォーカス: 成功したらお礼の見出し（tabIndex=-1）へ、失敗したら最初の不正な入力欄へ移す。
+ * 成功時の文言は用件で変える（privacy は返信を約束しない旨を出さず「本人確認のうえ回答します。」）。
  */
 export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
   const [state, formAction, isPending] = useActionState(submitContactAction, INITIAL_STATE);
@@ -74,17 +78,20 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
   const replyToHintId = `${baseId}-reply-to-hint`;
   const categoryErrorId = `${baseId}-category-error`;
   const categoryLegendId = `${baseId}-category-legend`;
-  const privacyLoginId = `${baseId}-privacy-login`;
+  const privacyNoteId = `${baseId}-privacy-note`;
 
   const remaining = CONTACT_MESSAGE_MAX_LENGTH - charLength(message);
   const fieldError = state.status === "error" ? state.field : undefined;
   const formError = state.status === "error" && state.field === undefined ? state.message : null;
-  // 未ログインで個人情報の請求を選んだら、送る前にログインへ案内する（サーバー側でも拒否する）。
-  const needsLoginForPrivacy = category === "privacy" && !isLoggedIn;
-  const categoryErrorMessage =
-    fieldError === "category" && state.status === "error" && !(needsLoginForPrivacy && state.message === CONTACT_ERRORS.privacyLogin)
-      ? state.message
-      : null;
+  // 個人情報の請求: 未ログインなら2つの経路（ログイン／返信先を書いて運営が確認）を案内し、返信先を必須にする。
+  const isPrivacy = category === "privacy";
+  const isGuestPrivacy = isPrivacy && !isLoggedIn;
+  const categoryErrorMessage = fieldError === "category" && state.status === "error" ? state.message : null;
+  const replyToHint = isGuestPrivacy
+    ? CONTACT_PRIVACY_COPY.guestReplyToHint
+    : isPrivacy
+      ? CONTACT_PRIVACY_COPY.memberReplyToHint
+      : "返信が必要な場合だけ、ご記入ください。";
 
   if (state.status === "success") {
     return (
@@ -95,7 +102,9 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
           </h2>
         </div>
         <p className="m-0 text-sm text-muted">
-          返信をお約束するものではありません。掲載停止のご連絡は、確認のうえ速やかに対応します。
+          {state.category === "privacy"
+            ? "本人確認のうえ回答します。"
+            : "返信をお約束するものではありません。掲載停止のご連絡は、内容を確認でき次第、対応します。"}
         </p>
       </Card>
     );
@@ -126,7 +135,11 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
         ref={categoryFieldsetRef}
         className="space-y-2"
         style={{ border: 0, padding: 0, margin: 0 }}
-        aria-describedby={categoryErrorMessage ? categoryErrorId : needsLoginForPrivacy ? privacyLoginId : undefined}
+        aria-describedby={
+          [categoryErrorMessage ? categoryErrorId : null, isGuestPrivacy ? privacyNoteId : null]
+            .filter(Boolean)
+            .join(" ") || undefined
+        }
       >
         <legend id={categoryLegendId} className="text-sm text-muted">
           用件
@@ -148,14 +161,14 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
             <span>{option.label}</span>
           </label>
         ))}
-        {needsLoginForPrivacy ? (
-          <p id={privacyLoginId} role="alert" className="text-sm m-0" style={{ color: "var(--color-accent-700)" }}>
-            {CONTACT_ERRORS.privacyLogin}{" "}
-            <Link href={CONTACT_LOGIN_HREF}>
-              ログインする
-            </Link>
-          </p>
-        ) : null}
+        {/* 誤りではなく案内なので alert にはせず、選んだときに polite で読み上げる。 */}
+        <div aria-live="polite">
+          {isGuestPrivacy ? (
+            <p id={privacyNoteId} className="text-sm m-0">
+              {CONTACT_PRIVACY_COPY.guestNote} <Link href={CONTACT_LOGIN_HREF}>ログインする</Link>
+            </p>
+          ) : null}
+        </div>
         {categoryErrorMessage ? (
           <p id={categoryErrorId} role="alert" className="text-sm m-0" style={{ color: "var(--color-accent-700)" }}>
             {categoryErrorMessage}
@@ -191,7 +204,9 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
       </div>
 
       <div className="field">
-        <label htmlFor={replyToId}>返信用のメールアドレス（任意）</label>
+        <label htmlFor={replyToId}>
+          {isGuestPrivacy ? "返信用のメールアドレス（必須）" : "返信用のメールアドレス（任意）"}
+        </label>
         <input
           ref={replyToRef}
           id={replyToId}
@@ -200,13 +215,15 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
           className="input"
           maxLength={CONTACT_REPLY_TO_MAX_LENGTH}
           style={{ minHeight: 44 }}
+          // required 属性はブラウザ独自の吹き出しで送信を止めてしまうため使わず、検査はサーバーの文言で出す。
+          aria-required={isGuestPrivacy || undefined}
           aria-invalid={fieldError === "replyTo" ? true : undefined}
           aria-describedby={
             [replyToHintId, fieldError === "replyTo" ? replyToErrorId : null].filter(Boolean).join(" ")
           }
         />
         <div id={replyToHintId} className="field-hint">
-          返信が必要な場合だけ、ご記入ください。
+          {replyToHint}
         </div>
         {fieldError === "replyTo" ? (
           <div id={replyToErrorId} role="alert" className="field-hint" style={{ color: "var(--color-accent-700)" }}>

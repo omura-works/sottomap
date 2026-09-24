@@ -864,7 +864,7 @@ export const FIXTURE_CONTACT_MESSAGES: FixtureContactMessage[] = [];
 /**
  * 問い合わせを1件受け付ける（DB 関数 submit_contact_message と同じ規則）。
  * 戻り値は作った id。直近1分以内に同じ送信（用件・本文・対象の店・返信先・送信者が同一）があれば作らず null。
- * privacy（個人情報の請求）は送信者（requesterId）が無ければ拒否する。
+ * privacy（個人情報の請求）は送信者（requesterId）も返信先も無ければ拒否する（0013）。
  * 入力の形式検査は呼び出し元（src/lib/db/contact.ts の validateContactMessageInput）が済ませている。
  */
 export function addFixtureContactMessage(
@@ -878,8 +878,8 @@ export function addFixtureContactMessage(
   },
   now: Date,
 ): string | null {
-  if (input.category === "privacy" && input.requesterId === null) {
-    throw new Error("ログインしてから送ってください。本人確認のためです。");
+  if (input.category === "privacy" && input.requesterId === null && input.replyTo === null) {
+    throw new Error("ログインせずに送る場合は、本人確認のため、返信用のメールアドレスを入力してください。");
   }
   if (input.spotId !== null) {
     const spot = FIXTURE_SPOTS.find((s) => s.id === input.spotId && s.status === "published");

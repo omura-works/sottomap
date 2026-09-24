@@ -70,13 +70,29 @@ describe("validateContactMessageInput", () => {
     );
   });
 
-  it("個人情報の請求（privacy）はログイン中（requesterId あり）でなければ拒否する", () => {
-    expect(() => validateContactMessageInput({ ...base, category: "privacy" })).toThrow(CONTACT_ERRORS.privacyLogin);
-    expect(() => validateContactMessageInput({ ...base, category: "privacy", requesterId: null })).toThrow(
-      CONTACT_ERRORS.privacyLogin,
-    );
+  it("個人情報の請求（privacy）は、ログイン中（requesterId あり）か返信先があれば受け付ける（R20 重要3）", () => {
     expect(validateContactMessageInput({ ...base, category: "privacy", requesterId: "user-1" }).category).toBe(
       "privacy",
+    );
+    // ログインできない人・退会した人は、返信先（登録している／していたメールアドレス）を書けば送れる。
+    expect(
+      validateContactMessageInput({ ...base, category: "privacy", requesterId: null, replyTo: " owner@example.com " })
+        .replyTo,
+    ).toBe("owner@example.com");
+  });
+
+  it("個人情報の請求（privacy）は、未ログインで返信先も無ければ返信先の欄の文言で拒否する", () => {
+    expect(() => validateContactMessageInput({ ...base, category: "privacy" })).toThrow(CONTACT_ERRORS.privacyReplyTo);
+    expect(() =>
+      validateContactMessageInput({ ...base, category: "privacy", requesterId: null, replyTo: "　 " }),
+    ).toThrow(CONTACT_ERRORS.privacyReplyTo);
+    // 返信先の形の誤りが先（DB 関数と同じ順序）。
+    expect(() =>
+      validateContactMessageInput({ ...base, category: "privacy", requesterId: null, replyTo: "a@@example.com" }),
+    ).toThrow(CONTACT_ERRORS.replyTo);
+    // 本文の誤りは返信先より先。
+    expect(() => validateContactMessageInput({ ...base, category: "privacy", message: "" })).toThrow(
+      CONTACT_ERRORS.messageEmpty,
     );
   });
 });
@@ -125,10 +141,10 @@ describe("submitContactMessage（デモモード）", () => {
     expect(FIXTURE_CONTACT_MESSAGES).toHaveLength(4);
   });
 
-  it("privacy は送信者を記録し、送信者が無ければ拒否する", async () => {
+  it("privacy は送信者を記録し、送信者も返信先も無ければ拒否する", async () => {
     await expect(
       submitContactMessage({ ...REQUEST, category: "privacy", message: "登録情報を消してください", replyTo: null, spotId: null }),
-    ).rejects.toThrow(CONTACT_ERRORS.privacyLogin);
+    ).rejects.toThrow(CONTACT_ERRORS.privacyReplyTo);
     const receipt = await submitContactMessage({
       ...REQUEST,
       requesterId: "b0000000-0000-4000-8000-000000000004",
@@ -139,6 +155,20 @@ describe("submitContactMessage（デモモード）", () => {
     });
     expect(receipt?.category).toBe("privacy");
     expect(FIXTURE_CONTACT_MESSAGES[0].requesterId).toBe("b0000000-0000-4000-8000-000000000004");
+  });
+
+  it("privacy は未ログインでも返信先があれば受け付け、返信先を記録する（R20 重要3）", async () => {
+    const receipt = await submitContactMessage({
+      ...REQUEST,
+      category: "privacy",
+      message: "退会したので、残っている情報を消してください",
+      replyTo: "former-user@example.com",
+      spotId: null,
+    });
+    expect(receipt?.category).toBe("privacy");
+    expect(FIXTURE_CONTACT_MESSAGES).toHaveLength(1);
+    expect(FIXTURE_CONTACT_MESSAGES[0].requesterId).toBeNull();
+    expect(FIXTURE_CONTACT_MESSAGES[0].replyTo).toBe("former-user@example.com");
   });
 
   it("公開中のスポットは対象にでき、存在しないスポットは拒否する", async () => {
