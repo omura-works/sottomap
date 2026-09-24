@@ -42,8 +42,18 @@ describe("FaqPage", () => {
     expect(text).not.toMatch(/退会したあとも、この期間までは残ります/);
     expect(text).not.toMatch(/登録していた）メールアドレス/);
     expect(text).toMatch(/登録しているメールアドレスと照合し/);
-    expect(text).toMatch(/ログインせずに返信用のメールアドレスを書いて送ったお問い合わせについてだけ/);
     expect(text).toMatch(/ログインした状態で送ったお問い合わせの記録も一緒に削除されます/);
+  });
+
+  it("退会後に残るものと請求の受け方が、プライバシーポリシーの決定事項と合う（R22 重要4）", () => {
+    render(<FaqPage />);
+    const text = document.body.textContent ?? "";
+    expect(text).not.toMatch(/ログインせずに返信用のメールアドレスを書いて送ったお問い合わせについてだけ/);
+    expect(text).toMatch(/ログインせずに送ったお問い合わせ、アクセスの記録・ログインの記録（Vercel・Supabase の保存期間まで）、バックアップ（最大30日）/);
+    expect(text).toMatch(/これらも請求の対象です/);
+    expect(text).toMatch(/受付日時・内容の一部など、対象を特定できる情報/);
+    expect(text).toMatch(/返信用のメールアドレスを書かずに送ったお問い合わせも、一律にお断りはせず、個別に判断して対応します/);
+    expect(text).toMatch(/確認のメールを受け取れることに加えて、受付日時・内容の一部なども確かめます/);
   });
 
   it("すべての summary がキーボードで開閉できる（ネイティブ要素）", () => {

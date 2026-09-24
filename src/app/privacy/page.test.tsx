@@ -6,7 +6,7 @@ describe("PrivacyPage", () => {
   it("見出しと施行日を表示する", () => {
     render(<PrivacyPage />);
     expect(screen.getByRole("heading", { level: 1, name: "プライバシーポリシー" })).toBeInTheDocument();
-    expect(screen.getByText("施行日: 2026年9月20日（最終改定: 2026年9月24日）")).toBeInTheDocument();
+    expect(screen.getByText("施行日: 2026年9月20日（最終改定: 2026年9月25日）")).toBeInTheDocument();
   });
 
   it("現在地は端末の中だけで使い、送っていないことを書いている", () => {
@@ -95,19 +95,54 @@ describe("PrivacyPage", () => {
     // ログインできない人: 返信先を登録しているメールアドレスと照合し、一致したときにそのアドレス宛に確認する。
     expect(text).toMatch(/登録しているメールアドレスと照合し、一致した場合に/);
     expect(text).toMatch(/一致しない場合は、アカウントの登録が見つからないものとして扱います/);
-    // 退会した人: 請求できるのは、ログインせずに返信先を書いて送ったお問い合わせだけ。
-    expect(text).toMatch(/退会したあとに請求できるのは、ログインせずに返信用のメールアドレスを書いて送ったお問い合わせについてだけです/);
-    expect(text).toMatch(/そのアドレスで運営からの確認のメールを受け取れること/);
-    expect(text).toMatch(/返信用のメールアドレスを書かずに送ったお問い合わせは、どなたのものかを特定できないため/);
+    // 退会した人の請求の範囲は R22 重要4 で広げた（下のテスト）。
     // ログイン中の請求では返信先を受け付けない（R21 軽微1）。
     expect(text).toMatch(/ログインした状態で個人情報について請求する場合は、返信用のメールアドレスの欄を出さず、保存しません/);
   });
 
-  it("確認の回答で集めるのは答えと日時だけで、備考は書かない（R21 重要1）", () => {
+  it("確認の回答では備考を集めない（R21 重要1）", () => {
     render(<PrivacyPage />);
     const text = document.body.textContent ?? "";
-    expect(text).toMatch(/確認の回答で集めるのは、どの店への回答か、答え（静かなまま／並びはじめた／もう観光地になった）と日時だけです/);
     expect(text).not.toMatch(/備考/);
+  });
+
+  it("承認・確認の回答で保存する項目が DB の列と一致する（R22 重要3）", () => {
+    render(<PrivacyPage />);
+    const text = document.body.textContent ?? "";
+    // verifications は spot_id・user_id・verification_request_id・answer・created_at を保存する。「だけ」と断定しない。
+    expect(text).not.toMatch(/確認の回答で集めるのは、どの店への回答か、答え（静かなまま／並びはじめた／もう観光地になった）と日時だけです/);
+    expect(text).toMatch(/どの店への回答か、回答したアカウントのID、どの確認の依頼への回答か（依頼のID）、答え（静かなまま／並びはじめた／もう観光地になった）、日時/);
+    // endorsements は spot_id・user_id・created_at。
+    expect(text).toMatch(/どの店を承認したか、承認したアカウントのID、日時/);
+    // verification_requests（依頼そのもの）と lantern_events（灯りポイントの台帳）も保存している。
+    expect(text).toMatch(/確認の依頼/);
+    expect(text).toMatch(/増えた理由（店の公開・確認への回答）と日時の記録/);
+    // 保存はするが、ほかの利用者には公開しない。
+    expect(text).toMatch(/承認・回答したアカウントのIDは、ほかの利用者には公開しません/);
+  });
+
+  it("退会後に残るもの・請求の受け方・バックアップを決定事項どおりに書く（R22 重要4・軽微1）", () => {
+    render(<PrivacyPage />);
+    const text = document.body.textContent ?? "";
+    // 「返信先付きの問い合わせだけ」「特定できないため請求にお応えできず」という一律の断定はしない。
+    expect(text).not.toMatch(/退会したあとに請求できるのは、ログインせずに返信用のメールアドレスを書いて送ったお問い合わせについてだけです/);
+    expect(text).not.toMatch(/どなたのものかを特定できないため、請求にお応えできず/);
+    // 退会後に残るもの。
+    expect(text).toMatch(/稼働中のデータベースに残るのは、ログインせずに送ったお問い合わせだけです/);
+    expect(text).toMatch(/アクセスの記録・ログインの記録（Vercel・Supabase の保存期間まで）/);
+    expect(text).toMatch(/バックアップ（最大30日）/);
+    expect(text).toMatch(/これらも請求の対象です。特定できる範囲で対応します/);
+    // 返信先の無い問い合わせも個別に判断する。
+    expect(text).toMatch(/返信用のメールアドレスを書かずに送ったお問い合わせも、一律にお断りはしません/);
+    expect(text).toMatch(/受付日時・内容の一部など、対象を特定できる情報/);
+    expect(text).toMatch(/個別に判断して対応します/);
+    // 返信先付きの問い合わせの開示では追加の確認をする。
+    expect(text).toMatch(/そのアドレスで運営からの確認のメールを受け取れることに加えて、受付日時・内容の一部などもうかがって/);
+    // 保存期間: バックアップ30日、退会の記録、再削除。
+    expect(text).toMatch(/取得から30日を過ぎたものは運営が削除します/);
+    expect(text).toMatch(/バックアップから戻したときは、そのあいだに退会したアカウントを改めて削除します/);
+    expect(text).toMatch(/退会したアカウントのIDと退会の日時/);
+    expect(text).toMatch(/退会から30日を過ぎたあとの日次の処理で削除します/);
   });
 
   it("お問い合わせ先へのリンクを持つ", () => {
