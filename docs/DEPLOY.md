@@ -278,9 +278,12 @@ Table Editor で `contact_messages` の対応済み（`status = 'done'`）の古
    アカウントのアドレスにしか届かない。
 4. `/contact` から試しに1件送り、通知が届くこと・本文に問い合わせの内容が無いことを確かめる。
 
-> 要確認: Resend の API の仕様（エンドポイント、`Authorization: Bearer`、`from` / `to` / `subject` / `text`、
-> `Idempotency-Key` ヘッダー、Sending access のキー）は実装時に公式ドキュメント（https://resend.com/docs/api-reference/emails/send-email）
-> を参照できなかったため、記憶に基づく。公開前に公式ドキュメントと突き合わせること。
+> 確認済み（2026-09-24、Resend 公式ドキュメント）: 送信は `POST https://api.resend.com/emails`、認証は
+> `Authorization: Bearer <APIキー>`、必須項目は `from`・`to`・`subject` と本文（`text` など）
+> （[Send Email](https://resend.com/docs/api-reference/emails/send-email)）。二重送信を防ぐ `Idempotency-Key`
+> ヘッダーは256文字まで・24時間保持（[Idempotency keys](https://resend.com/docs/dashboard/emails/idempotency-keys)）。
+> APIキーは送信だけできる **sending_access** の権限で作り、送信元ドメインに限定するとよい
+> （[Create API key](https://resend.com/docs/api-reference/api-keys/create-api-key)）。
 
 **保存期間。** 日次 cron（4.3節、`/api/cron/verification`）の最後に DB 関数
 `purge_expired_contact_data()`（service_role 専用）を呼び、次を削除する。

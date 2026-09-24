@@ -38,7 +38,10 @@ export async function createClient(): Promise<SupabaseClient> {
 }
 
 /**
- * service role の接続。RLS を通らないため、**cron（run_verification_cron）だけ**で使う（Spec §9.13.2）。
+ * service role の接続。RLS を通らないため、使う場所を次の2つに限る。
+ * - cron（run_verification_cron と、保存期間を過ぎた問い合わせの削除）（Spec §9.13.2）
+ * - お問い合わせの保存（submit_contact_message は anon・authenticated から直接実行できないため、
+ *   サーバーの Server Action からだけ呼ぶ。Spec §9.17）
  * 利用者の操作（承認・確認・投稿）はすべて本人のセッション（createClient）で DB 関数を呼ぶ。
  */
 export function createServiceRoleClient(): SupabaseClient {
