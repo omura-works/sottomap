@@ -140,8 +140,7 @@ export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[
       ) : (
         <>
           <ul className="space-y-2">
-            {items.map((item) => {
-              const index = items.indexOf(item);
+            {items.map((item, index) => {
               const motion = rowMotion(item.id);
               return (
                 <li

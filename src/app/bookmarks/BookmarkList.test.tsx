@@ -253,4 +253,36 @@ describe("BookmarkList", () => {
       expect(screen.getByRole("status")).toHaveTextContent("");
     });
   });
+
+  // Codex R20 重要6: 復元された行に順次表示（開始時 opacity: 0）のクラスを付けると、
+  // 直後にフォーカスしたボタンが一瞬見えなくなる（WCAG 2.4.7 フォーカスの可視化）。
+  describe("Codex R20 重要6: ロールバック時のモーション", () => {
+    beforeEach(() => {
+      vi.spyOn(window, "matchMedia").mockImplementation(
+        (query: string) =>
+          ({
+            matches: query.includes("prefers-reduced-motion") ? false : false,
+            media: query,
+            onchange: null,
+            addListener: () => {},
+            removeListener: () => {},
+            addEventListener: () => {},
+            removeEventListener: () => {},
+            dispatchEvent: () => false,
+          }) as MediaQueryList,
+      );
+    });
+
+    it("削除が失敗して行が戻っても、順次表示のクラス（フォーカス中の要素が opacity: 0 になる原因）を付けない", async () => {
+      vi.mocked(removeBookmarkAction).mockRejectedValueOnce(new Error("network"));
+      render(<BookmarkList initialItems={ITEMS} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
+      fireEvent.click(screen.getByRole("button", { name: "外す" }));
+
+      const restoredButton = await screen.findByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" });
+      await waitFor(() => expect(restoredButton).toHaveFocus());
+      expect(restoredButton.closest("li")).not.toHaveClass("motion-stagger-item");
+    });
+  });
 });

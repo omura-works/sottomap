@@ -3,7 +3,6 @@
 import { useEffect, useState, useTransition } from "react";
 import { unstable_rethrow, useRouter } from "next/navigation";
 import { AnimatedCounter } from "@/components/ui";
-import { Disclaimer } from "@/components/profile/Disclaimer";
 import { saveHomeCityAction } from "@/app/actions/start";
 import "./start.css";
 
@@ -333,10 +332,6 @@ export function StartScreen({
             })}
           </ol>
         </section>
-
-        <footer className="mt-12">
-          <Disclaimer />
-        </footer>
       </div>
     </div>
   );

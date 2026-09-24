@@ -2,10 +2,11 @@
  * SPEC §9.14-7: 動的ルートのSuspenseフォールバック（loading.tsx）で使う共通の待機表示。
  * サーバーコンポーネントとして使えるよう "use client" は付けない。
  *
- * モーションリファレンス「スケルトンシマー」（1200ms・linear・無限ループ）:
+ * モーションリファレンス「スケルトンシマー」（1200ms・linear・4周＝4.8秒で静止。Codex R20 重要7:
+ * WCAG 2.2.2 に適合させるため無限ループにしない）:
  * 一覧に近い形の骨格（見出し1本・サムネ付きの行3本）を固定したまま、その上を低コントラストの
- * 光の帯が左から右へ横切る（globals.css の `.motion-skeleton`）。`prefers-reduced-motion: reduce`
- * では帯を出さず、骨格だけを静止表示する。
+ * 光の帯が左から右へ横切り、4周したら静止する（globals.css の `.motion-skeleton`）。
+ * `prefers-reduced-motion: reduce` では帯を出さず、骨格だけを静止表示する。
  * 読み上げは sr-only の `role="status"` だけに持たせ、骨格そのものは `aria-hidden`。
  */
 export function LoadingScreen({ label = "読み込んでいます" }: { label?: string }) {

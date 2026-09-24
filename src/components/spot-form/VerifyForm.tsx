@@ -7,7 +7,6 @@ import type { Badge, Quietness, Verification } from "@/lib/db/types";
 import { quietnessLabel } from "@/lib/domain/quietness";
 import { formatTokyoYearMonth } from "@/lib/format/date-time";
 import { submitVerification } from "@/app/actions/spot-verify";
-import { Disclaimer } from "@/components/profile/Disclaimer";
 import { useShowRewardsSetting } from "./reward-settings";
 import { VERIFY_ANSWER_OPTIONS } from "./verify-schema";
 
@@ -138,10 +137,6 @@ export function VerifyForm({ requestId, spotName, daysSinceLast, history, wasDor
         <input type="checkbox" checked={showRewards} onChange={(event) => setShowRewards(event.target.checked)} />
         回答後の灯り演出（+5 など）を表示する
       </label>
-
-      {/* SPEC §9.14-13: メールリンク等から /verify に直接入る利用者にも、
-          架空データの注記に到達できる導線を必ず出す（この画面はナビ無しのフルスクリーン導線）。 */}
-      <Disclaimer />
     </div>
   );
 }

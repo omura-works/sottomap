@@ -583,8 +583,10 @@ button.tag::after {
    共通: 動かすのは opacity と transform だけ（アコーディオンの高さは ::details-content の block-size）。
    `prefers-reduced-motion: reduce` では下の @media ですべて止め、最終状態を即座に表示する。 */
 
-/* 1. スケルトンシマー（1200ms・linear・無限）: 骨格は固定、光の帯だけが左→右へ横切る。
-   帯は --color-bg の半透明（背景色を透かすマスク扱い。新しい表示色は作らない）。 */
+/* 1. スケルトンシマー（1200ms・linear・4周＝4.8秒で静止）: 骨格は固定、光の帯だけが左→右へ横切る。
+   帯は --color-bg の半透明（背景色を透かすマスク扱い。新しい表示色は作らない）。
+   Codex R20 重要7: WCAG 2.2.2（自動更新の一時停止）は自動開始・5秒超・並行操作可能なアニメーションに
+   停止手段を求める。無限ループにせず4周で止め、最終状態（帯が右端に抜けた静止画）のまま止まる。 */
 .motion-skeleton {
   position: relative;
   overflow: hidden;
@@ -601,7 +603,7 @@ button.tag::after {
     transparent 100%
   );
   transform: translateX(-100%);
-  animation: motion-skeleton-shimmer 1200ms linear infinite;
+  animation: motion-skeleton-shimmer 1200ms linear 4 forwards;
 }
 @keyframes motion-skeleton-shimmer {
   from {

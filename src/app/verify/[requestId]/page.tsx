@@ -5,7 +5,6 @@ import { getLatestMissedRequestId, getSpot, getVerificationRequest, listVerifica
 import { answerEligibility, daysSince } from "@/lib/domain/lifecycle";
 import { formatTokyoMonthDay } from "@/lib/format/date-time";
 import { VerifyForm } from "@/components/spot-form/VerifyForm";
-import { Disclaimer } from "@/components/profile/Disclaimer";
 import { Card } from "@/components/ui";
 
 interface VerifyPageProps {
@@ -71,7 +70,6 @@ export default async function VerifyPage({ params }: VerifyPageProps) {
           meta={`前回の確認から${daysSinceLast}日`}
         />
       )}
-      <Disclaimer />
     </div>
   );
 }

@@ -81,6 +81,16 @@ describe("リスト順次表示（useIntroStagger）", () => {
     expect(screen.getByTestId("b")).not.toHaveClass("motion-stagger-item");
   });
 
+  it("Codex R20 重要6: 一覧から消えた行が再生時間内に戻っても再生しない（栞のロールバック相当）", () => {
+    mockReducedMotion(false);
+    const { rerender } = render(<Rows ids={["a", "b", "c"]} />);
+    // 削除の楽観的更新で b が消える。
+    rerender(<Rows ids={["a", "c"]} />);
+    // 失敗してロールバックし、まだ全体の再生時間内に b が戻る。
+    rerender(<Rows ids={["a", "b", "c"]} />);
+    expect(screen.getByTestId("b")).not.toHaveClass("motion-stagger-item");
+  });
+
   it("初回描画で行が無ければ、最初に行がそろった表示を初回表示として扱う", () => {
     mockReducedMotion(false);
     const { rerender } = render(<Rows ids={[]} />);
@@ -112,8 +122,10 @@ describe("globals.css の reduced-motion", () => {
     },
   );
 
-  it("シマーは1200ms・linear・無限、ハローは900msで1回だけ、アコーディオンは620ms", () => {
-    expect(css).toContain("animation: motion-skeleton-shimmer 1200ms linear infinite");
+  it("シマーは1200ms・linear・4周（4.8秒）で静止、ハローは900msで1回だけ、アコーディオンは620ms", () => {
+    // Codex R20 重要7: WCAG 2.2.2（自動更新の一時停止）。無限ループにせず4周で静止させる。
+    expect(css).toContain("animation: motion-skeleton-shimmer 1200ms linear 4 forwards");
+    expect(css).not.toContain("animation: motion-skeleton-shimmer 1200ms linear infinite");
     expect(css).toMatch(/animation: map-pin-halo 900ms [^;]* 1 forwards/);
     expect(css).toContain("block-size 620ms");
   });
