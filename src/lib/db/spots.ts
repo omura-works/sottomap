@@ -815,8 +815,6 @@ interface UserRow {
   display_name: string;
   home_city_id: string | null;
   home_city_changed_at: string | null;
-  area_name: string | null;
-  resident_years: number | null;
   avatar_url: string | null;
   lantern_points: number;
   created_at: string;
@@ -828,8 +826,6 @@ function mapUserRow(row: UserRow): UserProfile {
     displayName: row.display_name,
     homeCityId: row.home_city_id,
     homeCityChangedAt: row.home_city_changed_at ?? null,
-    areaName: row.area_name,
-    residentYears: row.resident_years,
     avatarUrl: row.avatar_url,
     lanternPoints: row.lantern_points,
     createdAt: row.created_at,
@@ -842,7 +838,12 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     return fixtureUserProfile(userId);
   }
   const supabase = await createClient();
-  const { data, error } = await supabase.from("users").select("*").eq("id", userId).maybeSingle();
+  const { data, error } = await supabase
+    .from("users")
+    // エリア・居住年数（area_name・resident_years）は読まない（SPEC §9.18-2、R21 軽微3）。
+    .select("id, display_name, home_city_id, home_city_changed_at, avatar_url, lantern_points, created_at")
+    .eq("id", userId)
+    .maybeSingle();
   if (error) throw error;
   return data ? mapUserRow(data as UserRow) : null;
 }

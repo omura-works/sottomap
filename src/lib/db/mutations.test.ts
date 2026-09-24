@@ -194,22 +194,24 @@ describe("answerVerification（Spec §9.13.3: 回答できる時点・二重受�
     expect(FIXTURE_VERIFICATIONS.length).toBe(verificationsBefore);
   });
 
-  it("備考は500文字まで（answer_verification と同じ。501文字は記録せずに拒否。§9.18・0012）", async () => {
+  it("確認の回答の備考は受け取らず、記録にも持たない（answer_verification は note を常に NULL で保存。§9.18・0014）", async () => {
     const { answerVerification } = await import("./mutations");
     const { getVerificationRequest } = await import("./spots");
     const { FIXTURE_VERIFICATIONS } = await import("./fixtures");
 
-    const published = await createPublishedSpot("確認テスト店・備考の長さ");
+    const published = await createPublishedSpot("確認テスト店・備考なし");
     const requestId = published.openRequestId!;
     const request = await getVerificationRequest(requestId);
     freezeAt(new Date(new Date(request!.dueAt).getTime() + HOUR_MS));
 
-    const verificationsBefore = FIXTURE_VERIFICATIONS.length;
-    await expect(answerVerification(requestId, K_SAN, "quiet", "あ".repeat(501))).rejects.toThrow(
-      "備考は500文字以内で入力してください",
-    );
-    expect(FIXTURE_VERIFICATIONS.length).toBe(verificationsBefore);
-    await expect(answerVerification(requestId, K_SAN, "quiet", "🏮".repeat(500))).resolves.toMatchObject({ accepted: true });
+    // 引数は依頼・回答者・答えの3つだけ。備考の引数は無い。
+    expect(answerVerification.length).toBe(3);
+    await expect(answerVerification(requestId, K_SAN, "quiet")).resolves.toMatchObject({ accepted: true });
+    const recorded = FIXTURE_VERIFICATIONS.find((v) => v.spotId === published.id);
+    expect(recorded).toBeDefined();
+    expect(Object.keys(recorded!).sort()).toEqual(["answer", "createdAt", "id", "spotId", "userId"]);
+    // デモの記録にも備考は無い。
+    expect(FIXTURE_VERIFICATIONS.every((v) => !("note" in v))).toBe(true);
   });
 
   it("期限到来済みの依頼に回答すると +5 が一度だけ付き、同じ依頼への2回目は受理されず加算もない", async () => {
@@ -223,7 +225,7 @@ describe("answerVerification（Spec §9.13.3: 回答できる時点・二重受�
     freezeAt(new Date(new Date(request!.dueAt).getTime() + HOUR_MS));
 
     const pointsBefore = (await getUserProfile(K_SAN))!.lanternPoints;
-    const result = await answerVerification(requestId, K_SAN, "quiet", "変わっていない");
+    const result = await answerVerification(requestId, K_SAN, "quiet");
     expect(result).toEqual({ accepted: true, pointsAwarded: 5, status: "published" });
     expect((await getUserProfile(K_SAN))!.lanternPoints).toBe(pointsBefore + 5);
 

@@ -40,8 +40,7 @@ export interface UserProfile {
   displayName: string;       // 'Kさん'
   homeCityId: string | null;
   homeCityChangedAt: string | null; // 住んでいる街を最後に変えた時刻（初回設定は数えない）。SPEC §9.16
-  areaName: string | null;   // '北24条'
-  residentYears: number | null;
+  // 2026-09-25 追補（SPEC §9.18-2、R21 軽微3）: エリア・居住年数（areaName・residentYears）は集めない・表示しないので外した。
   avatarUrl: string | null;
   lanternPoints: number;
   createdAt: string;         // ISO8601
@@ -63,7 +62,7 @@ export interface Spot {
   reason: string;            // 60字まで
   visitFrequency: VisitFrequency;
   authorId: string;
-  authorLabel: string | null;   // '— 北24条に14年、Kさん' の後半部分 '北24条に14年、Kさん'
+  authorLabel: string | null;   // 署名 '— Kさん' の後半部分 'Kさん'（表示名だけ。SPEC §9.18-2）
   photoUrl: string | null;
   tags: Tag[];
   endorsementCount: number;     // 承認した人数
@@ -339,9 +338,10 @@ export function createSpot(input: {
 
 export function endorseSpot(spotId: string, userId: string): Promise<{ published: boolean }>;
 
+// 2026-09-25 追補（SPEC §9.18-2、R21 重要1）: 備考（note）は集めないので引数から外した。
 export function answerVerification(
-  requestId: string, userId: string, answer: Quietness, note?: string,
-): Promise<{ pointsAwarded: number; status: SpotStatus }>;
+  requestId: string, userId: string, answer: Quietness,
+): Promise<{ accepted: boolean; pointsAwarded: number; status: SpotStatus }>;
 
 export function addBookmark(userId: string, spotId: string, plannedAt?: string): Promise<Bookmark>;
 export function removeBookmark(userId: string, spotId: string): Promise<void>;

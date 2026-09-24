@@ -70,10 +70,7 @@ export default async function ProfilePage() {
             {displayName}
           </h1>
           <p className="text-muted m-0">
-            {[homeCity?.name, profile?.areaName].filter(Boolean).join("・")}
-            {profile?.residentYears !== null && profile?.residentYears !== undefined
-              ? `に${profile.residentYears}年`
-              : ""}
+            {homeCity?.name ?? ""}
           </p>
         </div>
       </header>

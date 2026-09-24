@@ -213,7 +213,9 @@ test.describe("実DB: ログイン済みの主要導線", () => {
     // 3. /me: 本人のプロフィール・投稿（確認切れ）・確認待ち（期限到来の open 1件 + 復帰対象の最新 missed 1件）
     await page.goto("/me");
     await expect(page.getByRole("heading", { name: USER_NAME, exact: true })).toBeVisible();
-    await expect(page.getByText("小樽・色内に10年", { exact: true })).toBeVisible();
+    // 見出しの下は住んでいる街の名前だけ（エリア・居住年数は集めない・表示しない。SPEC §9.18-2、R21 軽微3）
+    const homeCityLine = page.getByRole("heading", { name: USER_NAME, exact: true }).locator("xpath=following-sibling::p");
+    await expect(homeCityLine).toHaveText("小樽");
 
     // 3-1. /me で住んでいる街を札幌に変える（確認ダイアログ → 成功）。DB 関数 set_home_city 経由。
     await page.getByRole("button", { name: "変更する", exact: true }).click();
@@ -224,7 +226,7 @@ test.describe("実DB: ログイン済みの主要導線", () => {
     await expect(page.getByRole("status").filter({ hasText: "住んでいる街を札幌に変えました。" })).toBeVisible();
     await expect.poll(async () => (await readHomeCity())?.home_city_id).toBe(SAPPORO_ID);
     expect((await readHomeCity())?.home_city_changed_at).not.toBeNull();
-    await expect(page.getByText("札幌・色内に10年", { exact: true })).toBeVisible();
+    await expect(homeCityLine).toHaveText("札幌");
 
     // 3-2. 続けてもう一度変えようとすると、90日の制限で拒否される（role="alert"）
     await page.getByRole("button", { name: "変更する", exact: true }).click();

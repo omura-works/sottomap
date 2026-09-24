@@ -242,7 +242,16 @@ describe("getUserProfile / getProfileStats / listSpotsByAuthor（CONTRACT追補�
     const { getUserProfile } = await import("./spots");
     const profile = await getUserProfile("b0000000-0000-4000-8000-000000000001");
     expect(profile?.displayName).toBe("Kさん");
-    expect(profile?.areaName).toBe("北24条");
+    // R21 軽微3（§9.18-2）: エリア・居住年数は集めない・表示しないので、プロフィールの型にも持たない。
+    expect(Object.keys(profile!).sort()).toEqual([
+      "avatarUrl",
+      "createdAt",
+      "displayName",
+      "homeCityChangedAt",
+      "homeCityId",
+      "id",
+      "lanternPoints",
+    ]);
   });
 
   it("getUserProfile: 存在しないユーザーは null", async () => {

@@ -1,4 +1,4 @@
-// SPEC §9.18-1: 表示名の規則。DB 関数 set_display_name（0011）と同じ規則・同じ文言にそろえる。
+// SPEC §9.18-1: 表示名の規則。DB 関数 set_display_name（0011・0012・0014）と同じ規則・同じ文言にそろえる。
 // Server Action は通信の前にここで弾き、デモモード（フィクスチャ）もこの規則で保存する。
 
 /** ログイン時に作るプロフィールの表示名（メールアドレスの一部は使わない）。 */
@@ -10,6 +10,7 @@ export const DISPLAY_NAME_MESSAGES = {
   empty: "表示名を入力してください",
   tooLong: `表示名は${DISPLAY_NAME_MAX_LENGTH}文字以内で入力してください`,
   control: "表示名に改行や制御文字は使えません",
+  invisible: "表示名に見えない文字は使えません",
   email: "表示名にメールアドレスは使えません",
 } as const;
 
@@ -44,10 +45,26 @@ export const FORMAT_CHARACTER_RANGES: ReadonlyArray<readonly [number, number]> =
   [0xe0020, 0xe007f],
 ];
 
-function containsFormatCharacter(value: string): boolean {
+/**
+ * 書式文字のうち、表示名に使ってよいもの（R21 軽微2、§9.18-1）。
+ * ZWNJ（U+200C）・ZWJ（U+200D）: 家族・職業などの絵文字の合字と、ZWNJ を使う言語の名前のため。
+ * タグ文字（U+E0020–U+E007F）: イングランドなどの地域旗のため。
+ * DB 関数 public.contains_format_character（0014）も同じ範囲を除いて調べる。
+ */
+export const ALLOWED_FORMAT_CHARACTER_RANGES: ReadonlyArray<readonly [number, number]> = [
+  [0x200c, 0x200d],
+  [0xe0020, 0xe007f],
+];
+
+function inRanges(cp: number, ranges: ReadonlyArray<readonly [number, number]>): boolean {
+  return ranges.some(([from, to]) => cp >= from && cp <= to);
+}
+
+/** 表示名に使えない見えない文字（許すもの以外の書式文字）を含むか。 */
+function containsInvisibleCharacter(value: string): boolean {
   for (const ch of value) {
     const cp = ch.codePointAt(0) ?? 0;
-    if (FORMAT_CHARACTER_RANGES.some(([from, to]) => cp >= from && cp <= to)) return true;
+    if (inRanges(cp, FORMAT_CHARACTER_RANGES) && !inRanges(cp, ALLOWED_FORMAT_CHARACTER_RANGES)) return true;
   }
   return false;
 }
@@ -59,8 +76,8 @@ const EMAIL_SHAPE = /[^\s@＠][@＠][^\s@＠]/;
 
 /** 前後の空白（全角空白・改行を含む）を除き、規則に合うかを調べる。 */
 export function validateDisplayName(raw: string): DisplayNameValidation {
-  // 書式文字は前後の空白を除く前に調べる（trim は U+FEFF を空白として消すが、DB は消さずに拒否するため）。
-  if (containsFormatCharacter(raw)) return { ok: false, message: DISPLAY_NAME_MESSAGES.control };
+  // 見えない文字は前後の空白を除く前に調べる（trim は U+FEFF を空白として消すが、DB は消さずに拒否するため）。
+  if (containsInvisibleCharacter(raw)) return { ok: false, message: DISPLAY_NAME_MESSAGES.invisible };
   const name = raw.trim();
   if (name.length === 0) return { ok: false, message: DISPLAY_NAME_MESSAGES.empty };
   if ([...name].length > DISPLAY_NAME_MAX_LENGTH) return { ok: false, message: DISPLAY_NAME_MESSAGES.tooLong };

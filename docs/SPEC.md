@@ -96,7 +96,8 @@ cities            街（札幌・小樽・函館・旭川・富良野・釧路�
   id, slug, name, name_kana, is_port, center_lat, center_lng, default_zoom
 
 users             ユーザー（Supabase Auth と 1:1）
-  id, display_name, home_city_id, resident_years, avatar_url, lantern_points, created_at
+  id, display_name, home_city_id, avatar_url, lantern_points, created_at
+  （area_name・resident_years の列は残るが、集めない・表示しない。§9.18-2）
 
 spots             店（ピン）
   id, city_id, name, address, area_name, category, lat, lng,
@@ -160,7 +161,7 @@ badges / user_badges
 ### S4. スポット詳細 `/[city]/spots/[id]`
 - 写真（未設定時はプレースホルダ「店の写真をドロップ」）
 - 「札幌・北24条 / 海鮮丼」→ 店名（h2）→ タグ列
-- 引用ブロック（投稿者の言葉）＋ 署名「— 北24条に14年、Kさん」
+- 引用ブロック（投稿者の言葉）＋ 署名「— Kさん」（表示名だけ。エリア・居住年数は集めない・表示しない。§9.18-2）
 - ステータスカード「まだ静かです」／「12日前、地元の3人が『変わっていない』と確認。」
 - **栞に挟む**（primary） ＋ **道順**（secondary）
 
@@ -181,7 +182,7 @@ badges / user_badges
 - 回答後に灯り演出「+5」＋「灯りの番人 あと2件」（`showRewards` 相当。設定でOFF可）
 
 ### S7. プロフィール `/me`
-- アバター＋「Kさん」＋「札幌・北24条に14年」
+- アバター＋「Kさん」＋「札幌」（住んでいる街だけ。エリア・居住年数は集めない・表示しない。§9.18-2）
 - 数値3つ: **立てたピン18** / **確認した回数64** / **静けさを守った店15**
 - 灯りバッジ列（灯=番人、雪=冬も歩いた、港=未取得）
 - 「あなたが書いた店」リスト（店名＋ステータス）
@@ -513,11 +514,11 @@ S1（`/start`）は §4 の構成に代えて、次の構成にする（§4 の�
    - `public.initialize_home_city(p_city_id uuid) returns boolean`（初回設定専用。security definer、`search_path = ''`、EXECUTE は authenticated だけ）。本人の users 行を `for update` でロックし、現在 NULL のときだけ設定して true（`home_city_changed_at` は NULL）。設定済み（またはプロフィール行が無い）なら何もせず false（例外にしない）。未ログイン・存在しない街は `set_home_city` と同じ文言で拒否。
 4. デモモード（フィクスチャ）も同じ規則・同じ文言を再現する（`src/lib/domain/home-city.ts`）。
 
-### 9.17 お問い合わせ（2026-09-20、2026-09-23 最終レビュー R19 重要1・3・4・5・6、2026-09-24 R20 重要3・4・5 で改訂）
+### 9.17 お問い合わせ（2026-09-20、2026-09-23 最終レビュー R19 重要1・3・4・5・6、2026-09-24 R20 重要3・4・5、2026-09-25 R21 重要2・軽微1 で改訂）
 
 ウラスポは、実在の店を本人の許可なく地図に載せている。掲載を止めてほしいという申し出を受けられない状態で公開してはいけないため、窓口 `/contact` を置く（`/shops`・スポット詳細からも誘導する）。
 1. **保存先は DB。運営へのメール通知は任意。** 受け取った内容は `public.contact_messages` に保存し、運営者が Supabase の画面（service_role）で読む。
-   - `supabase/migrations/0009_contact_messages.sql`・`0010_contact_hardening.sql`・`0013_contact_privacy_requests.sql`: `id` / `created_at` / `category` / `message` / `reply_to` / `spot_id`（`spots` を参照。削除時は NULL）/ `user_agent` / `requester_id`（`auth.users` を参照。削除時は NULL）/ `status`（`new` / `in_progress` / `done`）。
+   - `supabase/migrations/0009_contact_messages.sql`・`0010_contact_hardening.sql`・`0013_contact_privacy_requests.sql`・`0014_account_deletion_and_note.sql`: `id` / `created_at` / `category` / `message` / `reply_to` / `spot_id`（`spots` を参照。削除時は NULL）/ `user_agent` / `requester_id`（`auth.users` を参照。**アカウントの削除〈退会〉で行ごと削除**〈on delete cascade。0014。0010〜0013 は NULL にして残していた〉）/ `status`（`new` / `in_progress` / `done`）。
    - `category` は `removal`（掲載を止めてほしい）／`correction`（内容の訂正）／`privacy`（自分の個人情報について（開示・訂正・削除・利用停止））／`other`（その他）。
 2. **受け取った内容は公開しない。** RLS を有効にし、ポリシーを1つも作らず、`anon` / `authenticated` には表への select / insert / update / delete を一切与えない。読めるのは `service_role`（運営）だけ。送信元の記録 `public.contact_rate` も同じく利用者からは一切触れない。
 3. **書き込みは DB 関数だけ。利用者からは直接呼べない。** `public.submit_contact_message(p_category text, p_message text, p_reply_to text, p_spot_id uuid, p_source_hash text, p_requester_id uuid, p_user_agent text) returns uuid`（security definer、`search_path = ''`、**EXECUTE は `service_role` だけ**）。Server Action がサーバー専用の service_role 接続（`SUPABASE_SERVICE_ROLE_KEY`。ブラウザには出さない）で呼ぶ。公開 RPC を直接呼んで回数制限を迂回できないようにするため（R19 重要5）。
@@ -527,11 +528,13 @@ S1（`/start`）は §4 の構成に代えて、次の構成にする（§4 の�
    - **容量の上限。** `contact_messages` が全体で10,000件に達したら新規を受け付けない（同じ文言。運営が古いものを整理するまで。サーバーのログに記録する）。
    - **重複排除。** `category + message + spot_id + reply_to + requester_id + 送信元` がすべて同じ送信が直近1分以内にあれば、新しい行を作らず `null` を返す（呼び出し側は成功として扱う。回数にも数えない）。店・返信先・送信者・送信元のどれかが違えば別件として保存する（R19 重要6）。
    - **送信者の記録。** ログイン中なら Server Action が本人の ID を `requester_id` に渡す（未ログインなら NULL）。`user_agent` はブラウザの User-Agent ヘッダーを Server Action が読み取り、200字で切って渡す（R19 重要1）。
-4. **個人情報の請求（`privacy`）。** 受付の経路は2つ（R20 重要3。`0013_contact_privacy_requests.sql`）。
-   - **ログイン中:** そのアカウントのご本人からの請求として受け付ける（`requester_id` を保存）。返信先は任意。回答はアカウントに登録しているメールアドレス宛に送る（運営が `requester_id` から Supabase の Authentication で確かめる）。
-   - **ログインできない人・退会した人:** ログインせずに送れる。返信先が**必須**で、登録している（退会した場合は、登録していた）メールアドレスを書いてもらう。運営がそのアドレス宛にメールで確認し、本人であることを確かめてから回答する。
-   - DB は `privacy` で `requester_id` か返信先のどちらかを必須にする（RPC の検査。表の check 制約にはしない。`requester_id` は退会で NULL になるため、制約にすると返信先の無い請求をした利用者のアカウントを削除できなくなる）。退会後も問い合わせの行は残り（`requester_id` だけが NULL）、受付から1年を過ぎるまで請求の対象になる。
-   - 画面: 未ログインで `privacy` を選ぶと、用件の下に案内（`role="alert"` にしない。`aria-live="polite"`）「ログインして送ると、そのアカウントのご本人からの請求として受け付けます。ログインできない場合や退会した場合は、返信用のメールアドレスに、登録している（退会した場合は、登録していた）メールアドレスを書いて送ってください。運営からそのアドレス宛にメールで確認し、ご本人であることを確かめてから回答します。」と「ログインする」（`/login?next=%2Fcontact`）を出し、返信先のラベルを「返信用のメールアドレス（必須）」（`aria-required="true"`。`required` 属性はブラウザ独自の吹き出しで送信を止めるため使わない）、案内を「登録している（退会した場合は、登録していた）メールアドレスをご記入ください。本人確認のため、運営からこのアドレス宛にメールで確認します。」にする。ログイン中に `privacy` を選ぶと、返信先は任意のまま、案内を「個人情報についての回答は、アカウントに登録しているメールアドレス宛にお送りします。」にする。
+4. **個人情報の請求（`privacy`）と退会。** 受付の経路は2つ（R20 重要3。`0013_contact_privacy_requests.sql`）。本人確認と退会は 2026-09-25 の R21 決定事項で改訂（`0014_account_deletion_and_note.sql`、手順は `docs/DEPLOY.md` 4.6節）。
+   - **退会 = アカウントの削除。** 運営用 RPC `public.delete_account(p_user_id uuid) returns void`（security definer、`search_path = ''`、EXECUTE は `service_role` だけ。NULL は「アカウントを指定してください」、無いアカウントは「アカウントが見つかりませんでした」）が `auth.users` の行を削除し、既存の on delete cascade でプロフィール・投稿した店・承認・確認の回答と依頼・栞・灯りの台帳・バッジと、**そのアカウントで（ログイン中に）送った問い合わせ**（`requester_id` が一致するもの）が消える。ログインせずに送った問い合わせ（`requester_id` が NULL）はアカウントに結び付かないので残る。本人の画面からは退会できない（運営が本人確認のうえで行う）。
+   - **ログイン中:** そのアカウントのご本人からの請求として受け付ける（`requester_id` を保存）。**返信先の欄は出さず、送られても保存しない**（Server Action と `validateContactMessageInput` が捨てる。R21 軽微1）。回答はアカウントに登録しているメールアドレス宛に送る（運営が `requester_id` から Supabase の Authentication で確かめる）。
+   - **ログインできない人（アカウントはある）:** ログインせずに送る。返信先が**必須**で、登録しているメールアドレスを書いてもらう。運営は運営用 RPC `public.find_account_by_email(p_email text) returns uuid`（security definer、`search_path = ''`、EXECUTE は `service_role` だけ）で返信先を `auth.users` のメールアドレスと照合する（前後の空白〈全角空白・改行を含む〉を除き、大文字小文字を揃えて比べる。一致しなければ NULL。大文字小文字だけが違う登録が複数あれば「このメールアドレスに当たる登録が複数あります」で止める）。一致した場合にそのアドレス宛に確認のメールを送って本人確認し、回答する。一致しなければ「登録が見つからない」ものとして扱う。
+   - **退会した人:** アカウントに結び付く情報は、問い合わせを含めてすべて削除済み。運営の手元に残り得るのは「ログインせずに返信先付きで送った問い合わせ」だけで、これはそのアドレスに結び付いた情報なので、**そのアドレスで確認のメールを受け取れること**で本人確認する。返信先の無い問い合わせは本人を特定できないため、受付から1年を過ぎて自動で削除されるまで残る。
+   - DB は `privacy` で `requester_id` か返信先のどちらかを必須にする（RPC の検査。表の check 制約にはしない。未ログインの請求は返信先で受け付けるため）。
+   - 画面: 未ログインで `privacy` を選ぶと、用件の下に案内（`role="alert"` にしない。`aria-live="polite"`）「ログインして送ると、そのアカウントのご本人からの請求として受け付けます。ログインできない場合は、返信用のメールアドレスに、登録しているメールアドレスを書いて送ってください。運営が登録しているメールアドレスと照合し、一致した場合にそのアドレス宛に確認のメールを送って、ご本人であることを確かめてから回答します。退会した場合は、ログインせずに返信用のメールアドレスを書いて送ったお問い合わせについてだけ請求できます。そのときと同じメールアドレスを書いて送ってください。」と「ログインする」（`/login?next=%2Fcontact`）を出し、返信先のラベルを「返信用のメールアドレス（必須）」（`aria-required="true"`。`required` 属性はブラウザ独自の吹き出しで送信を止めるため使わない）、案内を「登録しているメールアドレスをご記入ください（退会した場合は、以前のお問い合わせに書いたメールアドレス）。本人確認のため、運営からこのアドレス宛に確認のメールを送ります。」にする。ログイン中に `privacy` を選ぶと、返信先の欄を出さず（送信のフォームにも入らない）、用件の下に案内（`aria-live="polite"`）「個人情報についての回答は、アカウントに登録しているメールアドレス宛にお送りします。返信用のメールアドレスの入力は要りません。」を出す（文言は `src/app/contact/schema.ts` の `CONTACT_PRIVACY_COPY`）。
 5. **画面 `/contact`。** h1「お問い合わせ」。用件のラジオ（上の4つの日本語ラベル）、本文（2000字まで・残り文字数を表示）、返信用のメールアドレス（任意。「返信が必要な場合だけ、ご記入ください。」）、「送る」。
    - `?spot=<id>` が付いていれば、その公開中の店を対象として表示し、hidden で送る。
    - 送信は Server Action。成功したら入力欄を閉じ、`role="status"` の中の見出し（h2、`tabIndex=-1`）「お送りしました。ありがとうございます。」へフォーカスを移す。見出しの下は、`privacy` なら「本人確認のうえ回答します。」、それ以外は「返信をお約束するものではありません。掲載停止のご連絡は、内容を確認でき次第、対応します。」（Server Action は成功の状態に用件を載せる）。失敗は `role="alert"` で理由を対象の入力欄のそばに出し、最初の不正な入力欄（用件なら選んでいる選択肢、無ければ最初の選択肢）へフォーカスを移す。想定外の失敗は「お送りできませんでした。時間をおいて、もう一度お試しください。」。
@@ -547,7 +550,7 @@ S1（`/start`）は §4 の構成に代えて、次の構成にする（§4 の�
 
 ### 9.18 表示名・公開プロフィール・掲載停止リスト（2026-09-23、最終レビュー R19 重要2・重要7）
 
-§9.13.4 の「利用者が更新できる `users` の列は、表示名・アバター・居住街・居住年数だけ」は、この節で置き換える。`supabase/migrations/0011_profile_privacy_and_removed_places.sql`（2026-09-24 の最終レビュー R20 重要1・重要2・軽微への対応は `0012_public_data_minimization.sql`）。
+§9.13.4 の「利用者が更新できる `users` の列は、表示名・アバター・居住街・居住年数だけ」は、この節で置き換える。`supabase/migrations/0011_profile_privacy_and_removed_places.sql`（2026-09-24 の最終レビュー R20 重要1・重要2・軽微への対応は `0012_public_data_minimization.sql`、2026-09-25 の R21 重要1・軽微2〜4 への対応は `0014_account_deletion_and_note.sql`）。
 1. **表示名にメールアドレスの一部を使わない。**
    - ログイン時（`/auth/callback`）のプロフィール行は DB 関数 `public.ensure_user_profile() returns void`（security definer、`search_path = ''`、EXECUTE は authenticated だけ）が作る。表示名の初期値は **「地元の人」**。行があれば何もしない（表示名を上書きしない）。本人が送れる `user_metadata` も使わない。
    - 既存の利用者: マイグレーションで、`users.display_name` が `auth.users.email` の `@` より前と一致する行だけを「地元の人」に置き換える（`public.replace_email_derived_display_names()`。誰にも EXECUTE を与えない）。
@@ -556,19 +559,19 @@ S1（`/start`）は §4 の構成に代えて、次の構成にする（§4 の�
      - 21文字以上: 「表示名は20文字以内で入力してください」
      - 改行・制御文字: 「表示名に改行や制御文字は使えません」
      - メールアドレスの形（`@` または全角 `＠` の前後に空白でない文字がある）: 「表示名にメールアドレスは使えません」
-     - 見えない書式文字（Unicode の一般カテゴリ Cf。U+202E などの双方向制御文字 `Bidi_Control`、ゼロ幅空白・ゼロ幅接合子、U+FEFF、タグ文字を含む）: 上と同じ「表示名に改行や制御文字は使えません」（2026-09-24、R20 軽微。`0012_public_data_minimization.sql`）。署名の見た目の偽装を防ぐ。書式文字は前後の空白を除いても残るので、空・長さより先に調べる（書式文字だけの名前も「空」ではなくこの文言）。一覧は Unicode 17.0 の Cf を範囲で持ち（`FORMAT_CHARACTER_RANGES` と DB 関数 `public.contains_format_character(text)`。誰にも EXECUTE を与えない）、テストで実行環境の Cf と照合する。ゼロ幅接合子でつなぐ絵文字（家族の絵文字など）も使えない。異体字セレクタ（U+FE0F。Cf ではない）は使える。既存の表示名に書式文字があれば、マイグレーションで「地元の人」に置き換える。
+     - 見えない文字（Unicode の一般カテゴリ Cf から、ZWNJ〈U+200C〉・ZWJ〈U+200D〉・タグ文字〈U+E0020–U+E007F〉を除いたもの。U+202E などの双方向制御文字 `Bidi_Control`、ゼロ幅空白 U+200B、単語結合子 U+2060、U+FEFF、言語タグ U+E0001 を含む）: 「表示名に見えない文字は使えません」（2026-09-24 R20 軽微の `0012_public_data_minimization.sql` で導入し、2026-09-25 R21 軽微2 の `0014_account_deletion_and_note.sql` で文言と許す文字を改訂）。署名の見た目の偽装を防ぐ。見えない文字は前後の空白を除いても残るので、空・長さより先に調べる（見えない文字だけの名前も「空」ではなくこの文言）。一覧は Unicode 17.0 の Cf を範囲で持ち（`FORMAT_CHARACTER_RANGES`。テストで実行環境の Cf と照合する）、そこから許すもの（`ALLOWED_FORMAT_CHARACTER_RANGES`）を除いて調べる。DB 関数 `public.contains_format_character(text)`（誰にも EXECUTE を与えない）も同じ範囲。ZWJ でつなぐ絵文字（家族・職業など）、タグ文字で作る地域旗（イングランドなど）、ZWNJ を使う言語の名前は使える。異体字セレクタ（U+FE0F。Cf ではない）も使える。0012 の時点で既存の表示名に書式文字があったものは、マイグレーションで「地元の人」に置き換え済み（0014 で元に戻すことはしない）。
    - 同じ規則・同じ文言を `src/lib/domain/display-name.ts` にも置き、Server Action は通信の前に弾く（デモモードもこの規則でフィクスチャに保存する）。
    - 画面: 見出し「表示名」、今の名前、「表示名を変更する」→ 入力欄「新しい表示名」→「保存する」「やめる」。案内「あなたが書いた店の詳細に、署名として表示されます。20文字まで。メールアドレスは使えません。」。確認ダイアログは出さない。成功は `role="status"` で「表示名を「◯◯」に変えました。」、拒否は `role="alert"` で理由を出し、入力欄に `aria-invalid`・`aria-describedby` で結び付ける。想定外の失敗は「表示名を変えられませんでした。もう一度お試しください。」。ボタンと入力欄は 44px 以上。
 2. **公開プロフィールを絞る。**
    - `public_profiles` は **`id, display_name` だけ**（0011 で `avatar_url`、2026-09-24 の 0012〈R20 重要2〉で `area_name`・`resident_years` も外した）。行の範囲は §9.13.6 のまま。
-   - 店の詳細の署名は**表示名だけ**（§4 の「— 北24条に14年、Kさん」は「— Kさん」に置き換える。デモモードも同じ。`src/lib/domain/author-label.ts`）。`users.area_name`・`resident_years` は画面から入力できず公開もしないので、0012 で既存の値を NULL にした（DB 関数 `public.minimize_profile_data()` をマイグレーションで1回呼ぶ。誰にも EXECUTE を与えない）。列は残す（本人の `/me` の表示は値が無ければ出さない）。
+   - 店の詳細の署名は**表示名だけ**（§4 の署名は「— Kさん」。デモモードも同じ。`src/lib/domain/author-label.ts`）。`users.area_name`・`resident_years` は**集めない・表示しない**。画面から入力できず公開もしないので、0012 で既存の値を NULL にした（DB 関数 `public.minimize_profile_data()` をマイグレーションで1回呼ぶ。誰にも EXECUTE を与えない）。列は残すが、アプリは読まない（型 `UserProfile` にも持たない。CONTRACT 追補）。本人の `/me` の見出しの下は住んでいる街の名前だけ。seed・デモのフィクスチャにも入れない（2026-09-25、R21 軽微3）。
    - `authenticated` から `users` への直接の INSERT / UPDATE 権限をすべて外す（行の作成は `ensure_user_profile`、表示名は `set_display_name`、住んでいる街は §9.16 の RPC）。`avatar_url`・`area_name`・`resident_years` は利用者が書き換えられない。将来これらを入力できるようにするときは、RPC とプライバシーポリシーを同時に更新する。
    - 誰がどの店を承認したか（`endorsements.user_id`）は公開しない。`anon` / `authenticated` の `endorsements` への SELECT は列単位（`id, spot_id, created_at`）だけにする（画面は承認の件数しか使わない。承認は `endorse_spot` だけが記録する）。
    - **確認の回答で公開するのは `id, spot_id, answer, created_at` だけ**（2026-09-24、R20 重要1。`0012_public_data_minimization.sql`）。回答者のID（`user_id`）・備考（`note`）・依頼ID（`verification_request_id`）は公開しない。`anon` / `authenticated` の `verifications` への SELECT は、表単位ではなくこの4列の列単位だけ（行の範囲は §9.13.6 の RLS のまま。service_role は表単位で読める）。回答の中身（まだ静か／混みはじめた／観光地化した）と日時は公開される。
-     - 店ごとの「確認した人数」（直近の回答から24時間以内に回答した人の数）は集計 RPC `public.spot_verifier_counts(p_spot_ids uuid[]) returns table (spot_id uuid, verifier_count integer)`（security definer、`search_path = ''`、EXECUTE は anon・authenticated）。返すのは店のIDと人数だけ。数える店は spots の RLS と同じ範囲（公開中は全員／投稿者本人はどの状態でも／承認待ちは同じ街に住む人）。回答の無い店の行は返さず、アプリは 0 人とする。
+     - 店ごとの「確認した人数」（直近の回答から24時間以内に回答した人の数）は集計 RPC `public.spot_verifier_counts(p_spot_ids uuid[]) returns table (spot_id uuid, verifier_count integer)`（security definer、`search_path = ''`、EXECUTE は anon・authenticated）。返すのは店のIDと人数だけ。数える店は spots の RLS と同じ範囲（公開中は全員／投稿者本人はどの状態でも／承認待ちは同じ街に住む人）。回答の無い店の行は返さず、アプリは 0 人とする。関数は spots の RLS を複製しているので、pgTAP（`supabase/tests/0014_account_deletion_and_note.sql`）で「各状態の店 × 各閲覧者〈匿名・投稿者・同じ街・別の街・街が未設定〉について、RLS で見える確認の件数と関数の返す人数が一致する」ことを確かめ、どちらか片方だけを変えたときに気づけるようにする（2026-09-25、R21 軽微4）。spots の RLS を変えるときは、この関数も同時に変える。
      - 本人の実績（`/me` の「確認した回数」と冬の確認の数）は本人専用 RPC `public.list_my_verification_times() returns setof timestamptz`（security definer、`search_path = ''`、EXECUTE は authenticated だけ。`auth.uid()` の回答日時だけ。未ログインは「ログインが必要です」）。
      - `listVerifications`（確認画面の履歴）は公開の4列だけを読み、型 `Verification` も `id, spotId, answer, createdAt` だけにする（CONTRACT 追補）。
-     - `answer_verification` の `p_note` は **500文字まで**（コードポイントで数える）。超えたら「備考は500文字以内で入力してください」（errcode 22023。記録も依頼の更新もしない）。画面は備考を送らないが、RPC を直接呼べば入れられるため。`answerVerification`（`src/lib/db/mutations.ts`）も通信の前に同じ文言で弾く。
+     - **確認の回答の備考（`note`）は集めない・保存しない**（2026-09-25、R21 重要1。`0014_account_deletion_and_note.sql`）。`answer_verification` は `p_note` を受け取っても使わず（検査もしない）、常に NULL で保存する（引数の形は変えない）。既存の値は NULL にし、表の制約 `verifications_note_always_null`（`note is null`）で以後も入らないようにする。`answerVerification`（`src/lib/db/mutations.ts`）は備考の引数を持たず、RPC にも渡さない。デモの記録（`FixtureVerification`）と seed にも備考は無い。0012 で入れた「備考は500文字まで」の検査はやめた。
 3. **掲載停止リスト。** 店舗から掲載停止の申し出（§9.17 の `removal`）を受けて外した店を、別の利用者が再び載せられないようにする。
    - 表 `public.removed_places`（`id`、`name_normalized`、`lat`、`lng`、`removed_at`、`note`）。RLS 有効・ポリシーなし。`anon` / `authenticated` には表の権限を一切与えない。運営（service_role）が Supabase の画面から行を足す運用で、`name_normalized` には店名をそのまま入れてよい（保存時にトリガーが正規化する）。
    - 店名の正規化 `public.normalize_place_name(text)`（immutable）: NFKC（全角英数→半角、半角カナ→全角）→ 小文字 → 空白・中黒・句読点・括弧・ハイフン・引用符などの記号を除く。長音記号「ー」は残す。

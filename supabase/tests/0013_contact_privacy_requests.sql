@@ -1,7 +1,8 @@
 -- 0013_contact_privacy_requests.sql（docs/SPEC.md §9.17-4、最終レビュー R20 重要3）を検証する pgTAP テスト。
 --   個人情報の請求（privacy）は、ログイン中（requester_id あり）か、返信先（reply_to）があれば受け付ける。
 --   どちらも無ければ拒否する。検査の順序（返信先の形の誤りが先）、関数の権限、
---   退会（auth.users の削除）で requester_id が NULL になっても問い合わせの行が残ることを確かめる。
+--   退会（auth.users の削除）では、ログイン中に送った問い合わせの行も消え（0014 で on delete cascade）、
+--   ログインせずに送った問い合わせは残ることを確かめる。
 --
 -- 実行方法: npx supabase db reset → npx supabase test db
 -- 最後に rollback する（seed には影響しない）。
@@ -10,7 +11,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(14);
+select plan(15);
 
 -- =========================================================
 -- テストデータ（postgres として作成）
@@ -47,7 +48,7 @@ select ok(
       and c.contype = 'c'
       and pg_catalog.pg_get_constraintdef(c.oid) like '%requester_id%'
   ),
-  'contact_messages に requester_id を必須にする表の制約は無い（退会で NULL になっても行を残すため、検査は RPC だけ）'
+  'contact_messages に requester_id を必須にする表の制約は無い（未ログインの請求は返信先で受け付けるため、検査は RPC だけ）'
 );
 
 -- =========================================================
@@ -111,16 +112,22 @@ select is(
 );
 
 -- =========================================================
--- 退会（auth.users の削除）: 問い合わせの行は残り、送信者だけが NULL になる
+-- 退会（auth.users の削除）: ログイン中に送った問い合わせの行も消える（0014 で on delete cascade。R21 決定事項）
+--   ログインせずに送った問い合わせは残る。詳しくは tests/0014_account_deletion_and_note.sql。
 -- =========================================================
 select lives_ok(
   $$ delete from auth.users where id = '44440000-0000-4000-8000-000000000013' $$,
   '返信先の無い privacy の送信者でも、アカウントを削除できる'
 );
 select is(
-  (select row(requester_id, category)::text from contact_messages where message = 'ログイン中の請求'),
-  row(null::uuid, 'privacy')::text,
-  '退会後も問い合わせの行は残り、送信者との結び付きだけが外れる（受付から1年を過ぎるまで）'
+  (select count(*)::int from contact_messages where message = 'ログイン中の請求'),
+  0,
+  '退会後は、ログイン中に送った問い合わせの行も残らない'
+);
+select is(
+  (select row(requester_id, reply_to)::text from contact_messages where message = '退会したので情報を消してください'),
+  row(null::uuid, 'former@example.com')::text,
+  '退会しても、ログインせずに返信先付きで送った問い合わせは残る'
 );
 
 select * from finish();

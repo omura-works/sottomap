@@ -102,23 +102,21 @@ interface FixtureUser {
   homeCitySlug: string | null;
   /** mutable: 住んでいる街を最後に変えた時刻（ISO8601）。初回設定は数えない。未指定 = 未変更（SPEC §9.16）。 */
   homeCityChangedAt?: string | null;
-  areaName: string;
-  residentYears: number;
   lanternPoints: number;
   createdAtDaysAgo: number;
 }
 
 const FIXTURE_USERS: FixtureUser[] = [
-  { id: "b0000000-0000-4000-8000-000000000001", displayName: "Kさん", homeCitySlug: "sapporo", areaName: "北24条", residentYears: 14, lanternPoints: 65, createdAtDaysAgo: 220 },
-  { id: "b0000000-0000-4000-8000-000000000002", displayName: "Mさん", homeCitySlug: "sapporo", areaName: "すすきの", residentYears: 8, lanternPoints: 40, createdAtDaysAgo: 300 },
-  { id: "b0000000-0000-4000-8000-000000000003", displayName: "Tさん", homeCitySlug: "sapporo", areaName: "すすきの", residentYears: 5, lanternPoints: 25, createdAtDaysAgo: 180 },
-  { id: "b0000000-0000-4000-8000-000000000004", displayName: "Aさん", homeCitySlug: "sapporo", areaName: "大通", residentYears: 9, lanternPoints: 30, createdAtDaysAgo: 400 },
-  { id: "b0000000-0000-4000-8000-000000000005", displayName: "Nさん", homeCitySlug: "sapporo", areaName: "円山", residentYears: 11, lanternPoints: 20, createdAtDaysAgo: 400 },
-  { id: "b0000000-0000-4000-8000-000000000006", displayName: "Sさん", homeCitySlug: "otaru", areaName: "花園", residentYears: 20, lanternPoints: 55, createdAtDaysAgo: 400 },
-  { id: "b0000000-0000-4000-8000-000000000007", displayName: "Hさん", homeCitySlug: "otaru", areaName: "新富町", residentYears: 30, lanternPoints: 70, createdAtDaysAgo: 500 },
-  { id: "b0000000-0000-4000-8000-000000000008", displayName: "Rさん", homeCitySlug: "otaru", areaName: "色内", residentYears: 10, lanternPoints: 45, createdAtDaysAgo: 600 },
-  { id: "b0000000-0000-4000-8000-000000000009", displayName: "Fさん", homeCitySlug: "otaru", areaName: "手宮", residentYears: 6, lanternPoints: 15, createdAtDaysAgo: 600 },
-  { id: "b0000000-0000-4000-8000-00000000000a", displayName: "Yさん", homeCitySlug: "otaru", areaName: "塩谷", residentYears: 4, lanternPoints: 10, createdAtDaysAgo: 600 },
+  { id: "b0000000-0000-4000-8000-000000000001", displayName: "Kさん", homeCitySlug: "sapporo", lanternPoints: 65, createdAtDaysAgo: 220 },
+  { id: "b0000000-0000-4000-8000-000000000002", displayName: "Mさん", homeCitySlug: "sapporo", lanternPoints: 40, createdAtDaysAgo: 300 },
+  { id: "b0000000-0000-4000-8000-000000000003", displayName: "Tさん", homeCitySlug: "sapporo", lanternPoints: 25, createdAtDaysAgo: 180 },
+  { id: "b0000000-0000-4000-8000-000000000004", displayName: "Aさん", homeCitySlug: "sapporo", lanternPoints: 30, createdAtDaysAgo: 400 },
+  { id: "b0000000-0000-4000-8000-000000000005", displayName: "Nさん", homeCitySlug: "sapporo", lanternPoints: 20, createdAtDaysAgo: 400 },
+  { id: "b0000000-0000-4000-8000-000000000006", displayName: "Sさん", homeCitySlug: "otaru", lanternPoints: 55, createdAtDaysAgo: 400 },
+  { id: "b0000000-0000-4000-8000-000000000007", displayName: "Hさん", homeCitySlug: "otaru", lanternPoints: 70, createdAtDaysAgo: 500 },
+  { id: "b0000000-0000-4000-8000-000000000008", displayName: "Rさん", homeCitySlug: "otaru", lanternPoints: 45, createdAtDaysAgo: 600 },
+  { id: "b0000000-0000-4000-8000-000000000009", displayName: "Fさん", homeCitySlug: "otaru", lanternPoints: 15, createdAtDaysAgo: 600 },
+  { id: "b0000000-0000-4000-8000-00000000000a", displayName: "Yさん", homeCitySlug: "otaru", lanternPoints: 10, createdAtDaysAgo: 600 },
 ];
 
 /** 居住街の初期値（テスト間で元に戻すため）。 */
@@ -469,51 +467,50 @@ interface RawVerification {
   spotId: string;
   userId: string;
   answer: Quietness;
-  note: string | null;
   daysAgo: number;
 }
 
 const RAW_VERIFICATIONS: RawVerification[] = [
-  { id: "c0000000-0000-4000-8000-000000000001", spotId: "d0000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000001", answer: "quiet", note: null, daysAgo: 120 },
-  { id: "c0000000-0000-4000-8000-000000000002", spotId: "d0000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000001", answer: "quiet", note: null, daysAgo: 30 },
-  { id: "c0000000-0000-4000-8000-000000000003", spotId: "d0000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000001", answer: "quiet", note: "変わっていない", daysAgo: 3 },
+  { id: "c0000000-0000-4000-8000-000000000001", spotId: "d0000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000001", answer: "quiet", daysAgo: 120 },
+  { id: "c0000000-0000-4000-8000-000000000002", spotId: "d0000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000001", answer: "quiet", daysAgo: 30 },
+  { id: "c0000000-0000-4000-8000-000000000003", spotId: "d0000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000001", answer: "quiet", daysAgo: 3 },
   // シハチ鮮魚店: 架空の追加確認者2名（Aさん・Nさん）で直近バッチを計3人にする（Spec §1「3人」）。
-  { id: "c0000000-0000-4000-8000-000000000014", spotId: "d0000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000004", answer: "quiet", note: null, daysAgo: 3 },
-  { id: "c0000000-0000-4000-8000-000000000015", spotId: "d0000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000005", answer: "quiet", note: null, daysAgo: 3 },
+  { id: "c0000000-0000-4000-8000-000000000014", spotId: "d0000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000004", answer: "quiet", daysAgo: 3 },
+  { id: "c0000000-0000-4000-8000-000000000015", spotId: "d0000000-0000-4000-8000-000000000001", userId: "b0000000-0000-4000-8000-000000000005", answer: "quiet", daysAgo: 3 },
 
-  { id: "c0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000002", answer: "quiet", note: null, daysAgo: 200 },
-  { id: "c0000000-0000-4000-8000-000000000005", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000002", answer: "quiet", note: null, daysAgo: 110 },
-  { id: "c0000000-0000-4000-8000-000000000006", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000002", answer: "quiet", note: null, daysAgo: 5 },
+  { id: "c0000000-0000-4000-8000-000000000004", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000002", answer: "quiet", daysAgo: 200 },
+  { id: "c0000000-0000-4000-8000-000000000005", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000002", answer: "quiet", daysAgo: 110 },
+  { id: "c0000000-0000-4000-8000-000000000006", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000002", answer: "quiet", daysAgo: 5 },
   // 札幌ザンギ本舗: 架空の追加確認者4名で直近バッチを計5人にする（Spec §1「5人」）。
-  { id: "c0000000-0000-4000-8000-000000000016", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000001", answer: "quiet", note: null, daysAgo: 5 },
-  { id: "c0000000-0000-4000-8000-000000000017", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000003", answer: "quiet", note: null, daysAgo: 5 },
-  { id: "c0000000-0000-4000-8000-000000000018", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000004", answer: "quiet", note: null, daysAgo: 5 },
-  { id: "c0000000-0000-4000-8000-000000000019", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000005", answer: "quiet", note: null, daysAgo: 5 },
+  { id: "c0000000-0000-4000-8000-000000000016", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000001", answer: "quiet", daysAgo: 5 },
+  { id: "c0000000-0000-4000-8000-000000000017", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000003", answer: "quiet", daysAgo: 5 },
+  { id: "c0000000-0000-4000-8000-000000000018", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000004", answer: "quiet", daysAgo: 5 },
+  { id: "c0000000-0000-4000-8000-000000000019", spotId: "d0000000-0000-4000-8000-000000000002", userId: "b0000000-0000-4000-8000-000000000005", answer: "quiet", daysAgo: 5 },
 
-  { id: "c0000000-0000-4000-8000-000000000007", spotId: "d0000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000003", answer: "quiet", note: null, daysAgo: 90 },
-  { id: "c0000000-0000-4000-8000-000000000008", spotId: "d0000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000003", answer: "crowding", note: "行列ができはじめた", daysAgo: 6 },
+  { id: "c0000000-0000-4000-8000-000000000007", spotId: "d0000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000003", answer: "quiet", daysAgo: 90 },
+  { id: "c0000000-0000-4000-8000-000000000008", spotId: "d0000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000003", answer: "crowding", daysAgo: 6 },
   // 札幌らーめん輝風: 架空の追加確認者3名で直近バッチを計4人にする（Spec §1「4人」）。
-  { id: "c0000000-0000-4000-8000-00000000001a", spotId: "d0000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000001", answer: "crowding", note: null, daysAgo: 6 },
-  { id: "c0000000-0000-4000-8000-00000000001b", spotId: "d0000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000002", answer: "crowding", note: null, daysAgo: 6 },
-  { id: "c0000000-0000-4000-8000-00000000001c", spotId: "d0000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000004", answer: "crowding", note: null, daysAgo: 6 },
+  { id: "c0000000-0000-4000-8000-00000000001a", spotId: "d0000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000001", answer: "crowding", daysAgo: 6 },
+  { id: "c0000000-0000-4000-8000-00000000001b", spotId: "d0000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000002", answer: "crowding", daysAgo: 6 },
+  { id: "c0000000-0000-4000-8000-00000000001c", spotId: "d0000000-0000-4000-8000-000000000003", userId: "b0000000-0000-4000-8000-000000000004", answer: "crowding", daysAgo: 6 },
 
-  { id: "c0000000-0000-4000-8000-000000000009", spotId: "d0000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000006", answer: "quiet", note: null, daysAgo: 300 },
-  { id: "c0000000-0000-4000-8000-00000000000a", spotId: "d0000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000006", answer: "quiet", note: null, daysAgo: 210 },
-  { id: "c0000000-0000-4000-8000-00000000000b", spotId: "d0000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000006", answer: "quiet", note: null, daysAgo: 40 },
+  { id: "c0000000-0000-4000-8000-000000000009", spotId: "d0000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000006", answer: "quiet", daysAgo: 300 },
+  { id: "c0000000-0000-4000-8000-00000000000a", spotId: "d0000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000006", answer: "quiet", daysAgo: 210 },
+  { id: "c0000000-0000-4000-8000-00000000000b", spotId: "d0000000-0000-4000-8000-000000000004", userId: "b0000000-0000-4000-8000-000000000006", answer: "quiet", daysAgo: 40 },
 
-  { id: "c0000000-0000-4000-8000-00000000000c", spotId: "d0000000-0000-4000-8000-000000000005", userId: "b0000000-0000-4000-8000-000000000007", answer: "quiet", note: null, daysAgo: 400 },
-  { id: "c0000000-0000-4000-8000-00000000000d", spotId: "d0000000-0000-4000-8000-000000000005", userId: "b0000000-0000-4000-8000-000000000007", answer: "quiet", note: null, daysAgo: 300 },
-  { id: "c0000000-0000-4000-8000-00000000000e", spotId: "d0000000-0000-4000-8000-000000000005", userId: "b0000000-0000-4000-8000-000000000007", answer: "quiet", note: null, daysAgo: 200 },
-  { id: "c0000000-0000-4000-8000-00000000000f", spotId: "d0000000-0000-4000-8000-000000000005", userId: "b0000000-0000-4000-8000-000000000007", answer: "quiet", note: null, daysAgo: 15 },
+  { id: "c0000000-0000-4000-8000-00000000000c", spotId: "d0000000-0000-4000-8000-000000000005", userId: "b0000000-0000-4000-8000-000000000007", answer: "quiet", daysAgo: 400 },
+  { id: "c0000000-0000-4000-8000-00000000000d", spotId: "d0000000-0000-4000-8000-000000000005", userId: "b0000000-0000-4000-8000-000000000007", answer: "quiet", daysAgo: 300 },
+  { id: "c0000000-0000-4000-8000-00000000000e", spotId: "d0000000-0000-4000-8000-000000000005", userId: "b0000000-0000-4000-8000-000000000007", answer: "quiet", daysAgo: 200 },
+  { id: "c0000000-0000-4000-8000-00000000000f", spotId: "d0000000-0000-4000-8000-000000000005", userId: "b0000000-0000-4000-8000-000000000007", answer: "quiet", daysAgo: 15 },
 
-  { id: "c0000000-0000-4000-8000-000000000010", spotId: "d0000000-0000-4000-8000-000000000006", userId: "b0000000-0000-4000-8000-000000000008", answer: "quiet", note: null, daysAgo: 500 },
-  { id: "c0000000-0000-4000-8000-000000000011", spotId: "d0000000-0000-4000-8000-000000000006", userId: "b0000000-0000-4000-8000-000000000008", answer: "quiet", note: null, daysAgo: 350 },
-  { id: "c0000000-0000-4000-8000-000000000012", spotId: "d0000000-0000-4000-8000-000000000006", userId: "b0000000-0000-4000-8000-000000000008", answer: "touristy", note: "観光バスを見かけるようになった", daysAgo: 100 },
-  { id: "c0000000-0000-4000-8000-000000000013", spotId: "d0000000-0000-4000-8000-000000000006", userId: "b0000000-0000-4000-8000-000000000008", answer: "touristy", note: "昼はもう観光地", daysAgo: 95 },
+  { id: "c0000000-0000-4000-8000-000000000010", spotId: "d0000000-0000-4000-8000-000000000006", userId: "b0000000-0000-4000-8000-000000000008", answer: "quiet", daysAgo: 500 },
+  { id: "c0000000-0000-4000-8000-000000000011", spotId: "d0000000-0000-4000-8000-000000000006", userId: "b0000000-0000-4000-8000-000000000008", answer: "quiet", daysAgo: 350 },
+  { id: "c0000000-0000-4000-8000-000000000012", spotId: "d0000000-0000-4000-8000-000000000006", userId: "b0000000-0000-4000-8000-000000000008", answer: "touristy", daysAgo: 100 },
+  { id: "c0000000-0000-4000-8000-000000000013", spotId: "d0000000-0000-4000-8000-000000000006", userId: "b0000000-0000-4000-8000-000000000008", answer: "touristy", daysAgo: 95 },
 
   // デモモード専用の架空店（投稿者 Aさんの前回の確認）
-  { id: "c0000000-0000-4000-8000-000000000020", spotId: "d0000000-0000-4000-8000-000000000008", userId: "b0000000-0000-4000-8000-000000000004", answer: "crowding", note: null, daysAgo: 92 },
-  { id: "c0000000-0000-4000-8000-000000000021", spotId: "d0000000-0000-4000-8000-000000000009", userId: "b0000000-0000-4000-8000-000000000004", answer: "crowding", note: null, daysAgo: 15 },
+  { id: "c0000000-0000-4000-8000-000000000020", spotId: "d0000000-0000-4000-8000-000000000008", userId: "b0000000-0000-4000-8000-000000000004", answer: "crowding", daysAgo: 92 },
+  { id: "c0000000-0000-4000-8000-000000000021", spotId: "d0000000-0000-4000-8000-000000000009", userId: "b0000000-0000-4000-8000-000000000004", answer: "crowding", daysAgo: 15 },
 ];
 
 // =========================================================
@@ -545,12 +542,12 @@ function buildAuthorLabel(user: FixtureUser): string {
 }
 
 /**
- * デモモードの確認の記録。DB の verifications 表と同じく回答者（userId）と備考（note）を持つが、
+ * デモモードの確認の記録。DB の verifications 表と同じく回答者（userId）を持つが、
  * 画面へ出すのは公開列だけ（Verification。SPEC §9.18-2・0012）。変換は listVerifications（spots.ts）が行う。
+ * 備考（note）は集めない（R21 重要1・0014）ので持たない。
  */
 export interface FixtureVerification extends Verification {
   userId: string;
-  note: string | null;
 }
 
 /** mutable: mutations.ts の answerVerification がここへ push する。 */
@@ -559,7 +556,6 @@ export const FIXTURE_VERIFICATIONS: FixtureVerification[] = RAW_VERIFICATIONS.ma
   spotId: v.spotId,
   userId: v.userId,
   answer: v.answer,
-  note: v.note,
   createdAt: offsetDaysISO(-v.daysAgo),
 }));
 
@@ -767,8 +763,6 @@ export function fixtureUserProfile(userId: string): UserProfile | null {
     displayName: user.displayName,
     homeCityId: city ? city.id : null,
     homeCityChangedAt: user.homeCityChangedAt ?? null,
-    areaName: user.areaName,
-    residentYears: user.residentYears,
     avatarUrl: null,
     lanternPoints: user.lanternPoints,
     createdAt: offsetDaysISO(-user.createdAtDaysAgo),

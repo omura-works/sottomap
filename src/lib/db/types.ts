@@ -41,8 +41,7 @@ export interface UserProfile {
   homeCityId: string | null;
   /** 住んでいる街を最後に変えた時刻（初回設定は数えない）。null = 未変更。SPEC §9.16 */
   homeCityChangedAt: string | null;
-  areaName: string | null; // '北24条'
-  residentYears: number | null;
+  // エリア・居住年数は集めない・表示しない（SPEC §9.18-2、R21 軽微3）。DB の users.area_name・resident_years の列は残るが読まない。
   avatarUrl: string | null;
   lanternPoints: number;
   createdAt: string; // ISO8601
@@ -66,7 +65,7 @@ export interface Spot {
   hoverDescription?: string | null;
   visitFrequency: VisitFrequency;
   authorId: string;
-  authorLabel: string | null; // '— 北24条に14年、Kさん' の後半部分 '北24条に14年、Kさん'
+  authorLabel: string | null; // 署名 '— Kさん' の後半部分 'Kさん'（表示名だけ。SPEC §9.18-2）
   photoUrl: string | null;
   tags: Tag[];
   endorsementCount: number; // 承認した人数

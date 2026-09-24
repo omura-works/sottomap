@@ -50,17 +50,18 @@ insert into auth.users (
   ('b0000000-0000-4000-8000-00000000000a', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo-otaru-e2@example.invalid', null, now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', false, '', '', '', '')
 on conflict (id) do nothing;
 
-insert into users (id, display_name, home_city_id, area_name, resident_years, avatar_url, lantern_points, created_at) values
-  ('b0000000-0000-4000-8000-000000000001', 'Kさん', (select id from cities where slug = 'sapporo'), '北24条', 14, null, 65, now() - interval '220 days'),
-  ('b0000000-0000-4000-8000-000000000002', 'Mさん', (select id from cities where slug = 'sapporo'), 'すすきの', 8,  null, 40, now() - interval '300 days'),
-  ('b0000000-0000-4000-8000-000000000003', 'Tさん', (select id from cities where slug = 'sapporo'), 'すすきの', 5,  null, 25, now() - interval '180 days'),
-  ('b0000000-0000-4000-8000-000000000004', 'Aさん', (select id from cities where slug = 'sapporo'), '大通',   9,  null, 30, now() - interval '400 days'),
-  ('b0000000-0000-4000-8000-000000000005', 'Nさん', (select id from cities where slug = 'sapporo'), '円山',   11, null, 20, now() - interval '400 days'),
-  ('b0000000-0000-4000-8000-000000000006', 'Sさん', (select id from cities where slug = 'otaru'),   '花園',   20, null, 55, now() - interval '400 days'),
-  ('b0000000-0000-4000-8000-000000000007', 'Hさん', (select id from cities where slug = 'otaru'),   '新富町', 30, null, 70, now() - interval '500 days'),
-  ('b0000000-0000-4000-8000-000000000008', 'Rさん', (select id from cities where slug = 'otaru'),   '色内',   10, null, 45, now() - interval '600 days'),
-  ('b0000000-0000-4000-8000-000000000009', 'Fさん', (select id from cities where slug = 'otaru'),   '手宮',   6,  null, 15, now() - interval '600 days'),
-  ('b0000000-0000-4000-8000-00000000000a', 'Yさん', (select id from cities where slug = 'otaru'),   '塩谷',   4,  null, 10, now() - interval '600 days')
+-- エリア・居住年数（users.area_name・resident_years）は集めない・表示しない（SPEC §9.18-2、R21 軽微3）ので入れない。
+insert into users (id, display_name, home_city_id, avatar_url, lantern_points, created_at) values
+  ('b0000000-0000-4000-8000-000000000001', 'Kさん', (select id from cities where slug = 'sapporo'), null, 65, now() - interval '220 days'),
+  ('b0000000-0000-4000-8000-000000000002', 'Mさん', (select id from cities where slug = 'sapporo'), null, 40, now() - interval '300 days'),
+  ('b0000000-0000-4000-8000-000000000003', 'Tさん', (select id from cities where slug = 'sapporo'), null, 25, now() - interval '180 days'),
+  ('b0000000-0000-4000-8000-000000000004', 'Aさん', (select id from cities where slug = 'sapporo'), null, 30, now() - interval '400 days'),
+  ('b0000000-0000-4000-8000-000000000005', 'Nさん', (select id from cities where slug = 'sapporo'), null, 20, now() - interval '400 days'),
+  ('b0000000-0000-4000-8000-000000000006', 'Sさん', (select id from cities where slug = 'otaru'), null, 55, now() - interval '400 days'),
+  ('b0000000-0000-4000-8000-000000000007', 'Hさん', (select id from cities where slug = 'otaru'), null, 70, now() - interval '500 days'),
+  ('b0000000-0000-4000-8000-000000000008', 'Rさん', (select id from cities where slug = 'otaru'), null, 45, now() - interval '600 days'),
+  ('b0000000-0000-4000-8000-000000000009', 'Fさん', (select id from cities where slug = 'otaru'), null, 15, now() - interval '600 days'),
+  ('b0000000-0000-4000-8000-00000000000a', 'Yさん', (select id from cities where slug = 'otaru'), null, 10, now() - interval '600 days')
 on conflict (id) do nothing;
 
 -- =========================================================
@@ -274,57 +275,57 @@ on conflict do nothing;
 --    鱗友朝市は quiet→quiet→touristy→touristy という履歴。resolveQuietness は
 --    多数決をしないため、単純に最新（＝時系列で一番新しい touristy）を採用する例。
 --
+--    備考（note）は集めない（R21 重要1・0014）ので入れない。
 --    確認は必ず依頼に紐づく（0006: verifications.verification_request_id は NOT NULL）。
 --    各行に、回答者宛ての回答済み（answered）依頼を1件ずつ作ってから紐づける
 --    （依頼の due_at = 回答時刻、created_at = 回答時刻の90日前）。現在の open 依頼は 10. で作る。
 -- =========================================================
-with src (spot_id, user_id, answer, note, created_at) as (values
+with src (spot_id, user_id, answer, created_at) as (values
   -- シハチ鮮魚店（quiet が継続。直近バッチは投稿者Kさん+架空2名=計3人）
-  ('d0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'quiet', null, now() - interval '120 days'),
-  ('d0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'quiet', null, now() - interval '30 days'),
-  ('d0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'quiet', '変わっていない', now() - interval '3 days'),
-  ('d0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000004', 'quiet', null, now() - interval '3 days'),
-  ('d0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000005', 'quiet', null, now() - interval '3 days'),
+  ('d0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'quiet', now() - interval '120 days'),
+  ('d0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'quiet', now() - interval '30 days'),
+  ('d0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'quiet', now() - interval '3 days'),
+  ('d0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000004', 'quiet', now() - interval '3 days'),
+  ('d0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000005', 'quiet', now() - interval '3 days'),
 
   -- 札幌ザンギ本舗（quiet が継続。直近バッチは投稿者Mさん+架空4名=計5人）
-  ('d0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000002', 'quiet', null, now() - interval '200 days'),
-  ('d0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000002', 'quiet', null, now() - interval '110 days'),
-  ('d0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000002', 'quiet', null, now() - interval '5 days'),
-  ('d0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000001', 'quiet', null, now() - interval '5 days'),
-  ('d0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000003', 'quiet', null, now() - interval '5 days'),
-  ('d0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000004', 'quiet', null, now() - interval '5 days'),
-  ('d0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000005', 'quiet', null, now() - interval '5 days'),
+  ('d0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000002', 'quiet', now() - interval '200 days'),
+  ('d0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000002', 'quiet', now() - interval '110 days'),
+  ('d0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000002', 'quiet', now() - interval '5 days'),
+  ('d0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000001', 'quiet', now() - interval '5 days'),
+  ('d0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000003', 'quiet', now() - interval '5 days'),
+  ('d0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000004', 'quiet', now() - interval '5 days'),
+  ('d0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000005', 'quiet', now() - interval '5 days'),
 
   -- 札幌らーめん輝風（直近で crowding に転じた。直近バッチは投稿者Tさん+架空3名=計4人）
-  ('d0000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000003', 'quiet', null, now() - interval '90 days'),
-  ('d0000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000003', 'crowding', '行列ができはじめた', now() - interval '6 days'),
-  ('d0000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000001', 'crowding', null, now() - interval '6 days'),
-  ('d0000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000002', 'crowding', null, now() - interval '6 days'),
-  ('d0000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000004', 'crowding', null, now() - interval '6 days'),
+  ('d0000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000003', 'quiet', now() - interval '90 days'),
+  ('d0000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000003', 'crowding', now() - interval '6 days'),
+  ('d0000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000001', 'crowding', now() - interval '6 days'),
+  ('d0000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000002', 'crowding', now() - interval '6 days'),
+  ('d0000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000004', 'crowding', now() - interval '6 days'),
 
   -- 聖徳太子 飛鳥店（quiet が継続）
-  ('d0000000-0000-4000-8000-000000000004', 'b0000000-0000-4000-8000-000000000006', 'quiet', null, now() - interval '300 days'),
-  ('d0000000-0000-4000-8000-000000000004', 'b0000000-0000-4000-8000-000000000006', 'quiet', null, now() - interval '210 days'),
-  ('d0000000-0000-4000-8000-000000000004', 'b0000000-0000-4000-8000-000000000006', 'quiet', null, now() - interval '40 days'),
+  ('d0000000-0000-4000-8000-000000000004', 'b0000000-0000-4000-8000-000000000006', 'quiet', now() - interval '300 days'),
+  ('d0000000-0000-4000-8000-000000000004', 'b0000000-0000-4000-8000-000000000006', 'quiet', now() - interval '210 days'),
+  ('d0000000-0000-4000-8000-000000000004', 'b0000000-0000-4000-8000-000000000006', 'quiet', now() - interval '40 days'),
 
   -- 南樽市場（quiet が継続）
-  ('d0000000-0000-4000-8000-000000000005', 'b0000000-0000-4000-8000-000000000007', 'quiet', null, now() - interval '400 days'),
-  ('d0000000-0000-4000-8000-000000000005', 'b0000000-0000-4000-8000-000000000007', 'quiet', null, now() - interval '300 days'),
-  ('d0000000-0000-4000-8000-000000000005', 'b0000000-0000-4000-8000-000000000007', 'quiet', null, now() - interval '200 days'),
-  ('d0000000-0000-4000-8000-000000000005', 'b0000000-0000-4000-8000-000000000007', 'quiet', null, now() - interval '15 days'),
+  ('d0000000-0000-4000-8000-000000000005', 'b0000000-0000-4000-8000-000000000007', 'quiet', now() - interval '400 days'),
+  ('d0000000-0000-4000-8000-000000000005', 'b0000000-0000-4000-8000-000000000007', 'quiet', now() - interval '300 days'),
+  ('d0000000-0000-4000-8000-000000000005', 'b0000000-0000-4000-8000-000000000007', 'quiet', now() - interval '200 days'),
+  ('d0000000-0000-4000-8000-000000000005', 'b0000000-0000-4000-8000-000000000007', 'quiet', now() - interval '15 days'),
 
   -- 鱗友朝市（quiet 2件・touristy 2件の同数タイ。新しい方の touristy を採用する例）
-  ('d0000000-0000-4000-8000-000000000006', 'b0000000-0000-4000-8000-000000000008', 'quiet', null, now() - interval '500 days'),
-  ('d0000000-0000-4000-8000-000000000006', 'b0000000-0000-4000-8000-000000000008', 'quiet', null, now() - interval '350 days'),
-  ('d0000000-0000-4000-8000-000000000006', 'b0000000-0000-4000-8000-000000000008', 'touristy', '観光バスを見かけるようになった', now() - interval '100 days'),
-  ('d0000000-0000-4000-8000-000000000006', 'b0000000-0000-4000-8000-000000000008', 'touristy', '昼はもう観光地', now() - interval '95 days')
+  ('d0000000-0000-4000-8000-000000000006', 'b0000000-0000-4000-8000-000000000008', 'quiet', now() - interval '500 days'),
+  ('d0000000-0000-4000-8000-000000000006', 'b0000000-0000-4000-8000-000000000008', 'quiet', now() - interval '350 days'),
+  ('d0000000-0000-4000-8000-000000000006', 'b0000000-0000-4000-8000-000000000008', 'touristy', now() - interval '100 days'),
+  ('d0000000-0000-4000-8000-000000000006', 'b0000000-0000-4000-8000-000000000008', 'touristy', now() - interval '95 days')
 ),
 numbered as materialized (
   select
     src.spot_id::uuid as spot_id,
     src.user_id::uuid as user_id,
     src.answer::text as answer,
-    src.note::text as note,
     src.created_at::timestamptz as created_at,
     gen_random_uuid() as request_id,
     gen_random_uuid() as verification_id
@@ -336,8 +337,8 @@ inserted_requests as (
   from numbered
   returning id
 )
-insert into verifications (id, spot_id, user_id, answer, note, created_at, verification_request_id)
-select verification_id, spot_id, user_id, answer, note, created_at, request_id
+insert into verifications (id, spot_id, user_id, answer, created_at, verification_request_id)
+select verification_id, spot_id, user_id, answer, created_at, request_id
 from numbered
 where exists (select 1 from inserted_requests r where r.id = numbered.request_id);
 

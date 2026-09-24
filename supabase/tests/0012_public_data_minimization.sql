@@ -67,8 +67,8 @@ insert into verification_requests (id, spot_id, user_id, due_at, status) values
   ('bbbc0000-0000-4000-8000-000000000051', 'aaab0000-0000-4000-8000-000000000005', '99990000-0000-4000-8000-00000000000a', now() - interval '1 day', 'open');
 
 insert into verifications (id, spot_id, user_id, answer, note, created_at, verification_request_id) values
-  ('cccd0000-0000-4000-8000-000000000011', 'aaab0000-0000-4000-8000-000000000001', '99990000-0000-4000-8000-00000000000b', 'quiet', '古い回答', now() - interval '100 days', 'bbbc0000-0000-4000-8000-000000000011'),
-  ('cccd0000-0000-4000-8000-000000000012', 'aaab0000-0000-4000-8000-000000000001', '99990000-0000-4000-8000-00000000000b', 'quiet', '私的なメモ', now() - interval '2 hours', 'bbbc0000-0000-4000-8000-000000000012'),
+  ('cccd0000-0000-4000-8000-000000000011', 'aaab0000-0000-4000-8000-000000000001', '99990000-0000-4000-8000-00000000000b', 'quiet', null, now() - interval '100 days', 'bbbc0000-0000-4000-8000-000000000011'),
+  ('cccd0000-0000-4000-8000-000000000012', 'aaab0000-0000-4000-8000-000000000001', '99990000-0000-4000-8000-00000000000b', 'quiet', null, now() - interval '2 hours', 'bbbc0000-0000-4000-8000-000000000012'),
   ('cccd0000-0000-4000-8000-000000000013', 'aaab0000-0000-4000-8000-000000000001', '99990000-0000-4000-8000-00000000000c', 'crowding', null, now() - interval '1 hour', 'bbbc0000-0000-4000-8000-000000000013'),
   ('cccd0000-0000-4000-8000-000000000021', 'aaab0000-0000-4000-8000-000000000002', '99990000-0000-4000-8000-00000000000b', 'quiet', null, now() - interval '2 hours', 'bbbc0000-0000-4000-8000-000000000021'),
   ('cccd0000-0000-4000-8000-000000000031', 'aaab0000-0000-4000-8000-000000000003', '99990000-0000-4000-8000-00000000000a', 'quiet', null, now() - interval '400 days', 'bbbc0000-0000-4000-8000-000000000031'),
@@ -303,46 +303,46 @@ select results_eq(
   '投稿者 A: 自分の dormant の店の人数も読める（別の街の pending は出ない）'
 );
 
-select throws_ok(
-  $$ select answer_verification('bbbc0000-0000-4000-8000-000000000051', 'quiet', repeat('あ', 501)) $$,
-  '22023',
-  '備考は500文字以内で入力してください',
-  'answer_verification: 備考が501文字なら拒否'
+-- 0014（R21 重要1）で備考は保存しなくなった（長さの検査もしない）。詳しくは tests/0014_account_deletion_and_note.sql。
+select is(
+  (answer_verification('bbbc0000-0000-4000-8000-000000000051', 'quiet', repeat('あ', 501)) ->> 'accepted'),
+  'true',
+  'answer_verification: 備考が501文字でも回答は受理する（0014 以降、備考は使わない）'
 );
 select is(
   (select status from verification_requests where id = 'bbbc0000-0000-4000-8000-000000000051'),
-  'open',
-  'answer_verification: 拒否したときは依頼を answered にしない'
+  'answered',
+  'answer_verification: 受理した依頼は answered になる'
 );
 select is(
-  (answer_verification('bbbc0000-0000-4000-8000-000000000051', 'quiet', repeat('あ', 500)) ->> 'accepted'),
-  'true',
-  'answer_verification: 備考が500文字なら受理'
+  (answer_verification('bbbc0000-0000-4000-8000-000000000051', 'quiet', 'もう一度') ->> 'accepted'),
+  'false',
+  'answer_verification: 同じ依頼への2回目は受理しない（0006 のまま）'
 );
 
 reset role;
 
 select is(
-  (select char_length(note) from verifications where verification_request_id = 'bbbc0000-0000-4000-8000-000000000051'),
-  500,
-  '受理した備考は500文字のまま保存される'
+  (select note from verifications where verification_request_id = 'bbbc0000-0000-4000-8000-000000000051'),
+  null,
+  '備考は保存しない（0014 以降は常に NULL）'
 );
 
 -- =========================================================
--- 8. 表示名の書式文字（R20 軽微）
+-- 8. 表示名の書式文字（R20 軽微。文言と許す文字は 0014〈R21 軽微2〉で改訂）
 -- =========================================================
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"99990000-0000-4000-8000-00000000000c","role":"authenticated"}';
 
-select throws_ok($$ select set_display_name(E'灯り\u202Eの人') $$, '22023', '表示名に改行や制御文字は使えません', 'set_display_name: U+202E（右から左への上書き）は不可');
-select throws_ok($$ select set_display_name(E'\u2066灯りの人') $$, '22023', '表示名に改行や制御文字は使えません', 'set_display_name: U+2066（左から右への分離）は不可');
-select throws_ok($$ select set_display_name(E'灯り\u200Bの人') $$, '22023', '表示名に改行や制御文字は使えません', 'set_display_name: U+200B（ゼロ幅空白）は不可');
-select throws_ok($$ select set_display_name(E'灯り\u200Dの人') $$, '22023', '表示名に改行や制御文字は使えません', 'set_display_name: U+200D（ゼロ幅接合子）は不可');
-select throws_ok($$ select set_display_name(E'灯り\u061Cの人') $$, '22023', '表示名に改行や制御文字は使えません', 'set_display_name: U+061C は不可');
-select throws_ok($$ select set_display_name(E'灯り\u00ADの人') $$, '22023', '表示名に改行や制御文字は使えません', 'set_display_name: U+00AD（ソフトハイフン）は不可');
-select throws_ok($$ select set_display_name(E'\uFEFF灯りの人') $$, '22023', '表示名に改行や制御文字は使えません', 'set_display_name: 先頭の U+FEFF は不可');
-select throws_ok($$ select set_display_name(E'\uFEFF') $$, '22023', '表示名に改行や制御文字は使えません', 'set_display_name: U+FEFF だけの名前も制御文字として不可（アプリと同じ）');
-select throws_ok($$ select set_display_name(E'灯りの人\U000E0041') $$, '22023', '表示名に改行や制御文字は使えません', 'set_display_name: タグ文字（U+E0041）は不可');
+select throws_ok($$ select set_display_name(E'灯り\u202Eの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+202E（右から左への上書き）は不可');
+select throws_ok($$ select set_display_name(E'\u2066灯りの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+2066（左から右への分離）は不可');
+select throws_ok($$ select set_display_name(E'灯り\u200Bの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+200B（ゼロ幅空白）は不可');
+select throws_ok($$ select set_display_name(E'灯り\u200Fの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+200F（右から左への記号）は不可（U+200D の ZWJ は 0014 から使える）');
+select throws_ok($$ select set_display_name(E'灯り\u061Cの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+061C は不可');
+select throws_ok($$ select set_display_name(E'灯り\u00ADの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+00AD（ソフトハイフン）は不可');
+select throws_ok($$ select set_display_name(E'\uFEFF灯りの人') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 先頭の U+FEFF は不可');
+select throws_ok($$ select set_display_name(E'\uFEFF') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: U+FEFF だけの名前も見えない文字として不可（アプリと同じ）');
+select throws_ok($$ select set_display_name(E'灯りの人\U000E0001') $$, '22023', '表示名に見えない文字は使えません', 'set_display_name: 言語タグ（U+E0001）は不可（U+E0020–U+E007F のタグ文字は 0014 から使える）');
 select is(set_display_name(E'灯り\u2764\uFE0F'), E'灯り\u2764\uFE0F', 'set_display_name: 異体字セレクタ（Cf ではない）は使える');
 
 reset role;

@@ -274,19 +274,14 @@ const answerResultSchema = z.object({
 export const NOT_DUE_ERROR_MESSAGE = "この確認はまだ届いていません";
 export const CLOSED_REQUEST_ERROR_MESSAGE = "この確認依頼には、もう回答できません";
 
-/** 確認の備考の上限（answer_verification と同じ。0012）。文字数はコードポイントで数える（DB の char_length と同じ）。 */
-export const VERIFICATION_NOTE_MAX_LENGTH = 500;
-export const NOTE_TOO_LONG_ERROR_MESSAGE = `備考は${VERIFICATION_NOTE_MAX_LENGTH}文字以内で入力してください`;
-
+/**
+ * 確認に回答する。備考（note）は集めない（R21 重要1、SPEC §9.18-2・0014。DB の answer_verification も常に NULL で保存する）。
+ */
 export async function answerVerification(
   requestId: string,
   userId: string,
   answer: Quietness,
-  note?: string,
 ): Promise<AnswerVerificationResult> {
-  if (note !== undefined && [...note].length > VERIFICATION_NOTE_MAX_LENGTH) {
-    throw new Error(NOTE_TOO_LONG_ERROR_MESSAGE);
-  }
   if (!isSupabaseConfigured()) {
     const request = findFixtureVerificationRequest(requestId);
     // answer_verification と同じく、他人宛ての依頼は「見つからない」と同じ扱いにする。
@@ -315,7 +310,6 @@ export async function answerVerification(
       spotId: spot.id,
       userId,
       answer,
-      note: note ?? null,
       createdAt: now.toISOString(),
     });
 
@@ -351,7 +345,6 @@ export async function answerVerification(
   const { data, error } = await supabase.rpc("answer_verification", {
     p_request_id: requestId,
     p_answer: answer,
-    p_note: note ?? null,
   });
   if (error) throw rpcError("確認の記録", error);
   const parsed = answerResultSchema.safeParse(data);
