@@ -61,7 +61,7 @@ test.describe("デモモードの主要導線", () => {
 
   test("R13 重要2: /me の確認ダイアログはモーダル（Tab を繰り返しても外へ出ない・Esc で閉じて起点へ戻る）", async ({ page }) => {
     await page.goto("/me");
-    await page.getByRole("button", { name: "変更する" }).click();
+    await page.getByRole("button", { name: "変更する", exact: true }).click();
     await page.getByLabel("住んでいる街を選ぶ").selectOption({ label: "小樽" });
     const opener = page.getByRole("button", { name: "変える", exact: true });
     await opener.click();

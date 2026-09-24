@@ -21,6 +21,7 @@
 //     期限到来済みの確認依頼・期限前の確認依頼を持つ。確認の導線と E2E に使う）
 // それ以外（実在6店の投稿者・静けさ・時刻・確認履歴）は seed.sql と一致させる。
 
+import { formatAuthorLabel } from "../domain/author-label";
 import { canChangeHomeCity, homeCityLimitMessage, nextHomeCityChangeAt } from "../domain/home-city";
 import { isWinterMonth } from "../domain/lantern";
 import { countAnswerableRequests, isMissed } from "../domain/lifecycle";
@@ -92,6 +93,7 @@ export const FIXTURE_BADGE_DEFS: Array<Pick<Badge, "slug" | "glyph" | "label">> 
 // =========================================================
 interface FixtureUser {
   id: string;
+  /** mutable: setFixtureUserDisplayName が変える（resetFixtureUserDisplayNames で初期値に戻す。SPEC §9.18）。 */
   displayName: string;
   /**
    * mutable: setFixtureUserHomeCity が変える（resetFixtureUserHomeCities で初期値に戻す）。
@@ -122,6 +124,8 @@ const FIXTURE_USERS: FixtureUser[] = [
 /** 居住街の初期値（テスト間で元に戻すため）。 */
 const INITIAL_HOME_CITY_SLUGS = new Map(FIXTURE_USERS.map((u) => [u.id, u.homeCitySlug]));
 const INITIAL_HOME_CITY_CHANGED_AT = new Map(FIXTURE_USERS.map((u) => [u.id, u.homeCityChangedAt ?? null]));
+/** 表示名の初期値（テスト間で元に戻すため）。 */
+const INITIAL_DISPLAY_NAMES = new Map(FIXTURE_USERS.map((u) => [u.id, u.displayName]));
 
 function findUser(id: string): FixtureUser {
   const user = FIXTURE_USERS.find((u) => u.id === id);
@@ -537,7 +541,7 @@ const RAW_BOOKMARKS: RawBookmark[] = [
 // =========================================================
 
 function buildAuthorLabel(user: FixtureUser): string {
-  return `${user.areaName}に${user.residentYears}年、${user.displayName}`;
+  return formatAuthorLabel(user);
 }
 
 /** mutable: mutations.ts の answerVerification がここへ push する。 */
@@ -711,6 +715,24 @@ export function resetFixtureUserHomeCities(): void {
   for (const user of FIXTURE_USERS) {
     user.homeCitySlug = INITIAL_HOME_CITY_SLUGS.get(user.id) ?? null;
     user.homeCityChangedAt = INITIAL_HOME_CITY_CHANGED_AT.get(user.id) ?? null;
+  }
+}
+
+/**
+ * 表示名の変更（SPEC §9.18。DB 関数 set_display_name と同じ規則）。保存した名前を返す。
+ * 検査は呼び出し側（mutations.setUserDisplayName）が validateDisplayName で済ませた値を受け取る。
+ */
+export function setFixtureUserDisplayName(userId: string, displayName: string): string {
+  const user = FIXTURE_USERS.find((u) => u.id === userId);
+  if (!user) throw new Error("プロフィールが見つかりませんでした");
+  user.displayName = displayName;
+  return displayName;
+}
+
+/** テスト用: 表示名を初期値に戻す。 */
+export function resetFixtureUserDisplayNames(): void {
+  for (const user of FIXTURE_USERS) {
+    user.displayName = INITIAL_DISPLAY_NAMES.get(user.id) ?? user.displayName;
   }
 }
 

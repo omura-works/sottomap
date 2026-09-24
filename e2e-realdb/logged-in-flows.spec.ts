@@ -138,14 +138,19 @@ async function waitForLoginLink(request: APIRequestContext, email: string): Prom
  * 反映されていない場合は site_url へ戻されるため、そのときはコードをアプリの /auth/callback へ渡し直す
  * （コード検証用の Cookie はブラウザ側にあるので、ログインの検証としては同じ）。
  */
-async function logInWithEmailLink(page: Page, request: APIRequestContext, nextPath: string): Promise<void> {
+async function logInWithEmailLink(
+  page: Page,
+  request: APIRequestContext,
+  nextPath: string,
+  email: string = USER_EMAIL,
+): Promise<void> {
   await clearMailbox(request);
   await page.goto(`/login?next=${encodeURIComponent(nextPath)}`);
-  await page.getByLabel("メールアドレス").fill(USER_EMAIL);
+  await page.getByLabel("メールアドレス").fill(email);
   await page.getByRole("button", { name: "ログイン用リンクを送る" }).click();
   await expect(page.getByText("メールを送りました。届いたリンクを開いてください。", { exact: true })).toBeVisible();
 
-  const link = await waitForLoginLink(request, USER_EMAIL);
+  const link = await waitForLoginLink(request, email);
   const verify = await request.get(link, { maxRedirects: 0 });
   expect(verify.status()).toBe(303);
   const location = new URL(verify.headers()["location"] ?? "", link);
@@ -211,7 +216,7 @@ test.describe("実DB: ログイン済みの主要導線", () => {
     await expect(page.getByText("小樽・色内に10年", { exact: true })).toBeVisible();
 
     // 3-1. /me で住んでいる街を札幌に変える（確認ダイアログ → 成功）。DB 関数 set_home_city 経由。
-    await page.getByRole("button", { name: "変更する" }).click();
+    await page.getByRole("button", { name: "変更する", exact: true }).click();
     await page.getByLabel("住んでいる街を選ぶ").selectOption({ label: "札幌" });
     await page.getByRole("button", { name: "変える", exact: true }).click();
     const confirmDialog = page.getByRole("dialog", { name: /^住んでいる街を札幌に変えますか。次に変えられるのは/ });
@@ -222,7 +227,7 @@ test.describe("実DB: ログイン済みの主要導線", () => {
     await expect(page.getByText("札幌・色内に10年", { exact: true })).toBeVisible();
 
     // 3-2. 続けてもう一度変えようとすると、90日の制限で拒否される（role="alert"）
-    await page.getByRole("button", { name: "変更する" }).click();
+    await page.getByRole("button", { name: "変更する", exact: true }).click();
     await page.getByLabel("住んでいる街を選ぶ").selectOption({ label: "小樽" });
     await page.getByRole("button", { name: "変える", exact: true }).click();
     const limitDialog = page.getByRole("dialog");
@@ -289,5 +294,61 @@ test.describe("実DB: ログイン済みの主要導線", () => {
     // 小樽の地図（公開一覧）にもピンとして戻る
     await page.goto("/otaru");
     await expect(page.getByRole("button", { name: new RegExp(DORMANT_SPOT_NAME) })).toBeVisible();
+  });
+});
+
+// SPEC §9.18-1: はじめてログインした利用者の表示名は「地元の人」（メールアドレスの一部を使わない）。
+// 表示名は /me から変えられ、メールアドレスの形は拒否される（サーバーの検査と DB 関数 set_display_name の両方）。
+const NEWCOMER_EMAIL = "e2e-newcomer.taro@example.invalid";
+
+async function deleteAuthUserByEmail(email: string): Promise<void> {
+  const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (error) throw error;
+  for (const user of data.users.filter((u) => u.email === email)) {
+    const removed = await admin.auth.admin.deleteUser(user.id);
+    if (removed.error) throw removed.error;
+  }
+}
+
+async function readDisplayNameByEmail(email: string): Promise<string | null> {
+  const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (error) throw error;
+  const user = data.users.find((u) => u.email === email);
+  if (!user) return null;
+  const profile = await admin.from("users").select("display_name").eq("id", user.id).maybeSingle();
+  if (profile.error) throw profile.error;
+  return (profile.data as { display_name: string } | null)?.display_name ?? null;
+}
+
+test.describe("実DB: はじめてのログインと表示名", () => {
+  test.beforeAll(async () => {
+    await deleteAuthUserByEmail(NEWCOMER_EMAIL);
+  });
+
+  test.afterAll(async () => {
+    await deleteAuthUserByEmail(NEWCOMER_EMAIL);
+  });
+
+  test("ログイン直後の表示名は「地元の人」で、/me から変えられる", async ({ page, request }) => {
+    await logInWithEmailLink(page, request, "/me", NEWCOMER_EMAIL);
+
+    await expect(page.getByRole("heading", { level: 1, name: "地元の人", exact: true })).toBeVisible();
+    await expect(page.getByText("e2e-newcomer.taro", { exact: false })).toHaveCount(0);
+    expect(await readDisplayNameByEmail(NEWCOMER_EMAIL)).toBe("地元の人");
+
+    // メールアドレスの形は拒否される（role="alert"）
+    await page.getByRole("button", { name: "表示名を変更する" }).click();
+    const input = page.getByLabel("新しい表示名");
+    await input.fill(NEWCOMER_EMAIL);
+    await page.getByRole("button", { name: "保存する" }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "表示名にメールアドレスは使えません" })).toBeVisible();
+    expect(await readDisplayNameByEmail(NEWCOMER_EMAIL)).toBe("地元の人");
+
+    // 前後の空白を除いて保存される（role="status"）
+    await input.fill("  灯りの人 ");
+    await page.getByRole("button", { name: "保存する" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "表示名を「灯りの人」に変えました。" })).toBeVisible();
+    await expect.poll(() => readDisplayNameByEmail(NEWCOMER_EMAIL)).toBe("灯りの人");
+    await expect(page.getByRole("heading", { level: 1, name: "灯りの人", exact: true })).toBeVisible();
   });
 });

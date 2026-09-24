@@ -538,3 +538,30 @@ S1（`/start`）は §4 の構成に代えて、次の構成にする（§4 の�
 7. **保存期間。** 問い合わせは**受付から1年**で、`contact_rate` は**24時間**で削除する。日次 cron（`/api/cron/verification`）の最後に `public.purge_expired_contact_data() returns jsonb`（security definer、`search_path = ''`、EXECUTE は `service_role` だけ）を呼ぶ。境界はちょうど（`created_at <= now() - interval '1 year'` / `'24 hours'`）で削除する（R19 重要4）。
 8. **掲載停止の扱い。** `removal` の申し出は、確認のうえ速やかに対応する（該当スポットを地図から外す運用は運営が Supabase の画面で行う）。対応状況は `status` で追う。
 9. デモモード（`URASUPO_DEMO_MODE=1`）は DB を持たないため、同じ規則（検査・privacy・重複排除・保存期間）をインメモリのフィクスチャで再現するだけで、どこにも保存しない（成功表示までを確かめられる）。送信元ごと・全体の回数制限と容量の上限は再現しない。デモユーザーは常にログイン中なので、未ログインの `privacy` は実DB版E2E（`e2e-realdb/contact.spec.ts`）で確かめる。
+
+### 9.18 表示名・公開プロフィール・掲載停止リスト（2026-09-23、最終レビュー R19 重要2・重要7）
+
+§9.13.4 の「利用者が更新できる `users` の列は、表示名・アバター・居住街・居住年数だけ」は、この節で置き換える。`supabase/migrations/0011_profile_privacy_and_removed_places.sql`。
+1. **表示名にメールアドレスの一部を使わない。**
+   - ログイン時（`/auth/callback`）のプロフィール行は DB 関数 `public.ensure_user_profile() returns void`（security definer、`search_path = ''`、EXECUTE は authenticated だけ）が作る。表示名の初期値は **「地元の人」**。行があれば何もしない（表示名を上書きしない）。本人が送れる `user_metadata` も使わない。
+   - 既存の利用者: マイグレーションで、`users.display_name` が `auth.users.email` の `@` より前と一致する行だけを「地元の人」に置き換える（`public.replace_email_derived_display_names()`。誰にも EXECUTE を与えない）。
+   - 表示名の変更は `/me` の「表示名」だけ。DB 関数 `public.set_display_name(p_name text) returns text`（security definer、`search_path = ''`、EXECUTE は authenticated だけ）。前後の空白（全角空白・改行を含む）を除いてから検査し、保存した名前を返す。拒否文言:
+     - 空: 「表示名を入力してください」
+     - 21文字以上: 「表示名は20文字以内で入力してください」
+     - 改行・制御文字: 「表示名に改行や制御文字は使えません」
+     - メールアドレスの形（`@` または全角 `＠` の前後に空白でない文字がある）: 「表示名にメールアドレスは使えません」
+   - 同じ規則・同じ文言を `src/lib/domain/display-name.ts` にも置き、Server Action は通信の前に弾く（デモモードもこの規則でフィクスチャに保存する）。
+   - 画面: 見出し「表示名」、今の名前、「表示名を変更する」→ 入力欄「新しい表示名」→「保存する」「やめる」。案内「あなたが書いた店の詳細に、署名として表示されます。20文字まで。メールアドレスは使えません。」。確認ダイアログは出さない。成功は `role="status"` で「表示名を「◯◯」に変えました。」、拒否は `role="alert"` で理由を出し、入力欄に `aria-invalid`・`aria-describedby` で結び付ける。想定外の失敗は「表示名を変えられませんでした。もう一度お試しください。」。ボタンと入力欄は 44px 以上。
+2. **公開プロフィールを絞る。**
+   - `public_profiles` は `id, display_name, area_name, resident_years` だけ（`avatar_url` を外した）。行の範囲は §9.13.6 のまま。
+   - `area_name`・`resident_years` は店の詳細の署名（§4「— 北24条に14年、Kさん」）に使うので残す。どちらかが NULL の利用者は、署名を表示名だけにする（「に?年、」のように崩さない。`src/lib/domain/author-label.ts`）。現行の画面からは入力できないため、実DBの新しい利用者の署名は「— 地元の人」になる。
+   - `authenticated` から `users` への直接の INSERT / UPDATE 権限をすべて外す（行の作成は `ensure_user_profile`、表示名は `set_display_name`、住んでいる街は §9.16 の RPC）。`avatar_url`・`area_name`・`resident_years` は利用者が書き換えられない。将来これらを入力できるようにするときは、RPC とプライバシーポリシーを同時に更新する。
+   - 誰がどの店を承認したか（`endorsements.user_id`）は公開しない。`anon` / `authenticated` の `endorsements` への SELECT は列単位（`id, spot_id, created_at`）だけにする（画面は承認の件数しか使わない。承認は `endorse_spot` だけが記録する）。
+   - 確認の回答（`verifications.user_id`）は、店の詳細の「確認した人数」の計算（24時間以内の人数を数える）と `listVerifications` が使っているため、この節では変えない（公開する列の見直しは別途）。
+3. **掲載停止リスト。** 店舗から掲載停止の申し出（§9.17 の `removal`）を受けて外した店を、別の利用者が再び載せられないようにする。
+   - 表 `public.removed_places`（`id`、`name_normalized`、`lat`、`lng`、`removed_at`、`note`）。RLS 有効・ポリシーなし。`anon` / `authenticated` には表の権限を一切与えない。運営（service_role）が Supabase の画面から行を足す運用で、`name_normalized` には店名をそのまま入れてよい（保存時にトリガーが正規化する）。
+   - 店名の正規化 `public.normalize_place_name(text)`（immutable）: NFKC（全角英数→半角、半角カナ→全角）→ 小文字 → 空白・中黒・句読点・括弧・ハイフン・引用符などの記号を除く。長音記号「ー」は残す。
+   - `create_spot`（§9.13.2）は、既存の検査のあとで、**正規化した店名が一致し、かつ 100m 以内**に記録があれば「この店は掲載を控えています。」で拒否する。
+   - どの経路（承認での公開・dormant からの復帰・直接の更新）でも、掲載停止の店は `published` にならない（`spots` のトリガーが同じ文言で拒否する）。
+   - 運営が店を外す RPC `public.remove_place(p_spot_id uuid, p_note text) returns uuid`（security definer、`search_path = ''`、EXECUTE は service_role だけ）: スポットを `expired`（地図・一覧・承認待ちのどれにも出ない）にし、店名と位置を `removed_places` に記録し、open の確認依頼を `missed` にして閉じる。`dormant` は確認への回答で `published` に戻るため使わない。
+   - 同じ店の別の投稿（同名・100m 以内）が既に公開中なら、それぞれ `remove_place` で外す（自動では外さない）。

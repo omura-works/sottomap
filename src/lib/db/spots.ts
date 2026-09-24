@@ -15,6 +15,7 @@
 //   - 並び順の4キー（静けさ・距離・最終確認・id）は spots 行だけで決まるので、関連データを取る前に
 //     行だけで並べて件数を絞り、関連データは表示する行の分だけまとめて取る（N+1 にしない）。
 
+import { formatAuthorLabel } from "../domain/author-label";
 import { computeWalkMinutes, haversineMeters } from "../domain/geo";
 import { countAnswerableRequests, latestMissedRequestId } from "../domain/lifecycle";
 import { isWinterMonth } from "../domain/lantern";
@@ -297,7 +298,12 @@ export interface SpotRelatedRows {
 
 function authorLabel(author: AuthorRow | undefined): string | null {
   if (!author) return null;
-  return `${author.area_name ?? ""}に${author.resident_years ?? "?"}年、${author.display_name}`;
+  // SPEC §9.18-2: エリア・居住年数が無い（NULL）利用者は表示名だけ（「に?年、」のように崩さない）。
+  return formatAuthorLabel({
+    displayName: author.display_name,
+    areaName: author.area_name,
+    residentYears: author.resident_years,
+  });
 }
 
 /** 関連データなしで spots 行を Spot にする（並び替え・件数の絞り込み用。関連の値は空）。 */

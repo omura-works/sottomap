@@ -8,6 +8,7 @@ import { quietnessLabel } from "@/lib/domain/quietness";
 import type { Quietness, SpotStatus } from "@/lib/db/types";
 import { AnimatedCounter, Card, Divider, Tag } from "@/components/ui";
 import { HomeCitySetting } from "@/components/profile/HomeCitySetting";
+import { DisplayNameSetting } from "./DisplayNameSetting";
 import { canChangeHomeCity, formatHomeCityChangeDate, nextHomeCityChangeAt } from "@/lib/domain/home-city";
 
 /**
@@ -153,6 +154,11 @@ export default async function ProfilePage() {
         <h3 className="m-0">確認待ちが{stats.pendingRequestCount}件あります</h3>
         <p className="m-0">答えないままのピンは、90日後に地図から静かに外れます。</p>
       </Card>
+
+      <Divider />
+
+      {/* SPEC §9.18-1: 表示名の変更（初期値は「地元の人」。メールアドレスの一部は使わない）。 */}
+      <DisplayNameSetting currentName={displayName} />
 
       <Divider />
 

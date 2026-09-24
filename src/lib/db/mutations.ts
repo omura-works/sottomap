@@ -19,6 +19,8 @@ import {
   nextVerificationDate,
   statusAfterAnswer,
 } from "../domain/lifecycle";
+import { formatAuthorLabel } from "../domain/author-label";
+import { validateDisplayName } from "../domain/display-name";
 import { POINTS_PER_PUBLISHED_SPOT, POINTS_PER_VERIFICATION } from "../domain/lantern";
 import { planCronActions, type CronSpotInput, type CronVerificationRequestInput } from "../domain/verification-cron";
 import { isSupabaseConfigured } from "../supabase/env";
@@ -39,6 +41,7 @@ import {
   fixtureUserProfile,
   hasFixtureEndorsement,
   initializeFixtureUserHomeCity,
+  setFixtureUserDisplayName,
   setFixtureUserHomeCity,
 } from "./fixtures";
 
@@ -130,7 +133,7 @@ export async function createSpot(input: CreateSpotInput): Promise<Spot> {
       reason,
       visitFrequency: input.visitFrequency,
       authorId: input.authorId,
-      authorLabel: author ? `${author.areaName ?? ""}に${author.residentYears ?? "?"}年、${author.displayName}` : null,
+      authorLabel: author ? formatAuthorLabel(author) : null,
       photoUrl: null,
       tags: [],
       endorsementCount: 0,
@@ -573,3 +576,25 @@ export async function initializeUserHomeCity(userId: string, cityId: string): Pr
   return data === true;
 }
 
+// =========================================================
+// setUserDisplayName: /me の表示名の変更（SPEC §9.18-1）
+// =========================================================
+
+/**
+ * 表示名を変える。前後の空白を除いた、保存した名前を返す。
+ * 規則（1〜20文字・改行や制御文字なし・メールアドレスの形なし）は validateDisplayName と
+ * DB 関数 set_display_name の両方が同じ文言で強制する。利用者は users.display_name を直接書き換えられない。
+ */
+export async function setUserDisplayName(userId: string, rawName: string): Promise<string> {
+  const checked = validateDisplayName(rawName);
+  if (!checked.ok) throw new Error(checked.message);
+
+  if (!isSupabaseConfigured()) {
+    return setFixtureUserDisplayName(userId, checked.name);
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("set_display_name", { p_name: checked.name });
+  if (error) throw rpcError("表示名の保存", error);
+  return typeof data === "string" ? data : checked.name;
+}

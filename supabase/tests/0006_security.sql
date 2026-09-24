@@ -117,11 +117,12 @@ select is_empty(
     expected as (
       select r.role_name, o.obj, p.priv,
         case r.role_name
+          -- 0011（§9.18）: endorsements は表単位ではなく列単位（user_id 以外）の SELECT だけ。
           when 'anon' then
             p.priv = 'SELECT'
-            and o.obj not in ('public.verification_requests', 'public.lantern_events', 'public.bookmarks')
+            and o.obj not in ('public.verification_requests', 'public.lantern_events', 'public.bookmarks', 'public.endorsements')
           when 'authenticated' then
-            p.priv = 'SELECT'
+            (p.priv = 'SELECT' and o.obj <> 'public.endorsements')
             or (o.obj = 'public.bookmarks' and p.priv in ('INSERT', 'UPDATE', 'DELETE'))
           when 'service_role' then
             (o.obj = 'public.public_profiles' and p.priv = 'SELECT')
@@ -150,8 +151,9 @@ select is_empty(
         case r.role_name
           when 'authenticated' then
             -- 0007（§9.16）: home_city_id は set_home_city / initialize_home_city だけで変える（直接の insert / update は不可）。
-            (p.priv = 'INSERT' and c.col in ('id', 'display_name', 'avatar_url', 'resident_years'))
-            or (p.priv = 'UPDATE' and c.col in ('display_name', 'avatar_url', 'resident_years'))
+            -- 0011（§9.18）: users へは直接 insert / update できない。行の作成は ensure_user_profile、
+            -- 表示名は set_display_name だけ（avatar_url・resident_years も画面から設定しないので外した）。
+            false
           when 'service_role' then true
           else false
         end as allowed
@@ -161,7 +163,7 @@ select is_empty(
     from expected
     where has_column_privilege(role_name, 'public.users', col, priv) <> allowed
   $$,
-  '権限表: users の列単位の insert / update（lantern_points・area_name・created_at・home_city_id・home_city_changed_at は利用者に不可）'
+  '権限表: users の列単位の insert / update（0011 以降、利用者はどの列も直接は不可）'
 );
 
 select is_empty(
@@ -176,6 +178,10 @@ select is_empty(
       ('public.publish_pending_spot(uuid, timestamp with time zone)', false, false, false),
       ('public.set_home_city(uuid)', false, true, false),
       ('public.initialize_home_city(uuid)', false, true, false),
+      -- §9.18 表示名・掲載停止リスト（0011）。
+      ('public.ensure_user_profile()', false, true, false),
+      ('public.set_display_name(text)', false, true, false),
+      ('public.remove_place(uuid, text)', false, false, true),
       -- §9.17 お問い合わせ（0010）。Server Action がサーバー専用の service_role 接続で呼ぶ。
       ('public.submit_contact_message(text, text, text, uuid, text, uuid, text)', false, false, true),
       ('public.purge_expired_contact_data()', false, false, true)
@@ -204,7 +210,9 @@ select is_empty(
       and p.proname not in (
         'create_spot', 'endorse_spot', 'answer_verification', 'run_verification_cron',
         'is_profile_visible', 'award_lantern_points', 'publish_pending_spot', 'set_home_city',
-        'initialize_home_city'
+        'initialize_home_city',
+        -- §9.18（0011）。authenticated が実行できる（権限の詳細は 0011_profile_privacy_and_removed_places.sql）。
+        'ensure_user_profile', 'set_display_name'
       )
       and (
         has_function_privilege('public', p.oid, 'EXECUTE')
@@ -362,9 +370,10 @@ select throws_ok(
   '42501', null,
   '投稿者: lantern_points を直接更新できない'
 );
-select lives_ok(
+select throws_ok(
   $$ update users set display_name = 'テストA2', resident_years = 11 where id = '11110000-0000-4000-8000-00000000000a' $$,
-  '投稿者: 表示名・居住年数は更新できる'
+  '42501', null,
+  '投稿者: 表示名・居住年数も直接は更新できない（表示名は set_display_name だけ。SPEC §9.18）'
 );
 select throws_ok(
   $$ update users set area_name = '偽' where id = '11110000-0000-4000-8000-00000000000a' $$,
