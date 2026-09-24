@@ -4,6 +4,19 @@ import type { NextConfig } from "next";
 // タイルは fetch() で読み込まれるため img-src・connect-src の両方に許可が必要。
 const GSI_TILE_ORIGIN = "https://cyberjapandata.gsi.go.jp";
 
+/**
+ * 表示名の検査（SPEC §9.18-1、0016）は、アプリが実行環境の Unicode で判定し、DB は Unicode 17.0 から作った
+ * 範囲の表で判定する。実行環境の Unicode の版が変わると両者がずれるため、本番のビルド・起動では版を確かめて止める
+ * （R24 軽微）。版を上げるときは、0016 の表を作り直す migration を足してからこの値を変える。
+ */
+const EXPECTED_UNICODE_VERSION = "17.0";
+if (process.env.NODE_ENV === "production" && process.versions.unicode !== EXPECTED_UNICODE_VERSION) {
+  throw new Error(
+    `実行環境の Unicode の版（${process.versions.unicode}）が、表示名の検査の前提（${EXPECTED_UNICODE_VERSION}）と違います。` +
+      "package.json の engines（Node 24.x）を確認してください。",
+  );
+}
+
 /** NEXT_PUBLIC_SUPABASE_URL のオリジン。未設定・不正なら null（デモモード等）。 */
 function supabaseOrigin(): string | null {
   const raw = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();

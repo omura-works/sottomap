@@ -458,7 +458,8 @@ export async function runVerificationCron(now: Date): Promise<VerificationCronRe
     return { checked: spots.length, changed, missedRequestCount, createdRequestCount, skippedLockedCount: 0 };
   }
 
-  // service-role はここ（cron）だけで使う。DB 関数は service_role にしか EXECUTE を与えていない。
+  // この DB 関数は service_role にしか EXECUTE を与えていない。service role の使いどころ（cron・問い合わせの保存・
+  // 表示名の変更・退会の記録の整理）は src/lib/supabase/server.ts の createServiceRoleClient に一覧がある。
   // デッドロック（40P01）・直列化失敗（40001）のときだけ1回再実行する（Spec §9.13.8）。
   const supabase = createServiceRoleClient();
   const { data, error } = await callWithSingleTransactionRetry(() => supabase.rpc("run_verification_cron"));

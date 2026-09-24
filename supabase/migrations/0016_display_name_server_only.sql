@@ -334,7 +334,11 @@ begin
   if pg_catalog.char_length(v_name) > 20 then
     raise exception '表示名は20文字以内で入力してください' using errcode = '22023';
   end if;
-  if v_name ~ '[\u0001-\u001f\u007f-\u009f  ]' then
+  -- 改行・制御文字と、Unicode の行区切り（U+2028）・段落区切り（U+2029）を拒否する。
+  -- 見えない文字をソースに直接書くと転記で化けるため（R24 重要1）、chr() で指定する。
+  if v_name ~ '[\u0001-\u001f\u007f-\u009f]'
+     or pg_catalog.strpos(v_name, pg_catalog.chr(8232)) > 0
+     or pg_catalog.strpos(v_name, pg_catalog.chr(8233)) > 0 then
     raise exception '表示名に改行や制御文字は使えません' using errcode = '22023';
   end if;
   if public.display_name_has_invisible_sequence(v_name) then

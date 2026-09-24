@@ -21,6 +21,7 @@ const FLAG_WALES = [0x1f3f4, 0xe0067, 0xe0062, 0xe0077, 0xe006c, 0xe0073, 0xe007
 
 const OK = "ok";
 const INVISIBLE = DISPLAY_NAME_MESSAGES.invisible;
+const CONTROL = DISPLAY_NAME_MESSAGES.control;
 
 export const DISPLAY_NAME_CASES: readonly DisplayNameCase[] = [
   // 受け付ける
@@ -37,6 +38,7 @@ export const DISPLAY_NAME_CASES: readonly DisplayNameCase[] = [
   { label: "ウェールズの旗", codePoints: [...FLAG_WALES], expected: OK },
   { label: "黒旗だけ（タグ列なし）", codePoints: [0x1f3f4], expected: OK },
   { label: "肌の色の修飾子だけ", codePoints: [0x1f3fd], expected: OK },
+  { label: "名前の中の空白（U+0020）", codePoints: [...JP_AKARI, 0x20, ...JP_NOHITO], expected: OK },
   { label: "結合文字の付いた文字", codePoints: [0x0065, 0x0301], expected: OK },
   // ZWNJ は全面禁止
   { label: "ZWNJ だけ", codePoints: [0x200c], expected: INVISIBLE },
@@ -82,4 +84,7 @@ export const DISPLAY_NAME_CASES: readonly DisplayNameCase[] = [
   { label: "並びの検査はメールアドレスの形より先", codePoints: [0x200d, 0x61, 0x40, 0x62], expected: INVISIBLE },
   { label: "メールアドレスの形", codePoints: [0x61, 0x40, 0x62], expected: DISPLAY_NAME_MESSAGES.email },
   { label: "21文字", codePoints: Array<number>(21).fill(0x3042), expected: DISPLAY_NAME_MESSAGES.tooLong },
+  // R24 重要1: Unicode の行区切り・段落区切り（DB の転記ミスで抜けていた）
+  { label: "名前の中の行区切り（U+2028）", codePoints: [...JP_AKARI, 0x2028, ...JP_NOHITO], expected: CONTROL },
+  { label: "名前の中の段落区切り（U+2029）", codePoints: [...JP_AKARI, 0x2029, ...JP_NOHITO], expected: CONTROL },
 ];
