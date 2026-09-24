@@ -129,6 +129,12 @@ describe("ContactForm", () => {
     expect(replyTo).toHaveAccessibleDescription(CONTACT_PRIVACY_COPY.guestReplyToHint);
   });
 
+  it("退会して以前のお問い合わせのアドレスが無い人には、いま受信できるアドレスを書けばよいと案内する（R23 軽微）", () => {
+    expect(CONTACT_PRIVACY_COPY.guestReplyToHint).toBe(
+      "登録しているメールアドレスをご記入ください（退会した場合は、以前のお問い合わせに書いたメールアドレス。無ければ、いま受信できるメールアドレス）。本人確認のため、運営からこのアドレス宛に確認のメールを送ります。",
+    );
+  });
+
   it("未ログインの個人情報の請求で返信先が無いと、返信先の入力欄へフォーカスを移す", async () => {
     vi.mocked(submitContactAction).mockResolvedValue({
       status: "error",

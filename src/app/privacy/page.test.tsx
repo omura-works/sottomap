@@ -128,7 +128,9 @@ describe("PrivacyPage", () => {
     expect(text).not.toMatch(/退会したあとに請求できるのは、ログインせずに返信用のメールアドレスを書いて送ったお問い合わせについてだけです/);
     expect(text).not.toMatch(/どなたのものかを特定できないため、請求にお応えできず/);
     // 退会後に残るもの。
-    expect(text).toMatch(/稼働中のデータベースに残るのは、ログインせずに送ったお問い合わせだけです/);
+    // R23 軽微: 稼働中のDBには退会の記録（30日）も残る。
+    expect(text).not.toMatch(/稼働中のデータベースに残るのは、ログインせずに送ったお問い合わせだけです/);
+    expect(text).toMatch(/稼働中のデータベースに残るのは、ログインせずに送ったお問い合わせと、退会の記録（退会したアカウントのIDと退会の日時。退会から30日を過ぎたあとの日次の処理で削除）だけです/);
     expect(text).toMatch(/アクセスの記録・ログインの記録（Vercel・Supabase の保存期間まで）/);
     expect(text).toMatch(/バックアップ（最大30日）/);
     expect(text).toMatch(/これらも請求の対象です。特定できる範囲で対応します/);
@@ -140,9 +142,21 @@ describe("PrivacyPage", () => {
     expect(text).toMatch(/そのアドレスで運営からの確認のメールを受け取れることに加えて、受付日時・内容の一部などもうかがって/);
     // 保存期間: バックアップ30日、退会の記録、再削除。
     expect(text).toMatch(/取得から30日を過ぎたものは運営が削除します/);
-    expect(text).toMatch(/バックアップから戻したときは、そのあいだに退会したアカウントを改めて削除します/);
+    // R23 重要2: 戻したときは、DB とは別に保管している記録をもとに削除・訂正をやり直す（稼働中のDBが読めなくても）。
+    expect(text).not.toMatch(/バックアップから戻したときは、そのあいだに退会したアカウントを改めて削除します/);
+    expect(text).toMatch(/バックアップから戻したときは、運営が別に保管している退会・削除の記録をもとに、改めて削除します/);
+    expect(text).toMatch(/データベースとは別の場所（運営の端末の暗号化したファイル）/);
+    expect(text).toMatch(/日時・対象（アカウントのID、またはお問い合わせの受付ID）・内容/);
     expect(text).toMatch(/退会したアカウントのIDと退会の日時/);
     expect(text).toMatch(/退会から30日を過ぎたあとの日次の処理で削除します/);
+  });
+
+  it("確認の依頼で保存する項目が DB の列（answered_verification_id）と一致する（R23 軽微）", () => {
+    render(<PrivacyPage />);
+    const text = document.body.textContent ?? "";
+    // verification_requests は id・spot_id・user_id・due_at・created_at・status・answered_verification_id。回答日時の列は無い。
+    expect(text).not.toMatch(/答えたかどうかと答えた日時/);
+    expect(text).toMatch(/どの店の確認か、依頼先のアカウントのID、答える期限、答えたかどうか、答えた回答（回答のID）、依頼の日時/);
   });
 
   it("お問い合わせ先へのリンクを持つ", () => {

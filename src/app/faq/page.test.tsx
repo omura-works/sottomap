@@ -49,7 +49,8 @@ describe("FaqPage", () => {
     render(<FaqPage />);
     const text = document.body.textContent ?? "";
     expect(text).not.toMatch(/ログインせずに返信用のメールアドレスを書いて送ったお問い合わせについてだけ/);
-    expect(text).toMatch(/ログインせずに送ったお問い合わせ、アクセスの記録・ログインの記録（Vercel・Supabase の保存期間まで）、バックアップ（最大30日）/);
+    // R23 軽微: 退会の記録（30日）も残るものに入れる。
+    expect(text).toMatch(/ログインせずに送ったお問い合わせ、退会の記録（退会したアカウントのIDと退会の日時。30日）、アクセスの記録・ログインの記録（Vercel・Supabase の保存期間まで）、バックアップ（最大30日）/);
     expect(text).toMatch(/これらも請求の対象です/);
     expect(text).toMatch(/受付日時・内容の一部など、対象を特定できる情報/);
     expect(text).toMatch(/返信用のメールアドレスを書かずに送ったお問い合わせも、一律にお断りはせず、個別に判断して対応します/);
