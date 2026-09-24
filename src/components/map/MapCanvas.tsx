@@ -15,6 +15,8 @@ import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Quietness } from "@/lib/db/types";
 import { quietnessLabel } from "@/lib/domain/quietness";
+import { prefersReducedMotion } from "@/components/ui/motion-prefs";
+import { setMarkerGlyph, spawnPinHalo } from "./pin-halo";
 
 // MapLibre v6 は Worker の URL を import.meta.url から実行時に組み立てるため、
 // Turbopack では Worker が配信されず 404 になる（タイルもピンも出なくなる）。
@@ -119,6 +121,8 @@ export function MapCanvas({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
   const hoveredIdRef = useRef<string | null>(null);
+  // フォーカスハロー: 「選択した瞬間」だけ輪を出すため、前回の選択を覚えておく。
+  const haloSelectedIdRef = useRef<string | null>(null);
 
   // コールバック類は毎レンダーで新しい参照になり得るため ref 経由で最新を参照する
   // （地図・マーカーの再生成を避けるため）。ref の更新はレンダー本体ではなく
@@ -217,7 +221,7 @@ export function MapCanvas({
           const style = QUIETNESS_STYLE[pin.quietness];
           el.style.border = selected ? "3px solid var(--color-text)" : "2px solid var(--color-bg)";
           el.style.background = style.bg;
-          el.textContent = style.glyph;
+          setMarkerGlyph(el, style.glyph);
           el.title = `${pin.label}（${quietnessLabel(pin.quietness)}）`;
           continue;
         }
@@ -259,6 +263,17 @@ export function MapCanvas({
 
         const marker = new maplibregl.Marker({ element: el, anchor: "center" }).setLngLat([pin.lng, pin.lat]).addTo(map);
         markersRef.current.set(pin.id, marker);
+      }
+
+      // モーションリファレンス「フォーカスハロー」: 選択が別のピンに変わった瞬間に1回だけ輪を広げる
+      // （ピンの差し替え・ホバーなど、選択が変わらない再実行では出さない）。
+      if (selectedId !== haloSelectedIdRef.current) {
+        haloSelectedIdRef.current = selectedId;
+        const selectedPin = selectedId ? pins.find((p) => p.id === selectedId) : undefined;
+        const selectedMarker = selectedId ? markersRef.current.get(selectedId) : undefined;
+        if (selectedPin && selectedMarker) {
+          spawnPinHalo(selectedMarker.getElement(), QUIETNESS_STYLE[selectedPin.quietness].bg, prefersReducedMotion());
+        }
       }
     };
 

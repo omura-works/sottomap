@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { StaggerRowProps } from "@/components/ui/useIntroStagger";
 import type { Spot } from "@/lib/db/types";
 import { walkingLabel } from "@/components/map/geo";
 
@@ -15,6 +16,8 @@ export interface SpotListItemProps {
    * 従来どおりサムネ＋店名＋メタのみのシンプルな行のままにする。
    */
   description?: string;
+  /** 初回表示の順次表示（`useIntroStagger`）。検索結果の一覧だけが渡す。 */
+  rowMotion?: StaggerRowProps;
 }
 
 /**
@@ -22,13 +25,13 @@ export interface SpotListItemProps {
  * サムネ＋店名＋「海鮮丼 / 北24条 / 徒歩7分」（SPEC §4 S3）。
  * 行全体が詳細ページ `/[city]/spots/[id]` へのリンク（T5 所有ルート）。
  */
-export function SpotListItem({ spot, distanceMeters, selected = false, onSelect, description }: SpotListItemProps) {
+export function SpotListItem({ spot, distanceMeters, selected = false, onSelect, description, rowMotion }: SpotListItemProps) {
   const metaParts = [spot.category, spot.areaName, distanceMeters !== undefined ? walkingLabel(distanceMeters) : null].filter(
     (part): part is string => Boolean(part),
   );
 
   return (
-    <li>
+    <li className={rowMotion?.className} style={rowMotion?.style}>
       <Link
         href={`/${spot.citySlug}/spots/${spot.id}`}
         onMouseEnter={() => onSelect?.(spot.id)}

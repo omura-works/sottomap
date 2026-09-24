@@ -4,7 +4,8 @@ import { useEffect, useOptimistic, useRef, useState, useTransition } from "react
 import Link from "next/link";
 import { unstable_rethrow } from "next/navigation";
 import { removeBookmarkAction } from "@/app/actions/bookmark-actions";
-import { ConfirmRemoveButton } from "@/components/ui";
+import { ConfirmRemoveButton, useIntroStagger } from "@/components/ui";
+import { cn } from "@/components/ui/cn";
 
 /** ページ側（`/bookmarks`）の見出し。行の前後どちらも無いときのフォーカス先（Codex R8 重要3）。 */
 const BOOKMARKS_HEADING_ID = "bookmarks-heading";
@@ -112,6 +113,10 @@ export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[
     announce(`${item.spotName}はそのままにしました。`);
   }
 
+  // モーションリファレンス「リスト順次表示」: 初回表示の行だけ順に出す。
+  // 外したときの並び替えやロールバックで戻った行では再生しない（フォーカス移動は上のまま）。
+  const rowMotion = useIntroStagger(items.map((item) => item.id));
+
   const cityOrder: string[] = [];
   const itemsByCity = new Map<string, BookmarkListItem[]>();
   for (const item of items) {
@@ -137,11 +142,12 @@ export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[
           <ul className="space-y-2">
             {items.map((item) => {
               const index = items.indexOf(item);
+              const motion = rowMotion(item.id);
               return (
                 <li
                   key={item.id}
-                  className="flex items-center gap-3 px-3 py-2"
-                  style={{ borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}
+                  className={cn("flex items-center gap-3 px-3 py-2", motion?.className)}
+                  style={{ borderRadius: "var(--radius-md)", background: "var(--color-surface)", ...motion?.style }}
                 >
                   {item.photoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element -- 外部URLのサムネイルをそのまま表示する

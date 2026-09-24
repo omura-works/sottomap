@@ -176,6 +176,8 @@ const FAQ_ITEMS: FaqItem[] = [
 /**
  * details/summary は Chromium・Firefox・Safari のいずれも Tab で summary にフォーカスでき、
  * Enter / Space で開閉できるブラウザ標準の挙動を持つため、追加の JS は使わない。
+ * モーションリファレンス「アコーディオン展開」（620ms）は CSS だけで付ける（globals.css の
+ * `.motion-accordion`。`interpolate-size` と `::details-content` が使えないブラウザでは即座に開閉する）。
  */
 export default function FaqPage() {
   return (
@@ -191,7 +193,7 @@ export default function FaqPage() {
 
       <div className="space-y-3">
         {FAQ_ITEMS.map((item) => (
-          <details key={item.question} className="card">
+          <details key={item.question} className="card motion-accordion">
             <summary className="cursor-pointer" style={{ fontWeight: 700 }}>
               {item.question}
             </summary>

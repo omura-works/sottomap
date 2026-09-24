@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { City, Spot } from "@/lib/db/types";
-import { Input } from "@/components/ui";
+import { Input, useIntroStagger } from "@/components/ui";
 import { buildDistanceMap, parseUrlOrigin, useResolvedOrigin, WITHIN_10MIN_METERS } from "@/components/map/geo";
 import { sortSpots, splitByQuietness } from "@/lib/domain/ordering";
 import { FilterChips } from "./FilterChips";
@@ -208,6 +208,8 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
   // （同期的に空→本文をまとめて設定すると、DOM上は本文しか変化せず、直前と同じ文言のときは
   // 読み上げられない）。初回描画では即時に確定値を出す（テストや初期表示で待たせないため）。
   const resultKey = visibleSpots.map((spot) => spot.id).join(",");
+  // モーションリファレンス「リスト順次表示」: 初回表示の結果だけ順に出す（絞り込みの切り替えでは再生しない）。
+  const rowMotion = useIntroStagger(visibleSpots.map((spot) => spot.id));
   const [liveMessage, setLiveMessage] = useState(statusMessage);
   const announceKeyRef = useRef(`${resultKey}|${statusMessage}`);
   useEffect(() => {
@@ -307,7 +309,7 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
           <>
             <ul className="flex flex-col gap-1 list-none m-0 p-0">
               {topList.map((spot) => (
-                <SpotListItem key={spot.id} spot={spot} distanceMeters={distances[spot.id]} />
+                <SpotListItem key={spot.id} spot={spot} distanceMeters={distances[spot.id]} rowMotion={rowMotion(spot.id)} />
               ))}
             </ul>
 
@@ -318,7 +320,7 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
                 </h2>
                 <ul className="flex flex-col gap-1 list-none m-0 p-0">
                   {bottomList.map((spot) => (
-                    <SpotListItem key={spot.id} spot={spot} distanceMeters={distances[spot.id]} />
+                    <SpotListItem key={spot.id} spot={spot} distanceMeters={distances[spot.id]} rowMotion={rowMotion(spot.id)} />
                   ))}
                 </ul>
               </div>

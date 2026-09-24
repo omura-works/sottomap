@@ -578,3 +578,130 @@ button.tag::after {
 .city-map .maplibregl-ctrl-top-right {
   top: 56px;
 }
+
+/* — モーション（https://motion-reference.takayustudio.jp/ の5つの動き）—
+   共通: 動かすのは opacity と transform だけ（アコーディオンの高さは ::details-content の block-size）。
+   `prefers-reduced-motion: reduce` では下の @media ですべて止め、最終状態を即座に表示する。 */
+
+/* 1. スケルトンシマー（1200ms・linear・無限）: 骨格は固定、光の帯だけが左→右へ横切る。
+   帯は --color-bg の半透明（背景色を透かすマスク扱い。新しい表示色は作らない）。 */
+.motion-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-neutral-300);
+}
+.motion-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--color-bg) 70%, transparent) 50%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: motion-skeleton-shimmer 1200ms linear infinite;
+}
+@keyframes motion-skeleton-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* 2. リスト順次表示（全体760ms）: 下から8px・透明度0 → 定位置。1行340ms・行ごとに60ms遅らせ、
+   8行目（--stagger-index: 7）で打ち止め。クラスは初回表示のときだけ付く（useIntroStagger）。 */
+.motion-stagger-item {
+  animation: motion-stagger-rise 340ms cubic-bezier(0.33, 1, 0.68, 1) both;
+  animation-delay: calc(var(--stagger-index, 0) * 60ms);
+}
+@keyframes motion-stagger-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 3. フォーカスハロー（900ms・ease-out・1回だけ）: 選択したピンの外側に同心円の輪が広がって消える。
+   ピン自体は動かさない。地図の操作を妨げないよう pointer-events: none。 */
+.map-pin-halo {
+  position: absolute;
+  inset: -3px;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  pointer-events: none;
+  opacity: 0;
+  animation: map-pin-halo 900ms cubic-bezier(0.33, 1, 0.68, 1) 1 forwards;
+}
+@keyframes map-pin-halo {
+  from {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+}
+
+/* 4. アコーディオン展開（620ms・ease-out）: <details> の中身が上端を基準に高さが開き、同時に不透明になる。
+   interpolate-size と ::details-content が使えるブラウザだけ。使えなければ即座に開閉する（ネイティブのまま）。 */
+@supports (interpolate-size: allow-keywords) and selector(::details-content) {
+  .motion-accordion {
+    interpolate-size: allow-keywords;
+  }
+  .motion-accordion::details-content {
+    block-size: 0;
+    opacity: 0;
+    overflow: clip;
+    transition:
+      block-size 620ms cubic-bezier(0.33, 1, 0.68, 1),
+      opacity 620ms cubic-bezier(0.33, 1, 0.68, 1),
+      content-visibility 620ms allow-discrete;
+  }
+  .motion-accordion[open]::details-content {
+    block-size: auto;
+    opacity: 1;
+  }
+}
+
+/* 5. タブインジケーター（520ms）: 動きは useTabIndicator（WAAPI）。ここは線の見た目だけ。
+   幅100pxの線を scaleX で文字幅に合わせる（transform だけで伸縮させるため角丸は付けない）。 */
+.motion-tab-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100px;
+  height: 2px;
+  background: var(--color-accent-700);
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+.motion-tab-indicator[data-axis="y"] {
+  width: 2px;
+  height: 100px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-skeleton::after {
+    animation: none;
+    display: none;
+  }
+  .motion-stagger-item {
+    animation: none;
+  }
+  .map-pin-halo {
+    animation: none;
+    display: none;
+  }
+  .motion-accordion::details-content {
+    transition: none;
+  }
+}

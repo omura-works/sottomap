@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cityContextFromPathname, getNavItems, isNavItemActive } from "./nav-items";
+import { useTabIndicator } from "./useTabIndicator";
 
 export interface SideRailProps {
   /** 利用者の居住街slug（未ログイン・未設定なら null）。SPEC §9.14-3。 */
@@ -20,6 +21,9 @@ export function SideRail({ homeCitySlug = null }: SideRailProps) {
   const pathname = usePathname();
   const citySlug = cityContextFromPathname(pathname, homeCitySlug);
   const navItems = getNavItems(citySlug);
+  const activeKey = navItems.find((item) => isNavItemActive(item, pathname))?.key ?? null;
+  // モーションリファレンス「タブインジケーター」: 下部タブと同じ方針で、縦に並ぶ項目の左に縦線を置く。
+  const { containerRef, indicatorRef, registerLabel } = useTabIndicator("y", activeKey);
 
   return (
     <aside
@@ -30,7 +34,7 @@ export function SideRail({ homeCitySlug = null }: SideRailProps) {
       <div className="px-2 py-4 text-center" style={{ fontFamily: "var(--font-heading)", fontWeight: 900, fontSize: 13 }}>
         ウラスポ
       </div>
-      <nav className="flex flex-col gap-1 px-2">
+      <nav ref={containerRef} className="relative flex flex-col gap-1 px-2">
         {navItems.map((item) => {
           const active = isNavItemActive(item, pathname);
           return (
@@ -44,10 +48,18 @@ export function SideRail({ homeCitySlug = null }: SideRailProps) {
                 background: active ? "var(--color-accent-100)" : "transparent",
               }}
             >
-              <span>{item.label}</span>
+              <span ref={registerLabel(item.key)}>{item.label}</span>
             </Link>
           );
         })}
+        <span
+          ref={indicatorRef}
+          aria-hidden="true"
+          data-testid="tab-indicator"
+          data-axis="y"
+          className="motion-tab-indicator"
+          style={{ opacity: 0 }}
+        />
       </nav>
     </aside>
   );

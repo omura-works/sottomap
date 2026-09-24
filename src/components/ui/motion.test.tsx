@@ -1,0 +1,120 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { act, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { LoadingScreen } from "./LoadingScreen";
+import { STAGGER_MAX_INDEX, useIntroStagger } from "./useIntroStagger";
+
+/** vitest.setup.ts の既定（常に reduce）を、このテストでだけ任意の値に差し替える。 */
+function mockReducedMotion(matches: boolean) {
+  vi.spyOn(window, "matchMedia").mockImplementation(
+    (query: string) =>
+      ({
+        matches: query.includes("prefers-reduced-motion") ? matches : false,
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }) as MediaQueryList,
+  );
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+});
+
+function Rows({ ids }: { ids: string[] }) {
+  const rowMotion = useIntroStagger(ids);
+  return (
+    <ul>
+      {ids.map((id) => {
+        const motion = rowMotion(id);
+        return (
+          <li key={id} data-testid={id} className={motion?.className} style={motion?.style}>
+            {id}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+const TEN = Array.from({ length: 10 }, (_, i) => `row-${i}`);
+
+describe("リスト順次表示（useIntroStagger）", () => {
+  it("初回表示の行に順次表示のクラスと遅延の番号を付け、8行目で遅延を打ち止めにする", () => {
+    mockReducedMotion(false);
+    render(<Rows ids={TEN} />);
+    expect(screen.getByTestId("row-0")).toHaveClass("motion-stagger-item");
+    expect(screen.getByTestId("row-0").style.getPropertyValue("--stagger-index")).toBe("0");
+    expect(screen.getByTestId("row-3").style.getPropertyValue("--stagger-index")).toBe("3");
+    expect(screen.getByTestId("row-9").style.getPropertyValue("--stagger-index")).toBe(String(STAGGER_MAX_INDEX));
+  });
+
+  it("reduced-motion のときは動きのクラスもスタイルも付かない", () => {
+    mockReducedMotion(true);
+    render(<Rows ids={TEN} />);
+    for (const id of TEN) {
+      const row = screen.getByTestId(id);
+      expect(row).not.toHaveClass("motion-stagger-item");
+      expect(row.style.getPropertyValue("--stagger-index")).toBe("");
+    }
+  });
+
+  it("再生後はクラスを外し、並び替え・絞り込みで増えた行では再生しない", () => {
+    vi.useFakeTimers();
+    mockReducedMotion(false);
+    const { rerender } = render(<Rows ids={["a", "b"]} />);
+    // 初回表示の直後に増えた行（初回の並びに無い行）には付けない。
+    rerender(<Rows ids={["a", "b", "c"]} />);
+    expect(screen.getByTestId("c")).not.toHaveClass("motion-stagger-item");
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(screen.getByTestId("a")).not.toHaveClass("motion-stagger-item");
+    rerender(<Rows ids={["b", "a"]} />);
+    expect(screen.getByTestId("a")).not.toHaveClass("motion-stagger-item");
+    expect(screen.getByTestId("b")).not.toHaveClass("motion-stagger-item");
+  });
+
+  it("初回描画で行が無ければ、最初に行がそろった表示を初回表示として扱う", () => {
+    mockReducedMotion(false);
+    const { rerender } = render(<Rows ids={[]} />);
+    rerender(<Rows ids={["x", "y"]} />);
+    expect(screen.getByTestId("x")).toHaveClass("motion-stagger-item");
+    expect(screen.getByTestId("y").style.getPropertyValue("--stagger-index")).toBe("1");
+  });
+});
+
+describe("スケルトンシマー（LoadingScreen）", () => {
+  it("aria-busy と「読み込んでいます」の読み上げを持ち、骨格は aria-hidden", () => {
+    const { container } = render(<LoadingScreen />);
+    expect(container.firstElementChild).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("status")).toHaveTextContent("読み込んでいます");
+    const skeleton = screen.getByTestId("loading-skeleton");
+    expect(skeleton).toHaveAttribute("aria-hidden", "true");
+    expect(skeleton.querySelectorAll(".motion-skeleton").length).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe("globals.css の reduced-motion", () => {
+  const css = readFileSync(resolve(process.cwd(), "src/app/globals.css"), "utf8");
+  const reducedBlock = css.slice(css.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
+
+  it.each([".motion-skeleton::after", ".motion-stagger-item", ".map-pin-halo", ".motion-accordion::details-content"])(
+    "%s の動きを reduced-motion で止める",
+    (selector) => {
+      expect(reducedBlock).toContain(selector);
+    },
+  );
+
+  it("シマーは1200ms・linear・無限、ハローは900msで1回だけ、アコーディオンは620ms", () => {
+    expect(css).toContain("animation: motion-skeleton-shimmer 1200ms linear infinite");
+    expect(css).toMatch(/animation: map-pin-halo 900ms [^;]* 1 forwards/);
+    expect(css).toContain("block-size 620ms");
+  });
+});
