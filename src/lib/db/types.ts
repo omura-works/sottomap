@@ -94,12 +94,14 @@ export interface VerificationRequest {
   createdAt: string;
 }
 
+/**
+ * 確認の回答（公開される列だけ）。SPEC §9.18-2（0012）: 回答者のID（user_id）と備考（note）は公開しない。
+ * 店ごとの人数は集計 RPC、本人の実績は本人専用 RPC で取る（src/lib/db/spots.ts）。
+ */
 export interface Verification {
   id: string;
   spotId: string;
-  userId: string;
   answer: Quietness;
-  note: string | null;
   createdAt: string;
 }
 

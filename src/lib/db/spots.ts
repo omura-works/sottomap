@@ -154,17 +154,6 @@ function applySpotQuery(spots: Spot[], query: SpotQuery, cityCenter: LatLng): Sp
   return query.limit ? sorted.slice(0, query.limit) : sorted;
 }
 
-/** 直近の確認「回」に参加した人数（同じ最新日から24時間以内に記録された確認の人数）。 */
-function computeVerifierCount(verifications: Array<{ userId: string; createdAt: string }>): number {
-  if (verifications.length === 0) return 0;
-  const latest = Math.max(...verifications.map((v) => new Date(v.createdAt).getTime()));
-  const dayMs = 24 * 60 * 60 * 1000;
-  const uniqueUsers = new Set(
-    verifications.filter((v) => latest - new Date(v.createdAt).getTime() < dayMs).map((v) => v.userId),
-  );
-  return uniqueUsers.size;
-}
-
 // =========================================================
 // Supabase 実データ経路（行 → ドメイン型のマッピング）
 // =========================================================
@@ -215,12 +204,13 @@ function mapTagRow(row: TagRow): Tag {
   return { id: row.id, slug: row.slug, label: row.label, kind: row.kind };
 }
 
+/** verifications の公開列（0012: anon / authenticated が読めるのはこの4列だけ）。 */
+const VERIFICATION_PUBLIC_COLUMNS = "id, spot_id, answer, created_at";
+
 interface VerificationRow {
   id: string;
   spot_id: string;
-  user_id: string;
   answer: Quietness;
-  note: string | null;
   created_at: string;
 }
 
@@ -228,9 +218,7 @@ function mapVerificationRow(row: VerificationRow): Verification {
   return {
     id: row.id,
     spotId: row.spot_id,
-    userId: row.user_id,
     answer: row.answer,
-    note: row.note,
     createdAt: row.created_at,
   };
 }
@@ -279,18 +267,22 @@ export interface SpotRow {
   created_at: string;
 }
 
-/** 表示用の投稿者情報（public_profiles ビューの行）。 */
+/** 表示用の投稿者情報（public_profiles ビューの行。0012 以降は id と表示名だけ）。 */
 export interface AuthorRow {
   id: string;
   display_name: string;
-  area_name: string | null;
-  resident_years: number | null;
+}
+
+/** 店ごとの「確認した人数」（集計 RPC spot_verifier_counts の行。回答が無い店の行は来ない）。 */
+export interface VerifierCountRow {
+  spot_id: string;
+  verifier_count: number;
 }
 
 /** hydrate に必要な関連データ（PostgREST の応答そのままの形）。 */
 export interface SpotRelatedRows {
   tagLinks: SpotTagLinkRow[];
-  verifications: Array<{ spot_id: string; user_id: string; created_at: string }>;
+  verifierCounts: VerifierCountRow[];
   endorsements: Array<{ spot_id: string }>;
   authors: AuthorRow[];
   openRequests: Array<{ id: string; spot_id: string }>;
@@ -298,12 +290,8 @@ export interface SpotRelatedRows {
 
 function authorLabel(author: AuthorRow | undefined): string | null {
   if (!author) return null;
-  // SPEC §9.18-2: エリア・居住年数が無い（NULL）利用者は表示名だけ（「に?年、」のように崩さない）。
-  return formatAuthorLabel({
-    displayName: author.display_name,
-    areaName: author.area_name,
-    residentYears: author.resident_years,
-  });
+  // SPEC §9.18-2（0012）: 署名は表示名だけ（エリア・居住年数は公開しない）。
+  return formatAuthorLabel({ displayName: author.display_name });
 }
 
 /** 関連データなしで spots 行を Spot にする（並び替え・件数の絞り込み用。関連の値は空）。 */
@@ -367,12 +355,7 @@ export function assembleSpots(
     tagsBySpot.set(link.spot_id, list);
   }
 
-  const verificationsBySpot = new Map<string, Array<{ userId: string; createdAt: string }>>();
-  for (const row of related.verifications) {
-    const list = verificationsBySpot.get(row.spot_id) ?? [];
-    list.push({ userId: row.user_id, createdAt: row.created_at });
-    verificationsBySpot.set(row.spot_id, list);
-  }
+  const verifierCountBySpot = new Map(related.verifierCounts.map((row) => [row.spot_id, row.verifier_count]));
 
   const endorsementCountBySpot = new Map<string, number>();
   for (const row of related.endorsements) {
@@ -395,7 +378,7 @@ export function assembleSpots(
       authorLabel: authorLabel(authorsById.get(row.author_id)),
       tags: tagsBySpot.get(row.id) ?? [],
       endorsementCount: endorsementCountBySpot.get(row.id) ?? 0,
-      verifierCount: computeVerifierCount(verificationsBySpot.get(row.id) ?? []),
+      verifierCount: verifierCountBySpot.get(row.id) ?? 0,
       openRequestId: openRequestIdBySpot.get(row.id) ?? null,
     };
   });
@@ -416,18 +399,19 @@ async function hasSession(supabase: SupabaseServerClient): Promise<boolean> {
 /** 表示する spots 行の分だけ、関連データを1種類1クエリでまとめて取る。 */
 async function fetchRelatedRows(supabase: SupabaseServerClient, rows: SpotRow[]): Promise<SpotRelatedRows> {
   if (rows.length === 0) {
-    return { tagLinks: [], verifications: [], endorsements: [], authors: [], openRequests: [] };
+    return { tagLinks: [], verifierCounts: [], endorsements: [], authors: [], openRequests: [] };
   }
   const spotIds = rows.map((r) => r.id);
   const authorIds = [...new Set(rows.map((r) => r.author_id))];
   const signedIn = await hasSession(supabase);
 
-  const [tagLinks, verifications, endorsements, authors, openRequests] = await Promise.all([
+  const [tagLinks, verifierCounts, endorsements, authors, openRequests] = await Promise.all([
     supabase.from("spot_tags").select("spot_id, tags(id, slug, label, kind)").in("spot_id", spotIds),
-    supabase.from("verifications").select("spot_id, user_id, created_at").in("spot_id", spotIds),
+    // SPEC §9.18-2（0012）: 回答者のID（verifications.user_id）は読めない。人数は集計 RPC で件数だけを取る。
+    supabase.rpc("spot_verifier_counts", { p_spot_ids: spotIds }),
     supabase.from("endorsements").select("spot_id").in("spot_id", spotIds),
-    // Spec §9.13.6: users の全列は本人しか読めない。投稿者クレジットは表示用の列だけを出すビュー経由。
-    supabase.from("public_profiles").select("id, display_name, area_name, resident_years").in("id", authorIds),
+    // Spec §9.13.6・§9.18-2: users の全列は本人しか読めない。投稿者クレジットは表示名だけを出すビュー経由。
+    supabase.from("public_profiles").select("id, display_name").in("id", authorIds),
     // Spec §9.13.6・0006: 確認依頼は本人宛てしか読めず、未ログイン（anon）には表の SELECT 権限自体が無い。
     // 未ログインなら問い合わせない（読めるのは常に0件なので、権限エラーを出さずに空として扱う）。
     signedIn
@@ -435,14 +419,14 @@ async function fetchRelatedRows(supabase: SupabaseServerClient, rows: SpotRow[])
       : Promise.resolve({ data: [] as Array<{ id: string; spot_id: string }>, error: null }),
   ]);
   throwIfError("タグ", tagLinks.error);
-  throwIfError("確認履歴", verifications.error);
+  throwIfError("確認した人数", verifierCounts.error);
   throwIfError("承認", endorsements.error);
   throwIfError("投稿者", authors.error);
   throwIfError("確認依頼", openRequests.error);
 
   return {
     tagLinks: (tagLinks.data ?? []) as unknown as SpotTagLinkRow[],
-    verifications: (verifications.data ?? []) as SpotRelatedRows["verifications"],
+    verifierCounts: (verifierCounts.data ?? []) as VerifierCountRow[],
     endorsements: (endorsements.data ?? []) as SpotRelatedRows["endorsements"],
     authors: (authors.data ?? []) as AuthorRow[],
     openRequests: (openRequests.data ?? []) as SpotRelatedRows["openRequests"],
@@ -595,14 +579,15 @@ export async function getSpot(id: string): Promise<Spot | null> {
 export async function listVerifications(spotId: string): Promise<Verification[]> {
   if (!isSupabaseConfigured()) {
     fallbackLog("listVerifications");
-    return FIXTURE_VERIFICATIONS.filter((v) => v.spotId === spotId).sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
+    // 実DBと同じく公開列だけを返す（回答者・備考は出さない。§9.18-2）。
+    return FIXTURE_VERIFICATIONS.filter((v) => v.spotId === spotId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .map(({ id, spotId: verifiedSpotId, answer, createdAt }) => ({ id, spotId: verifiedSpotId, answer, createdAt }));
   }
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("verifications")
-    .select("id, spot_id, user_id, answer, note, created_at")
+    .select(VERIFICATION_PUBLIC_COLUMNS)
     .eq("spot_id", spotId)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false });
@@ -879,7 +864,9 @@ export async function getProfileStats(userId: string): Promise<{
   const [{ data: authoredSpots, error: spotsError }, { data: verifications, error: verificationsError }, { data: requestRows, error: requestsError }] =
     await Promise.all([
       supabase.from("spots").select("id, status, quietness, cities(is_port)").eq("author_id", userId),
-      supabase.from("verifications").select("created_at").eq("user_id", userId),
+      // SPEC §9.18-2（0012）: verifications.user_id は読めない。本人の回答日時は本人専用 RPC（auth.uid() の分だけ）。
+      // /me は本人の userId で呼ぶ。RPC は引数を取らず、ログイン中の本人の分を返す。
+      supabase.rpc("list_my_verification_times"),
       // Spec §9.13.3: 「確認待ち」は回答できる依頼だけ数える（期限到来済みの open ＋ 復帰できる最新の missed）。
       supabase
         .from("verification_requests")
@@ -896,7 +883,7 @@ export async function getProfileStats(userId: string): Promise<{
   const authoredRows = (authoredSpots ?? []) as unknown as AuthoredSpotRow[];
   const isPort = (row: AuthoredSpotRow) => row.cities?.is_port === true;
 
-  const verificationRows = (verifications ?? []) as Array<{ created_at: string }>;
+  const verificationTimes = (verifications ?? []) as string[];
   const spotStatusById = new Map(authoredRows.map((row) => [row.id, row.status]));
   const answerableInputs = ((requestRows ?? []) as Array<{
     id: string;
@@ -913,11 +900,11 @@ export async function getProfileStats(userId: string): Promise<{
 
   return {
     spotsCreated: authoredRows.length,
-    verificationsAnswered: verificationRows.length,
+    verificationsAnswered: verificationTimes.length,
     spotsKeptQuiet: authoredRows.filter((r) => r.status === "published" && r.quietness === "quiet").length,
     pendingRequestCount: countAnswerableRequests(answerableInputs, new Date()),
     // 日本時間の暦月で12〜2月（domain/lantern.ts）。
-    winterVerificationCount: verificationRows.filter((v) => isWinterMonth(v.created_at)).length,
+    winterVerificationCount: verificationTimes.filter((createdAt) => isWinterMonth(createdAt)).length,
     publishedPortSpotCount: authoredRows.filter((r) => r.status === "published" && isPort(r)).length,
   };
 }

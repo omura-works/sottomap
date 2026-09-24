@@ -1,6 +1,6 @@
 // SPEC §9.18-1: 表示名の検査（DB 関数 set_display_name と同じ規則・同じ文言）。
 import { describe, expect, it } from "vitest";
-import { DEFAULT_DISPLAY_NAME, validateDisplayName } from "./display-name";
+import { DEFAULT_DISPLAY_NAME, FORMAT_CHARACTER_RANGES, validateDisplayName } from "./display-name";
 
 describe("validateDisplayName", () => {
   it("初期値は「地元の人」", () => {
@@ -33,5 +33,52 @@ describe("validateDisplayName", () => {
 
   it("@ を含んでも、前後に文字が無ければメールアドレスの形ではない", () => {
     expect(validateDisplayName("@灯り")).toEqual({ ok: true, name: "@灯り" });
+  });
+});
+
+// R20 軽微（§9.18-1）: 双方向制御文字・不可視の書式文字（Unicode の Cf。Bidi_Control を含む）は見た目を偽装できるので拒否する。
+describe("validateDisplayName（書式文字）", () => {
+  const CONTROL = { ok: false, message: "表示名に改行や制御文字は使えません" };
+
+  it.each([
+    ["U+202E（右から左への上書き）", "灯り\u202Eの人"],
+    ["U+202A（左から右への埋め込み）", "\u202A灯りの人"],
+    ["U+2066（左から右への分離）", "灯りの人\u2066"],
+    ["U+2069（分離の終わり）", "灯り\u2069の人"],
+    ["U+200E（左から右への記号）", "灯り\u200Eの人"],
+    ["U+061C（アラビア文字の記号）", "灯り\u061Cの人"],
+    ["U+200B（ゼロ幅空白）", "灯り\u200Bの人"],
+    ["U+200D（ゼロ幅接合子）", "灯り\u200Dの人"],
+    ["U+2060（単語結合子）", "灯り\u2060の人"],
+    ["U+00AD（ソフトハイフン）", "灯り\u00ADの人"],
+    ["U+FEFF（先頭。trim で消さずに拒否する）", "\uFEFF灯りの人"],
+    ["U+FEFF（末尾）", "灯りの人\uFEFF"],
+    ["U+E0041（タグ文字）", "灯りの人\u{E0041}"],
+  ])("%s は不可", (_label, name) => {
+    expect(validateDisplayName(name)).toEqual(CONTROL);
+  });
+
+  it("書式文字だけの名前も「空」ではなく制御文字として拒否する（DB と同じ）", () => {
+    expect(validateDisplayName("\uFEFF")).toEqual(CONTROL);
+  });
+
+  it("書式文字の一覧は、実行環境の Unicode の Cf と Bidi_Control をすべて含み、それ以外を含まない", () => {
+    const cf = /^[\p{Cf}\p{Bidi_Control}]$/u;
+    const missing: string[] = [];
+    const extra: string[] = [];
+    for (let cp = 0; cp <= 0x10ffff; cp += 1) {
+      if (cp >= 0xd800 && cp <= 0xdfff) continue;
+      const ch = String.fromCodePoint(cp);
+      const inList = FORMAT_CHARACTER_RANGES.some(([from, to]) => cp >= from && cp <= to);
+      const isFormat = cf.test(ch);
+      if (isFormat && !inList) missing.push(cp.toString(16));
+      if (inList && !isFormat) extra.push(cp.toString(16));
+    }
+    expect(missing).toEqual([]);
+    expect(extra).toEqual([]);
+  });
+
+  it("絵文字の異体字セレクタ（Cf ではない）は使える", () => {
+    expect(validateDisplayName("灯り\u2764\uFE0F")).toEqual({ ok: true, name: "灯り\u2764\uFE0F" });
   });
 });

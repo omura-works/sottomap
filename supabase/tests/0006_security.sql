@@ -118,11 +118,12 @@ select is_empty(
       select r.role_name, o.obj, p.priv,
         case r.role_name
           -- 0011（§9.18）: endorsements は表単位ではなく列単位（user_id 以外）の SELECT だけ。
+          -- 0012（§9.18）: verifications も列単位（id, spot_id, answer, created_at）の SELECT だけ。
           when 'anon' then
             p.priv = 'SELECT'
-            and o.obj not in ('public.verification_requests', 'public.lantern_events', 'public.bookmarks', 'public.endorsements')
+            and o.obj not in ('public.verification_requests', 'public.lantern_events', 'public.bookmarks', 'public.endorsements', 'public.verifications')
           when 'authenticated' then
-            (p.priv = 'SELECT' and o.obj <> 'public.endorsements')
+            (p.priv = 'SELECT' and o.obj not in ('public.endorsements', 'public.verifications'))
             or (o.obj = 'public.bookmarks' and p.priv in ('INSERT', 'UPDATE', 'DELETE'))
           when 'service_role' then
             (o.obj = 'public.public_profiles' and p.priv = 'SELECT')
@@ -182,6 +183,11 @@ select is_empty(
       ('public.ensure_user_profile()', false, true, false),
       ('public.set_display_name(text)', false, true, false),
       ('public.remove_place(uuid, text)', false, false, true),
+      -- §9.18 公開データの絞り込み（0012）。集計 RPC は件数だけ、本人専用 RPC は auth.uid() の分だけ。
+      ('public.spot_verifier_counts(uuid[])', true, true, false),
+      ('public.list_my_verification_times()', false, true, false),
+      ('public.contains_format_character(text)', false, false, false),
+      ('public.minimize_profile_data()', false, false, false),
       -- §9.17 お問い合わせ（0010）。Server Action がサーバー専用の service_role 接続で呼ぶ。
       ('public.submit_contact_message(text, text, text, uuid, text, uuid, text)', false, false, true),
       ('public.purge_expired_contact_data()', false, false, true)
@@ -212,7 +218,9 @@ select is_empty(
         'is_profile_visible', 'award_lantern_points', 'publish_pending_spot', 'set_home_city',
         'initialize_home_city',
         -- §9.18（0011）。authenticated が実行できる（権限の詳細は 0011_profile_privacy_and_removed_places.sql）。
-        'ensure_user_profile', 'set_display_name'
+        'ensure_user_profile', 'set_display_name',
+        -- §9.18（0012）。spot_verifier_counts は anon / authenticated、list_my_verification_times は authenticated。
+        'spot_verifier_counts', 'list_my_verification_times'
       )
       and (
         has_function_privilege('public', p.oid, 'EXECUTE')

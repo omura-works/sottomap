@@ -1,14 +1,11 @@
-// 投稿者の署名（SPEC §4「— 北24条に14年、Kさん」）。
-// SPEC §9.18-2: エリア・居住年数は現行の画面から入力できないため、実DBの利用者の多くは NULL。
-// どちらかが無ければ表示名だけにする（「に?年、地元の人」のように崩さない）。
+// 投稿者の署名（店の詳細の「— Kさん」）。
+// SPEC §9.18-2（R20 重要2）: エリア・居住年数は公開しない（public_profiles から外した）。署名は表示名だけ。
+// SPEC §4 の「— 北24条に14年、Kさん」は §9.18-2 で置き換えた。
 
 export interface AuthorLabelInput {
   displayName: string;
-  areaName: string | null;
-  residentYears: number | null;
 }
 
-export function formatAuthorLabel({ displayName, areaName, residentYears }: AuthorLabelInput): string {
-  if (areaName && residentYears !== null) return `${areaName}に${residentYears}年、${displayName}`;
+export function formatAuthorLabel({ displayName }: AuthorLabelInput): string {
   return displayName;
 }

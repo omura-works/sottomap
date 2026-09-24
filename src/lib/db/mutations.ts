@@ -274,12 +274,19 @@ const answerResultSchema = z.object({
 export const NOT_DUE_ERROR_MESSAGE = "この確認はまだ届いていません";
 export const CLOSED_REQUEST_ERROR_MESSAGE = "この確認依頼には、もう回答できません";
 
+/** 確認の備考の上限（answer_verification と同じ。0012）。文字数はコードポイントで数える（DB の char_length と同じ）。 */
+export const VERIFICATION_NOTE_MAX_LENGTH = 500;
+export const NOTE_TOO_LONG_ERROR_MESSAGE = `備考は${VERIFICATION_NOTE_MAX_LENGTH}文字以内で入力してください`;
+
 export async function answerVerification(
   requestId: string,
   userId: string,
   answer: Quietness,
   note?: string,
 ): Promise<AnswerVerificationResult> {
+  if (note !== undefined && [...note].length > VERIFICATION_NOTE_MAX_LENGTH) {
+    throw new Error(NOTE_TOO_LONG_ERROR_MESSAGE);
+  }
   if (!isSupabaseConfigured()) {
     const request = findFixtureVerificationRequest(requestId);
     // answer_verification と同じく、他人宛ての依頼は「見つからない」と同じ扱いにする。

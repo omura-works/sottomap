@@ -1,16 +1,15 @@
-// SPEC §4 の署名「— 北24条に14年、Kさん」と §9.18-2（エリア・居住年数が無い利用者）。
+// 投稿者の署名。SPEC §9.18-2（R20）: エリア・居住年数は公開しないので、署名は表示名だけ。
 import { describe, expect, it } from "vitest";
 import { formatAuthorLabel } from "./author-label";
 
 describe("formatAuthorLabel", () => {
-  it("エリアと居住年数があれば「北24条に14年、Kさん」", () => {
-    expect(formatAuthorLabel({ displayName: "Kさん", areaName: "北24条", residentYears: 14 })).toBe("北24条に14年、Kさん");
+  it("署名は表示名だけ", () => {
+    expect(formatAuthorLabel({ displayName: "Kさん" })).toBe("Kさん");
+    expect(formatAuthorLabel({ displayName: "地元の人" })).toBe("地元の人");
   });
 
-  it("エリアか居住年数が無ければ、表示名だけ（「に?年、」のように崩さない）", () => {
-    expect(formatAuthorLabel({ displayName: "地元の人", areaName: null, residentYears: null })).toBe("地元の人");
-    expect(formatAuthorLabel({ displayName: "地元の人", areaName: "北24条", residentYears: null })).toBe("地元の人");
-    expect(formatAuthorLabel({ displayName: "地元の人", areaName: null, residentYears: 3 })).toBe("地元の人");
-    expect(formatAuthorLabel({ displayName: "地元の人", areaName: "", residentYears: 3 })).toBe("地元の人");
+  it("エリア・居住年数を持つ入力（デモの利用者など）でも、署名に使わない", () => {
+    const user = { displayName: "Kさん", areaName: "北24条", residentYears: 14 };
+    expect(formatAuthorLabel(user)).toBe("Kさん");
   });
 });

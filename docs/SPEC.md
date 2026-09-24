@@ -547,7 +547,7 @@ S1（`/start`）は §4 の構成に代えて、次の構成にする（§4 の�
 
 ### 9.18 表示名・公開プロフィール・掲載停止リスト（2026-09-23、最終レビュー R19 重要2・重要7）
 
-§9.13.4 の「利用者が更新できる `users` の列は、表示名・アバター・居住街・居住年数だけ」は、この節で置き換える。`supabase/migrations/0011_profile_privacy_and_removed_places.sql`。
+§9.13.4 の「利用者が更新できる `users` の列は、表示名・アバター・居住街・居住年数だけ」は、この節で置き換える。`supabase/migrations/0011_profile_privacy_and_removed_places.sql`（2026-09-24 の最終レビュー R20 重要1・重要2・軽微への対応は `0012_public_data_minimization.sql`）。
 1. **表示名にメールアドレスの一部を使わない。**
    - ログイン時（`/auth/callback`）のプロフィール行は DB 関数 `public.ensure_user_profile() returns void`（security definer、`search_path = ''`、EXECUTE は authenticated だけ）が作る。表示名の初期値は **「地元の人」**。行があれば何もしない（表示名を上書きしない）。本人が送れる `user_metadata` も使わない。
    - 既存の利用者: マイグレーションで、`users.display_name` が `auth.users.email` の `@` より前と一致する行だけを「地元の人」に置き換える（`public.replace_email_derived_display_names()`。誰にも EXECUTE を与えない）。
@@ -556,14 +556,19 @@ S1（`/start`）は §4 の構成に代えて、次の構成にする（§4 の�
      - 21文字以上: 「表示名は20文字以内で入力してください」
      - 改行・制御文字: 「表示名に改行や制御文字は使えません」
      - メールアドレスの形（`@` または全角 `＠` の前後に空白でない文字がある）: 「表示名にメールアドレスは使えません」
+     - 見えない書式文字（Unicode の一般カテゴリ Cf。U+202E などの双方向制御文字 `Bidi_Control`、ゼロ幅空白・ゼロ幅接合子、U+FEFF、タグ文字を含む）: 上と同じ「表示名に改行や制御文字は使えません」（2026-09-24、R20 軽微。`0012_public_data_minimization.sql`）。署名の見た目の偽装を防ぐ。書式文字は前後の空白を除いても残るので、空・長さより先に調べる（書式文字だけの名前も「空」ではなくこの文言）。一覧は Unicode 17.0 の Cf を範囲で持ち（`FORMAT_CHARACTER_RANGES` と DB 関数 `public.contains_format_character(text)`。誰にも EXECUTE を与えない）、テストで実行環境の Cf と照合する。ゼロ幅接合子でつなぐ絵文字（家族の絵文字など）も使えない。異体字セレクタ（U+FE0F。Cf ではない）は使える。既存の表示名に書式文字があれば、マイグレーションで「地元の人」に置き換える。
    - 同じ規則・同じ文言を `src/lib/domain/display-name.ts` にも置き、Server Action は通信の前に弾く（デモモードもこの規則でフィクスチャに保存する）。
    - 画面: 見出し「表示名」、今の名前、「表示名を変更する」→ 入力欄「新しい表示名」→「保存する」「やめる」。案内「あなたが書いた店の詳細に、署名として表示されます。20文字まで。メールアドレスは使えません。」。確認ダイアログは出さない。成功は `role="status"` で「表示名を「◯◯」に変えました。」、拒否は `role="alert"` で理由を出し、入力欄に `aria-invalid`・`aria-describedby` で結び付ける。想定外の失敗は「表示名を変えられませんでした。もう一度お試しください。」。ボタンと入力欄は 44px 以上。
 2. **公開プロフィールを絞る。**
-   - `public_profiles` は `id, display_name, area_name, resident_years` だけ（`avatar_url` を外した）。行の範囲は §9.13.6 のまま。
-   - `area_name`・`resident_years` は店の詳細の署名（§4「— 北24条に14年、Kさん」）に使うので残す。どちらかが NULL の利用者は、署名を表示名だけにする（「に?年、」のように崩さない。`src/lib/domain/author-label.ts`）。現行の画面からは入力できないため、実DBの新しい利用者の署名は「— 地元の人」になる。
+   - `public_profiles` は **`id, display_name` だけ**（0011 で `avatar_url`、2026-09-24 の 0012〈R20 重要2〉で `area_name`・`resident_years` も外した）。行の範囲は §9.13.6 のまま。
+   - 店の詳細の署名は**表示名だけ**（§4 の「— 北24条に14年、Kさん」は「— Kさん」に置き換える。デモモードも同じ。`src/lib/domain/author-label.ts`）。`users.area_name`・`resident_years` は画面から入力できず公開もしないので、0012 で既存の値を NULL にした（DB 関数 `public.minimize_profile_data()` をマイグレーションで1回呼ぶ。誰にも EXECUTE を与えない）。列は残す（本人の `/me` の表示は値が無ければ出さない）。
    - `authenticated` から `users` への直接の INSERT / UPDATE 権限をすべて外す（行の作成は `ensure_user_profile`、表示名は `set_display_name`、住んでいる街は §9.16 の RPC）。`avatar_url`・`area_name`・`resident_years` は利用者が書き換えられない。将来これらを入力できるようにするときは、RPC とプライバシーポリシーを同時に更新する。
    - 誰がどの店を承認したか（`endorsements.user_id`）は公開しない。`anon` / `authenticated` の `endorsements` への SELECT は列単位（`id, spot_id, created_at`）だけにする（画面は承認の件数しか使わない。承認は `endorse_spot` だけが記録する）。
-   - 確認の回答（`verifications.user_id`）は、店の詳細の「確認した人数」の計算（24時間以内の人数を数える）と `listVerifications` が使っているため、この節では変えない（公開する列の見直しは別途）。
+   - **確認の回答で公開するのは `id, spot_id, answer, created_at` だけ**（2026-09-24、R20 重要1。`0012_public_data_minimization.sql`）。回答者のID（`user_id`）・備考（`note`）・依頼ID（`verification_request_id`）は公開しない。`anon` / `authenticated` の `verifications` への SELECT は、表単位ではなくこの4列の列単位だけ（行の範囲は §9.13.6 の RLS のまま。service_role は表単位で読める）。回答の中身（まだ静か／混みはじめた／観光地化した）と日時は公開される。
+     - 店ごとの「確認した人数」（直近の回答から24時間以内に回答した人の数）は集計 RPC `public.spot_verifier_counts(p_spot_ids uuid[]) returns table (spot_id uuid, verifier_count integer)`（security definer、`search_path = ''`、EXECUTE は anon・authenticated）。返すのは店のIDと人数だけ。数える店は spots の RLS と同じ範囲（公開中は全員／投稿者本人はどの状態でも／承認待ちは同じ街に住む人）。回答の無い店の行は返さず、アプリは 0 人とする。
+     - 本人の実績（`/me` の「確認した回数」と冬の確認の数）は本人専用 RPC `public.list_my_verification_times() returns setof timestamptz`（security definer、`search_path = ''`、EXECUTE は authenticated だけ。`auth.uid()` の回答日時だけ。未ログインは「ログインが必要です」）。
+     - `listVerifications`（確認画面の履歴）は公開の4列だけを読み、型 `Verification` も `id, spotId, answer, createdAt` だけにする（CONTRACT 追補）。
+     - `answer_verification` の `p_note` は **500文字まで**（コードポイントで数える）。超えたら「備考は500文字以内で入力してください」（errcode 22023。記録も依頼の更新もしない）。画面は備考を送らないが、RPC を直接呼べば入れられるため。`answerVerification`（`src/lib/db/mutations.ts`）も通信の前に同じ文言で弾く。
 3. **掲載停止リスト。** 店舗から掲載停止の申し出（§9.17 の `removal`）を受けて外した店を、別の利用者が再び載せられないようにする。
    - 表 `public.removed_places`（`id`、`name_normalized`、`lat`、`lng`、`removed_at`、`note`）。RLS 有効・ポリシーなし。`anon` / `authenticated` には表の権限を一切与えない。運営（service_role）が Supabase の画面から行を足す運用で、`name_normalized` には店名をそのまま入れてよい（保存時にトリガーが正規化する）。
    - 店名の正規化 `public.normalize_place_name(text)`（immutable）: NFKC（全角英数→半角、半角カナ→全角）→ 小文字 → 空白・中黒・句読点・括弧・ハイフン・引用符などの記号を除く。長音記号「ー」は残す。

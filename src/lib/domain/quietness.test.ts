@@ -6,9 +6,7 @@ function verification(overrides: Partial<Verification>): Verification {
   return {
     id: overrides.id ?? "v1",
     spotId: "spot-1",
-    userId: "user-1",
     answer: "quiet",
-    note: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };

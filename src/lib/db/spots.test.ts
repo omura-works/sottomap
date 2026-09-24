@@ -285,3 +285,14 @@ describe("getUserProfile / getProfileStats / listSpotsByAuthor（CONTRACT追補�
     expect(await getLatestMissedRequestId("d0000000-0000-4000-8000-000000000004")).toBeNull();
   });
 });
+
+describe("listVerifications（デモモード。§9.18-2・0012）", () => {
+  it("実DBと同じく公開列（id, spotId, answer, createdAt）だけを返し、回答者と備考は出さない", async () => {
+    const { listVerifications } = await import("./spots");
+    const verifications = await listVerifications("d0000000-0000-4000-8000-000000000006");
+    expect(verifications.length).toBeGreaterThan(0);
+    for (const v of verifications) {
+      expect(Object.keys(v).sort()).toEqual(["answer", "createdAt", "id", "spotId"]);
+    }
+  });
+});

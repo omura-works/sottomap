@@ -544,8 +544,17 @@ function buildAuthorLabel(user: FixtureUser): string {
   return formatAuthorLabel(user);
 }
 
+/**
+ * デモモードの確認の記録。DB の verifications 表と同じく回答者（userId）と備考（note）を持つが、
+ * 画面へ出すのは公開列だけ（Verification。SPEC §9.18-2・0012）。変換は listVerifications（spots.ts）が行う。
+ */
+export interface FixtureVerification extends Verification {
+  userId: string;
+  note: string | null;
+}
+
 /** mutable: mutations.ts の answerVerification がここへ push する。 */
-export const FIXTURE_VERIFICATIONS: Verification[] = RAW_VERIFICATIONS.map((v) => ({
+export const FIXTURE_VERIFICATIONS: FixtureVerification[] = RAW_VERIFICATIONS.map((v) => ({
   id: v.id,
   spotId: v.spotId,
   userId: v.userId,
@@ -554,7 +563,7 @@ export const FIXTURE_VERIFICATIONS: Verification[] = RAW_VERIFICATIONS.map((v) =
   createdAt: offsetDaysISO(-v.daysAgo),
 }));
 
-function verificationsForSpot(spotId: string): Verification[] {
+function verificationsForSpot(spotId: string): FixtureVerification[] {
   return FIXTURE_VERIFICATIONS.filter((v) => v.spotId === spotId);
 }
 

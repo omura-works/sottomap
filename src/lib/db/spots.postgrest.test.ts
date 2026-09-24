@@ -18,11 +18,26 @@ interface Call {
   ops: Array<[string, unknown[]]>;
 }
 
+interface RpcCall {
+  fn: string;
+  args: Record<string, unknown> | undefined;
+}
+
 const state: {
   calls: Call[];
   responses: Record<string, (call: Call) => Result>;
+  rpcCalls: RpcCall[];
+  rpcResponses: Record<string, (call: RpcCall) => Result>;
   signedIn: boolean;
-} = { calls: [], responses: {}, signedIn: true };
+} = { calls: [], responses: {}, rpcCalls: [], rpcResponses: {}, signedIn: true };
+
+function callRpc(fn: string, args?: Record<string, unknown>): Promise<Result> {
+  const call: RpcCall = { fn, args };
+  state.rpcCalls.push(call);
+  const handler = state.rpcResponses[fn];
+  if (!handler) return Promise.reject(new Error(`unexpected rpc: ${fn}`));
+  return Promise.resolve(handler(call));
+}
 
 function makeBuilder(table: string) {
   const call: Call = { table, ops: [] };
@@ -53,6 +68,7 @@ function makeBuilder(table: string) {
 vi.mock("../supabase/server", () => ({
   createClient: async () => ({
     from: (table: string) => makeBuilder(table),
+    rpc: (fn: string, args?: Record<string, unknown>) => callRpc(fn, args),
     auth: {
       getSession: async () => ({
         data: { session: state.signedIn ? { access_token: "token" } : null },
@@ -157,11 +173,17 @@ const TAG_LINKS = [
   { spot_id: KIFU.id, tags: null },
 ];
 
-// 確認履歴は、spots.quietness と食い違う（最新が quiet）ようにしてある。表示は spots.quietness が正本。
-const VERIFICATIONS = [
-  { spot_id: KIFU.id, user_id: "u1", created_at: "2026-09-10T00:00:00+00:00" },
-  { spot_id: KIFU.id, user_id: "u2", created_at: "2026-09-10T01:00:00+00:00" },
-  { spot_id: SHIHACHI.id, user_id: "u1", created_at: "2026-09-10T00:00:00+00:00" },
+// SPEC §9.18-2（0012）: 確認した人数は集計 RPC spot_verifier_counts の応答（件数だけ。回答者のIDは来ない）。
+// 回答が1件も無い店の行は返らない（アプリ側で 0 にする）。
+const VERIFIER_COUNTS = [
+  { spot_id: KIFU.id, verifier_count: 2 },
+  { spot_id: SHIHACHI.id, verifier_count: 1 },
+];
+
+// 公開される確認の列（0012）: id, spot_id, answer, created_at だけ。
+const VERIFICATION_ROWS = [
+  { id: "v-2", spot_id: KIFU.id, answer: "crowding", created_at: "2026-09-10T01:00:00+00:00" },
+  { id: "v-1", spot_id: KIFU.id, answer: "quiet", created_at: "2026-09-10T00:00:00+00:00" },
 ];
 
 function installDefaultResponses(): void {
@@ -180,7 +202,7 @@ function installDefaultResponses(): void {
       }
       return { data: rows, error: null };
     },
-    verifications: (call) => ({ data: filterRows(VERIFICATIONS, call), error: null }),
+    verifications: (call) => ({ data: filterRows(VERIFICATION_ROWS, call), error: null }),
     endorsements: (call) => ({
       data: filterRows([{ spot_id: SHIHACHI.id }, { spot_id: SHIHACHI.id }, { spot_id: ZANGI.id }], call),
       error: null,
@@ -188,9 +210,9 @@ function installDefaultResponses(): void {
     public_profiles: (call) => ({
       data: filterRows(
         [
-          { id: "b0000000-0000-4000-8000-000000000001", display_name: "Kさん", area_name: "北24条", resident_years: 14 },
-          { id: "b0000000-0000-4000-8000-000000000002", display_name: "Mさん", area_name: "すすきの", resident_years: 8 },
-          { id: "b0000000-0000-4000-8000-000000000003", display_name: "Tさん", area_name: "すすきの", resident_years: 5 },
+          { id: "b0000000-0000-4000-8000-000000000001", display_name: "Kさん" },
+          { id: "b0000000-0000-4000-8000-000000000002", display_name: "Mさん" },
+          { id: "b0000000-0000-4000-8000-000000000003", display_name: "Tさん" },
         ],
         call,
       ),
@@ -211,10 +233,26 @@ function installDefaultResponses(): void {
   };
 }
 
+function installDefaultRpcResponses(): void {
+  state.rpcResponses = {
+    spot_verifier_counts: (call) => {
+      const ids = (call.args?.p_spot_ids ?? []) as string[];
+      return { data: VERIFIER_COUNTS.filter((row) => ids.includes(row.spot_id)), error: null };
+    },
+    list_my_verification_times: () => ({
+      // 日本時間で 12月（冬）が1件、9月が1件。
+      data: ["2025-12-10T03:00:00+00:00", "2026-09-10T00:00:00+00:00"],
+      error: null,
+    }),
+  };
+}
+
 beforeEach(() => {
   state.calls = [];
+  state.rpcCalls = [];
   state.signedIn = true;
   installDefaultResponses();
+  installDefaultRpcResponses();
 });
 
 afterEach(() => {
@@ -238,7 +276,7 @@ describe("assembleSpots（PostgREST の応答形状からの組み立て）", ()
     const { assembleSpots } = await import("./spots");
     const related = {
       tagLinks: TAG_LINKS,
-      verifications: VERIFICATIONS,
+      verifierCounts: VERIFIER_COUNTS,
       endorsements: [],
       authors: [],
       openRequests: [],
@@ -250,15 +288,31 @@ describe("assembleSpots（PostgREST の応答形状からの組み立て）", ()
 
   it("静けさは spots.quietness を正本にする（確認履歴からは求め直さない）", async () => {
     const { assembleSpots } = await import("./spots");
-    const related: SpotRelatedRows = { tagLinks: [], verifications: VERIFICATIONS, endorsements: [], authors: [], openRequests: [] };
-    const [, , kifu] = assembleSpots(SPOTS, related, new Map([[city.id, city]]));
+    const related: SpotRelatedRows = { tagLinks: [], verifierCounts: VERIFIER_COUNTS, endorsements: [], authors: [], openRequests: [] };
+    const [shihachi, zangi, kifu] = assembleSpots(SPOTS, related, new Map([[city.id, city]]));
     expect(kifu.quietness).toBe("crowding");
+    // 確認した人数は集計 RPC の値をそのまま使う。行が無い店は 0。
     expect(kifu.verifierCount).toBe(2);
+    expect(shihachi.verifierCount).toBe(1);
+    expect(zangi.verifierCount).toBe(0);
+  });
+
+  it("署名は表示名だけ（エリア・居住年数は使わない。§9.18-2）", async () => {
+    const { assembleSpots } = await import("./spots");
+    const related: SpotRelatedRows = {
+      tagLinks: [],
+      verifierCounts: [],
+      endorsements: [],
+      authors: [{ id: SHIHACHI.author_id, display_name: "Kさん" }],
+      openRequests: [],
+    };
+    const [shihachi] = assembleSpots(SPOTS, related, new Map([[city.id, city]]));
+    expect(shihachi.authorLabel).toBe("Kさん");
   });
 
   it("街が読めない行は例外にする（空の街名で表示しない）", async () => {
     const { assembleSpots } = await import("./spots");
-    const related: SpotRelatedRows = { tagLinks: [], verifications: [], endorsements: [], authors: [], openRequests: [] };
+    const related: SpotRelatedRows = { tagLinks: [], verifierCounts: [], endorsements: [], authors: [], openRequests: [] };
     expect(() => assembleSpots(SPOTS, related, new Map())).toThrow("スポットの街の取得に失敗しました");
   });
 });
@@ -285,12 +339,40 @@ describe("listSpots（Supabase 経路）", () => {
     const spots = await listSpots({ citySlug: "sapporo" });
     expect(spots.map((s) => s.name)).toEqual(["札幌ザンギ本舗", "シハチ鮮魚店 北24条店", "札幌らーめん輝風 すすきの店"]);
     expect(spots[1]).toMatchObject({
-      authorLabel: "北24条に14年、Kさん",
+      authorLabel: "Kさん",
       endorsementCount: 2,
       openRequestId: "req-1",
       verifierCount: 1,
     });
     expect(spots[1].tags.map((t) => t.slug)).toEqual(["fish-shop-direct", "day-time-main"]);
+  });
+
+  it("確認した人数は集計 RPC で取り、verifications 表（回答者のID）は読まない（§9.18-2・0012）", async () => {
+    const { listSpots } = await import("./spots");
+    const spots = await listSpots({ citySlug: "sapporo" });
+    expect(spots.map((s) => [s.name, s.verifierCount])).toEqual([
+      ["札幌ザンギ本舗", 0],
+      ["シハチ鮮魚店 北24条店", 1],
+      ["札幌らーめん輝風 すすきの店", 2],
+    ]);
+    expect(state.calls.filter((call) => call.table === "verifications")).toHaveLength(0);
+    const counts = state.rpcCalls.filter((call) => call.fn === "spot_verifier_counts");
+    expect(counts).toHaveLength(1);
+    expect([...(counts[0].args?.p_spot_ids as string[])].sort()).toEqual([SHIHACHI.id, ZANGI.id, KIFU.id].sort());
+  });
+
+  it("投稿者は public_profiles の表示名だけを読む（エリア・居住年数は問い合わせない）", async () => {
+    const { listSpots } = await import("./spots");
+    await listSpots({ citySlug: "sapporo" });
+    const profiles = state.calls.filter((call) => call.table === "public_profiles");
+    expect(profiles).toHaveLength(1);
+    expect(opArgs(profiles[0], "select")).toEqual([["id, display_name"]]);
+  });
+
+  it("確認した人数の RPC の失敗は 0 人にせず例外にする", async () => {
+    const { listSpots } = await import("./spots");
+    state.rpcResponses.spot_verifier_counts = () => ({ data: null, error: { message: "permission denied" } });
+    await expect(listSpots({ citySlug: "sapporo" })).rejects.toThrow("permission denied");
   });
 
   it("検索語は trim し、エスケープした or フィルター（地域名を含む）で DB に渡す", async () => {
@@ -306,11 +388,14 @@ describe("listSpots（Supabase 経路）", () => {
     const { listSpots } = await import("./spots");
     const spots = await listSpots({ citySlug: "sapporo", limit: 1 });
     expect(spots.map((s) => s.name)).toEqual(["札幌ザンギ本舗"]);
-    for (const table of ["spot_tags", "verifications", "endorsements", "verification_requests"]) {
+    for (const table of ["spot_tags", "endorsements", "verification_requests"]) {
       const calls = state.calls.filter((call) => call.table === table);
       expect(calls, table).toHaveLength(1);
       expect(opArgs(calls[0], "in")[0]).toEqual(["spot_id", [ZANGI.id]]);
     }
+    const counts = state.rpcCalls.filter((call) => call.fn === "spot_verifier_counts");
+    expect(counts).toHaveLength(1);
+    expect(counts[0].args).toEqual({ p_spot_ids: [ZANGI.id] });
   });
 
   it("タグのフィルターは DB でタグを引いて絞る（AND 条件）", async () => {
@@ -329,7 +414,7 @@ describe("listSpots（Supabase 経路）", () => {
     expect(state.calls.filter((call) => call.table === "verification_requests")).toHaveLength(0);
   });
 
-  it.each(["spot_tags", "verifications", "endorsements", "public_profiles", "verification_requests"])(
+  it.each(["spot_tags", "endorsements", "public_profiles", "verification_requests"])(
     "関連クエリ（%s）の失敗は空データにせず例外にする",
     async (table) => {
       const { listSpots } = await import("./spots");
@@ -357,6 +442,38 @@ describe("getSpot（Supabase 経路）", () => {
     const spot = await getSpot(SHIHACHI.id);
     expect(spot?.citySlug).toBe("sapporo");
     expect(spot?.tags.map((t) => t.label)).toEqual(["魚屋直営", "昼が本番"]);
+  });
+});
+
+describe("listVerifications（Supabase 経路）", () => {
+  it("公開される列（id, spot_id, answer, created_at）だけを読み、回答者のIDと備考は返さない（0012）", async () => {
+    const { listVerifications } = await import("./spots");
+    const verifications = await listVerifications(KIFU.id);
+    const call = state.calls.find((c) => c.table === "verifications");
+    expect(opArgs(call!, "select")).toEqual([["id, spot_id, answer, created_at"]]);
+    expect(verifications).toEqual([
+      { id: "v-2", spotId: KIFU.id, answer: "crowding", createdAt: "2026-09-10T01:00:00+00:00" },
+      { id: "v-1", spotId: KIFU.id, answer: "quiet", createdAt: "2026-09-10T00:00:00+00:00" },
+    ]);
+  });
+});
+
+describe("getProfileStats（Supabase 経路）", () => {
+  it("本人の確認の実績は本人専用 RPC から数え、verifications 表は読まない（0012）", async () => {
+    const { getProfileStats } = await import("./spots");
+    state.responses.verification_requests = () => ({ data: [], error: null });
+    const stats = await getProfileStats("b0000000-0000-4000-8000-000000000001");
+    expect(stats.verificationsAnswered).toBe(2);
+    expect(stats.winterVerificationCount).toBe(1);
+    expect(state.calls.filter((call) => call.table === "verifications")).toHaveLength(0);
+    expect(state.rpcCalls.map((call) => call.fn)).toEqual(["list_my_verification_times"]);
+  });
+
+  it("本人専用 RPC の失敗は 0 件にせず例外にする", async () => {
+    const { getProfileStats } = await import("./spots");
+    state.responses.verification_requests = () => ({ data: [], error: null });
+    state.rpcResponses.list_my_verification_times = () => ({ data: null, error: { message: "boom" } });
+    await expect(getProfileStats("b0000000-0000-4000-8000-000000000001")).rejects.toThrow("boom");
   });
 });
 

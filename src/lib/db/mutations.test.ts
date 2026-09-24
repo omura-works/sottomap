@@ -194,6 +194,24 @@ describe("answerVerification（Spec §9.13.3: 回答できる時点・二重受�
     expect(FIXTURE_VERIFICATIONS.length).toBe(verificationsBefore);
   });
 
+  it("備考は500文字まで（answer_verification と同じ。501文字は記録せずに拒否。§9.18・0012）", async () => {
+    const { answerVerification } = await import("./mutations");
+    const { getVerificationRequest } = await import("./spots");
+    const { FIXTURE_VERIFICATIONS } = await import("./fixtures");
+
+    const published = await createPublishedSpot("確認テスト店・備考の長さ");
+    const requestId = published.openRequestId!;
+    const request = await getVerificationRequest(requestId);
+    freezeAt(new Date(new Date(request!.dueAt).getTime() + HOUR_MS));
+
+    const verificationsBefore = FIXTURE_VERIFICATIONS.length;
+    await expect(answerVerification(requestId, K_SAN, "quiet", "あ".repeat(501))).rejects.toThrow(
+      "備考は500文字以内で入力してください",
+    );
+    expect(FIXTURE_VERIFICATIONS.length).toBe(verificationsBefore);
+    await expect(answerVerification(requestId, K_SAN, "quiet", "🏮".repeat(500))).resolves.toMatchObject({ accepted: true });
+  });
+
   it("期限到来済みの依頼に回答すると +5 が一度だけ付き、同じ依頼への2回目は受理されず加算もない", async () => {
     const { answerVerification } = await import("./mutations");
     const { getSpot, getUserProfile, getVerificationRequest } = await import("./spots");

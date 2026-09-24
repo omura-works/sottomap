@@ -74,12 +74,11 @@ export interface Spot {
   createdAt: string;
 }
 
+// 2026-09-24 追補（SPEC §9.18-2・0012）: 公開される列だけ。回答者のID（userId）と備考（note）は外した。
 export interface Verification {
   id: string;
   spotId: string;
-  userId: string;
   answer: Quietness;
-  note: string | null;
   createdAt: string;
 }
 
