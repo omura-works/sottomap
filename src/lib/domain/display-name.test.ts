@@ -105,3 +105,62 @@ describe("validateDisplayName（見えない文字）", () => {
     expect(validateDisplayName("灯り\u2764\uFE0F")).toEqual({ ok: true, name: "灯り\u2764\uFE0F" });
   });
 });
+
+// R22 重要2（§9.18-1）: ZWJ・ZWNJ・タグ文字は、正しい並びの中だけ許す。見える文字が1つも無い名前は拒否する。
+// DB 関数 public.display_name_has_invisible_sequence（0015）も同じ入力で同じ結果になる（supabase/tests/0015）。
+describe("validateDisplayName（見えない文字の並び）", () => {
+  const INVISIBLE = { ok: false, message: "表示名に見えない文字は使えません" };
+  const TAG_ENGLAND = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}";
+  const TAG_SCOTLAND = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}";
+
+  it.each([
+    ["家族の絵文字（ZWJ）", "\u{1F468}‍\u{1F469}‍\u{1F467}‍\u{1F466}"],
+    ["職業の絵文字（ZWJ）", "\u{1F9D1}‍\u{1F373}"],
+    ["肌の色を付けた職業の絵文字（修飾子の後の ZWJ）", "\u{1F9D1}\u{1F3FD}‍\u{1F692}"],
+    ["異体字セレクタ VS16 の後の ZWJ（レインボーフラッグ）", "\u{1F3F3}️‍\u{1F308}"],
+    ["ハートに火（VS16 の後の ZWJ）", "❤️‍\u{1F525}の人"],
+    ["イングランドの旗（タグ列）", `${TAG_ENGLAND}灯り`],
+    ["スコットランドの旗を2つ並べる", `${TAG_SCOTLAND}${TAG_SCOTLAND}`],
+    ["ZWNJ を使う言語の名前（ペルシア語）", "می‌خواهم"],
+    ["ラテン文字の間の ZWNJ", "ab‌cd"],
+  ])("%s は使える", (_label, name) => {
+    expect(validateDisplayName(name)).toEqual({ ok: true, name });
+  });
+
+  it.each([
+    ["ZWJ だけ", "‍"],
+    ["ZWNJ だけ", "‌"],
+    ["ZWJ と ZWNJ だけ", "‍‌‍"],
+    ["タグ文字だけ", "\u{E0067}\u{E0062}"],
+    ["タグの終端だけ", "\u{E007F}"],
+    ["文字の間の ZWJ", "灯り‍の人"],
+    ["絵文字の後・文字の前の ZWJ", "\u{1F3EE}‍の人"],
+    ["文字の後・絵文字の前の ZWJ", "灯り‍\u{1F3EE}"],
+    ["末尾の ZWJ", "\u{1F3EE}‍"],
+    ["先頭の ZWJ", "‍\u{1F3EE}"],
+    ["ZWJ の連続", "\u{1F468}‍‍\u{1F469}"],
+    ["数字の間の ZWNJ", "1‌2"],
+    ["絵文字の間の ZWNJ", "\u{1F3EE}‌\u{1F3EE}"],
+    ["先頭の ZWNJ", "‌می"],
+    ["末尾の ZWNJ", "می‌"],
+    ["終端の無いタグ列", "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}灯り"],
+    ["黒旗の無いタグ列", "灯り\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}"],
+    ["黒旗以外の絵文字に付けたタグ列", "\u{1F3EE}\u{E0067}\u{E0062}\u{E007F}"],
+    ["文字の中に隠したタグ列", "灯り\u{E0068}\u{E0069}の人"],
+    ["タグの中身が無い終端", "\u{1F3F4}\u{E007F}"],
+    ["ハングルの埋め字だけ", "ㅤ"],
+    ["点字の空白だけ", "⠀"],
+    ["異体字セレクタだけ", "️"],
+    ["結合文字だけ", "́"],
+  ])("%s は不可", (_label, name) => {
+    expect(validateDisplayName(name)).toEqual(INVISIBLE);
+  });
+
+  it("黒旗だけ（タグ列なし）は普通の絵文字として使える", () => {
+    expect(validateDisplayName("\u{1F3F4}")).toEqual({ ok: true, name: "\u{1F3F4}" });
+  });
+
+  it("肌の色の修飾子だけでも、見える記号なので使える", () => {
+    expect(validateDisplayName("\u{1F3FD}")).toEqual({ ok: true, name: "\u{1F3FD}" });
+  });
+});

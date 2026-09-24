@@ -22,6 +22,7 @@ export interface ContactFormProps {
    * ログイン中か。個人情報の請求（privacy）は、ログイン中ならそのアカウントのご本人からの請求として受け付け、
    * 返信先の欄を出さない（アカウントのメールアドレス宛に回答する。R21 軽微1）。未ログインなら返信先を必須にする
    * （運営が登録しているメールアドレスと照合し、そのアドレス宛に確認して本人確認する。R20 重要3・R21 重要2）。
+   * 表示した後にログインの期限が切れ、サーバーが期限切れ（sessionExpired）を返したら、以後は未ログインとして表示する（R22 重要1）。
    */
   isLoggedIn: boolean;
 }
@@ -43,6 +44,15 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
   const [state, formAction, isPending] = useActionState(submitContactAction, INITIAL_STATE);
   const [message, setMessage] = useState("");
   const [category, setCategory] = useState<string>("");
+  // 表示時はログイン中でも、送信時に期限が切れていたとサーバーが返したら、未ログインの表示に切り替える（R22 重要1）。
+  // 以後の送信で別の誤りが返っても戻さない（返した状態が変わった時点で、描画中に一度だけ反映する）。
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const [seenState, setSeenState] = useState(state);
+  if (state !== seenState) {
+    setSeenState(state);
+    if (state.status === "error" && state.sessionExpired) setSessionExpired(true);
+  }
+  const signedIn = isLoggedIn && !sessionExpired;
 
   const successHeadingRef = useRef<HTMLHeadingElement>(null);
   const categoryFieldsetRef = useRef<HTMLFieldSetElement>(null);
@@ -87,8 +97,8 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
   // 個人情報の請求: 未ログインなら経路（ログイン／返信先を書いて運営が照合・確認）を案内し、返信先を必須にする。
   // ログイン中なら返信先の欄を出さず（送らない）、アカウントのメールアドレス宛に回答すると案内する。
   const isPrivacy = category === "privacy";
-  const isGuestPrivacy = isPrivacy && !isLoggedIn;
-  const isMemberPrivacy = isPrivacy && isLoggedIn;
+  const isGuestPrivacy = isPrivacy && !signedIn;
+  const isMemberPrivacy = isPrivacy && signedIn;
   const categoryErrorMessage = fieldError === "category" && state.status === "error" ? state.message : null;
   const replyToHint = isGuestPrivacy
     ? CONTACT_PRIVACY_COPY.guestReplyToHint
@@ -126,6 +136,8 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
         startTransition(() => formAction(formData));
       }}
     >
+      {/* 表示時にログイン中だったことをサーバーに知らせる（送信時に期限が切れていたら、その旨の文言で返すため）。 */}
+      {signedIn ? <input type="hidden" name="signedIn" value="1" /> : null}
       {spot ? (
         <Card kicker="この店について" title={spot.name} meta={spot.cityName}>
           <input type="hidden" name="spotId" value={spot.id} />

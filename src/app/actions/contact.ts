@@ -17,7 +17,11 @@ export type ContactActionState =
   | { status: "idle" }
   /** category: 成功時の文言を用件で変える（privacy は「本人確認のうえ回答します。」）。 */
   | { status: "success"; category: ContactCategory }
-  | { status: "error"; message: string; field?: ContactField };
+  /**
+   * sessionExpired: 表示時はログイン中（フォームの signedIn=1）だったが、送信時には未ログインだった個人情報の請求
+   * （R22 重要1）。画面はこれを受けて未ログインの表示（返信先の欄が必須）に切り替える。
+   */
+  | { status: "error"; message: string; field?: ContactField; sessionExpired?: true };
 
 const GENERIC_ERROR = "お送りできませんでした。時間をおいて、もう一度お試しください。";
 
@@ -28,6 +32,7 @@ const USER_AGENT_MAX_LENGTH = 200;
 const FIELD_BY_MESSAGE = new Map<string, ContactField | undefined>([
   [CONTACT_ERRORS.category, "category"],
   [CONTACT_ERRORS.privacyReplyTo, "replyTo"],
+  [CONTACT_ERRORS.sessionExpired, "replyTo"],
   [CONTACT_ERRORS.messageEmpty, "message"],
   [CONTACT_ERRORS.messageTooLong, "message"],
   [CONTACT_ERRORS.replyTo, "replyTo"],
@@ -68,10 +73,13 @@ export async function submitContactAction(
 ): Promise<ContactActionState> {
   const category = readString(formData, "category");
   const spotId = readString(formData, "spotId");
+  // 画面を表示したときにログイン中だったか（ContactForm が hidden で送る）。文言を選ぶためだけに使い、権限には使わない。
+  const signedInAtRender = readString(formData, "signedIn") === "1";
+  let requesterId: string | null = null;
 
   try {
     const requestHeaders = await headers();
-    const requesterId = await getCurrentUserId();
+    requesterId = await getCurrentUserId();
     // ログイン中の個人情報の請求はアカウントのメールアドレス宛に回答するため、返信先は受け取っても保存しない
     // （画面は欄を出さない。検査の validateContactMessageInput も同じく捨てる。R21 軽微1）。
     const ignoresReplyTo = category === "privacy" && requesterId !== null;
@@ -91,6 +99,11 @@ export async function submitContactAction(
     return { status: "success", category: isContactCategory(category) ? category : "other" };
   } catch (error) {
     const raw = error instanceof Error ? error.message : "";
+    // R22 重要1: 表示時はログイン中で返信先の欄が無かったのに、送信時にはログインの期限が切れていた。
+    // 「返信先を入力してください」だけでは理由が分からないので、期限切れと伝え、画面を未ログインの表示に切り替えさせる。
+    if (raw === CONTACT_ERRORS.privacyReplyTo && signedInAtRender && requesterId === null) {
+      return { status: "error", message: CONTACT_ERRORS.sessionExpired, field: "replyTo", sessionExpired: true };
+    }
     if (FIELD_BY_MESSAGE.has(raw)) {
       const field = FIELD_BY_MESSAGE.get(raw);
       return field ? { status: "error", message: raw, field } : { status: "error", message: raw };

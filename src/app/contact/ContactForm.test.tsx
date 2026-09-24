@@ -164,5 +164,45 @@ describe("ContactForm", () => {
     const sent = vi.mocked(submitContactAction).mock.calls[0]?.[1];
     expect(sent?.get("category")).toBe("privacy");
     expect(sent?.has("replyTo")).toBe(false);
+    // 表示時にログイン中だったことをサーバーへ知らせる（送信時に期限が切れていたら、専用の文言で返すため）。
+    expect(sent?.get("signedIn")).toBe("1");
+  });
+
+  it("表示時はログイン中でも、送信時にログインの期限が切れていたら、返信先の欄を出し、そのそばに誤りを出してフォーカスを移す（R22 重要1）", async () => {
+    // サーバー（submitContactAction）と同じ判断: 表示時ログイン（signedIn=1）なのに送信時は未ログイン。
+    vi.mocked(submitContactAction).mockImplementation(async (_prev, formData) =>
+      formData.get("signedIn") === "1" && !formData.get("replyTo")
+        ? { status: "error", message: CONTACT_ERRORS.sessionExpired, field: "replyTo", sessionExpired: true }
+        : { status: "success", category: "privacy" },
+    );
+    render(<ContactForm spot={null} isLoggedIn />);
+    fireEvent.click(screen.getByRole("radio", { name: "自分の個人情報について（開示・訂正・削除・利用停止）" }));
+    expect(screen.queryByLabelText(/返信用のメールアドレス/)).toBeNull();
+
+    await submit();
+
+    const error = await screen.findByText(CONTACT_ERRORS.sessionExpired);
+    expect(error).toHaveAttribute("role", "alert");
+    const replyTo = screen.getByLabelText("返信用のメールアドレス（必須）");
+    expect(replyTo).toHaveFocus();
+    expect(replyTo).toHaveAttribute("aria-invalid", "true");
+    expect(replyTo).toHaveAttribute("aria-describedby", expect.stringContaining(error.id));
+    // 未ログインの案内（ログインし直す導線）に切り替わる。
+    expect(screen.getByRole("link", { name: "ログインする" })).toHaveAttribute("href", CONTACT_LOGIN_HREF);
+    expect(screen.queryByText(CONTACT_PRIVACY_COPY.memberNote)).toBeNull();
+
+    // 返信先を書いて送り直すと、もうログイン中としては送らない。別の誤りが返っても欄は出たまま。
+    vi.mocked(submitContactAction).mockResolvedValueOnce({
+      status: "error",
+      message: CONTACT_ERRORS.messageEmpty,
+      field: "message",
+    });
+    fireEvent.change(replyTo, { target: { value: "owner@example.com" } });
+    await submit();
+    const resent = vi.mocked(submitContactAction).mock.calls[1]?.[1];
+    expect(resent?.get("replyTo")).toBe("owner@example.com");
+    expect(resent?.has("signedIn")).toBe(false);
+    expect(await screen.findByText(CONTACT_ERRORS.messageEmpty)).toBeInTheDocument();
+    expect(screen.getByLabelText("返信用のメールアドレス（必須）")).toHaveValue("owner@example.com");
   });
 });

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { purgeExpiredAccountDeletionLog } from "@/lib/db/account-deletion";
 import { purgeExpiredContactData } from "@/lib/db/contact";
 import { runVerificationCron } from "@/lib/db/mutations";
 import { isAuthorizedCronRequest } from "./authorize";
@@ -14,9 +15,11 @@ export const dynamic = "force-dynamic";
  * - open 依頼が due_at から90日経過したら missed、対象スポットを dormant
  * - open 依頼が無い published スポットには次回依頼を1件作る
  *
- * 最後に、保存期間を過ぎたお問い合わせを削除する（SPEC §9.17。DB 関数 purge_expired_contact_data、
- * service_role 専用）。問い合わせは受付から1年、送信元の記録は24時間。削除に失敗したら
- * console.error に記録し 500 を返す（確認の定期処理の結果は返す。翌日の実行で取り戻せる）。
+ * 続いて、保存期間を過ぎたお問い合わせを削除する（SPEC §9.17。DB 関数 purge_expired_contact_data、
+ * service_role 専用）。問い合わせは受付から1年、送信元の記録は24時間。
+ * 最後に、退会から30日（バックアップの保存期間）を過ぎた退会の記録を削除する（SPEC §9.17。
+ * DB 関数 purge_expired_account_deletion_log、service_role 専用）。
+ * 削除に失敗したら console.error に記録し 500 を返す（ほかの処理は続け、その結果は返す。翌日の実行で取り戻せる）。
  */
 export async function GET(request: Request) {
   if (!isAuthorizedCronRequest(request.headers.get("authorization"), process.env.CRON_SECRET)) {
@@ -25,14 +28,29 @@ export async function GET(request: Request) {
 
   const now = new Date();
   const result = await runVerificationCron(now);
+  let failed = false;
 
+  let contactPurge: Awaited<ReturnType<typeof purgeExpiredContactData>> | { error: "failed" };
   try {
-    const contactPurge = await purgeExpiredContactData(now);
-    return NextResponse.json({ ...result, contactPurge });
+    contactPurge = await purgeExpiredContactData(now);
   } catch (error) {
+    failed = true;
+    contactPurge = { error: "failed" };
     console.error(
       `[cron] お問い合わせの保存期間の処理に失敗しました: ${error instanceof Error ? error.message : String(error)}`,
     );
-    return NextResponse.json({ ...result, contactPurge: { error: "failed" } }, { status: 500 });
   }
+
+  let accountDeletionLogPurge: Awaited<ReturnType<typeof purgeExpiredAccountDeletionLog>> | { error: "failed" };
+  try {
+    accountDeletionLogPurge = await purgeExpiredAccountDeletionLog();
+  } catch (error) {
+    failed = true;
+    accountDeletionLogPurge = { error: "failed" };
+    console.error(
+      `[cron] 退会の記録の保存期間の処理に失敗しました: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  return NextResponse.json({ ...result, contactPurge, accountDeletionLogPurge }, { status: failed ? 500 : 200 });
 }

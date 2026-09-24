@@ -129,6 +129,30 @@ describe("submitContactAction", () => {
     expect(FIXTURE_CONTACT_MESSAGES).toHaveLength(0);
   });
 
+  it("表示時はログイン中（signedIn=1）でも送信時に未ログインなら、ログインの期限切れとして返信先の欄の誤りを返す（R22 重要1）", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue(null);
+    const state = await submitContactAction(
+      { status: "idle" },
+      form({ category: "privacy", message: MESSAGE, signedIn: "1" }),
+    );
+    expect(state).toEqual({
+      status: "error",
+      message: CONTACT_ERRORS.sessionExpired,
+      field: "replyTo",
+      sessionExpired: true,
+    });
+    expect(FIXTURE_CONTACT_MESSAGES).toHaveLength(0);
+  });
+
+  it("送信時もログイン中なら、signedIn=1 は何も変えない", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue("44440000-0000-4000-8000-00000000000a");
+    const state = await submitContactAction(
+      { status: "idle" },
+      form({ category: "privacy", message: MESSAGE, signedIn: "1" }),
+    );
+    expect(state).toEqual({ status: "success", category: "privacy" });
+  });
+
   it("未ログインでも返信先を書けば privacy を受け付け、成功の状態に用件を載せる（R20 重要3）", async () => {
     const state = await submitContactAction(
       { status: "idle" },
