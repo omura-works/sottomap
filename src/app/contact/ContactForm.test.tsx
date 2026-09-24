@@ -80,6 +80,26 @@ describe("ContactForm", () => {
     expect(screen.getByLabelText("返信用のメールアドレス（任意）")).toHaveFocus();
   });
 
+  it("失敗しても入力は消えず、用件の誤りなら選んでいる選択肢へフォーカスを移す", async () => {
+    vi.mocked(submitContactAction).mockResolvedValue({
+      status: "error",
+      message: CONTACT_ERRORS.privacyLogin,
+      field: "category",
+    });
+    render(<ContactForm spot={null} isLoggedIn={false} />);
+    const privacy = screen.getByRole("radio", { name: "自分の個人情報について（開示・訂正・削除・利用停止）" });
+    fireEvent.click(privacy);
+    fireEvent.change(screen.getByLabelText("返信用のメールアドレス（任意）"), {
+      target: { value: "owner@example.com" },
+    });
+
+    await submit();
+
+    expect(privacy).toBeChecked();
+    expect(privacy).toHaveFocus();
+    expect(screen.getByLabelText("返信用のメールアドレス（任意）")).toHaveValue("owner@example.com");
+  });
+
   it("未ログインで個人情報の請求を選ぶと、ログインへの案内を出す", () => {
     render(<ContactForm spot={null} isLoggedIn={false} />);
     fireEvent.click(screen.getByRole("radio", { name: "自分の個人情報について（開示・訂正・削除・利用停止）" }));

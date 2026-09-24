@@ -230,11 +230,14 @@ select isnt(
   null::uuid,
   '重複排除: 送信元が違えば別件として保存する'
 );
+-- contact_rate は service_role にも表の権限を与えていない（関数だけが触る）ので、postgres で数える。
+reset role;
 select is(
   (select count(*)::int from contact_rate where source_hash = repeat('f', 64)),
   4,
   '重複として捨てた送信は回数に数えない'
 );
+set local role service_role;
 
 -- =========================================================
 -- 個人情報の請求（privacy）は requester_id が必須

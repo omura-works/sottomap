@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useId, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useId, useRef, useState } from "react";
 import { Button, Card } from "@/components/ui";
 import {
   CONTACT_CATEGORY_OPTIONS,
@@ -106,8 +106,14 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
       action={formAction}
       className="space-y-6"
       onSubmit={(event) => {
+        // action 属性の経路に任せると、React が送信後にフォームをリセットし、失敗したときに
+        // 選んだ用件や返信先が消えてしまう。JS が動いているときはここで送り、リセットさせない
+        // （action 属性は JS が動く前の送信のために残す）。
+        event.preventDefault();
         // 送信中の再送信は受け付けない（ボタンは aria-disabled のままフォーカスを保つ）。
-        if (isPending) event.preventDefault();
+        if (isPending) return;
+        const formData = new FormData(event.currentTarget);
+        startTransition(() => formAction(formData));
       }}
     >
       {spot ? (
