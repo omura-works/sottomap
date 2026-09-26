@@ -38,7 +38,7 @@ export function LegalSection({
 }) {
   return (
     <section className="space-y-3">
-      <h2 className="m-0" style={{ fontSize: 22, fontWeight: 700 }}>
+      <h2 className="m-0" style={{ fontSize: 22, fontWeight: 500 }}>
         {heading}
       </h2>
       <div className="space-y-3">{children}</div>

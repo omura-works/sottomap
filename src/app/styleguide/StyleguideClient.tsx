@@ -33,11 +33,12 @@ export function StyleguideClient() {
 
       <section className="space-y-3">
         <h2>タイポグラフィ</h2>
-        <h1>h1 見出し 明朝 700 / 28〜38px</h1>
-        <h2>h2 見出し 明朝 700 / 22〜26px</h2>
-        <h3>h3 見出し 明朝 700 / 19px</h3>
-        <h4>h4 見出し 明朝 700 / 17px</h4>
-        <p>本文テキスト。Zen Kaku Gothic New（行間 1.75）。見出しは Zen Old Mincho 700・字間 0.06em。北海道の、まだ静かな店を歩く。</p>
+        <h1>h1 見出し 400 / 28〜38px・字間 0.07em</h1>
+        <h2>h2 見出し 500 / 22〜26px・字間 0.05em</h2>
+        <h3>h3 見出し 500 / 19px</h3>
+        <h4>h4 見出し 500 / 17px</h4>
+        <p>本文テキスト。Zen Maru Gothic 400（行間 1.85・字間 0.025em）。書体はこれ1つで、階層は太さと字間で作る。北海道の、まだ静かな店を歩く。</p>
+        <p className="text-xs text-muted">小さな文字（11〜13px の補助・ラベル）は 500。ボタン・ナビ・チップも 500。</p>
         <p className="text-muted">text-muted の例。地元がまだ静かだと答えた店だけです。</p>
       </section>
 

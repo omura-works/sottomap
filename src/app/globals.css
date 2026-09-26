@@ -68,6 +68,9 @@
   --shadow-sm: 0 1px 2px color-mix(in srgb, #2e2b25 6%, transparent);
   --shadow-md: 0 1px 2px color-mix(in srgb, #2e2b25 6%, transparent), 0 8px 24px -16px color-mix(in srgb, #2e2b25 22%, transparent);
   --shadow-lg: 0 32px 64px -32px color-mix(in srgb, #2e2b25 45%, transparent);
+
+  /* 小さな文字（text-xs = 12px）は 500。細すぎると読めないため（font-bold 等を付けた所はそちらが勝つ） */
+  --text-xs--font-weight: 500;
 }
 
 :root {
@@ -88,17 +91,24 @@
   }
 }
 
-/* --font-heading / --font-body は next/font/google（layout.tsx）が html 要素に
-   注入する。@theme inline はそのランタイム変数を Tailwind の font-* ユーティリティ
-   （font-heading / font-body）に橋渡しするためのもの。 */
+/* 書体は Zen Maru Gothic 1つ（2026-09-26）。next/font/google（layout.tsx）が html 要素に
+   --font-zen-maru-gothic を注入し、Spec の変数名 --font-heading / --font-body の両方をそこへ向ける。
+   @theme inline は Tailwind の font-* ユーティリティ（font-heading / font-body）への橋渡し。 */
+:root {
+  --font-heading: var(--font-zen-maru-gothic);
+  --font-body: var(--font-zen-maru-gothic);
+}
 @theme inline {
-  --font-heading: var(--font-heading);
-  --font-body: var(--font-body);
+  --font-heading: var(--font-zen-maru-gothic);
+  --font-body: var(--font-zen-maru-gothic);
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
    基本要素（docs/design-reference/design-tokens.css の base rules を移植。
-   フォントは見出し=Zen Old Mincho 700 / 本文=Zen Kaku Gothic New。見出しは字間を少し広げ、行間をゆったり）
+   フォントは Zen Maru Gothic 1書体（2026-09-26）。階層は太さと字間で作る:
+   大きな表示 = 400・字間 0.07em・行間 1.4 / 見出し h2〜h4 = 500・字間 0.05em /
+   本文 = 400・行間 1.85・字間 0.025em / 11〜13px の補助・ラベル・ボタン・ナビ・チップ = 500。
+   300 は小さな文字に使わない。700 は本当に要る強調だけ、900 は使わない）
    ══════════════════════════════════════════════════════════════════════ */
 *,
 *::before,
@@ -116,7 +126,8 @@ html {
 body {
   margin: 0;
   font-size: 15px;
-  line-height: 1.75;
+  line-height: 1.85;
+  letter-spacing: 0.025em;
   font-weight: 400;
   background: var(--color-bg);
   color: var(--color-text);
@@ -130,16 +141,19 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: var(--font-heading), serif;
-  font-weight: 700;
+  font-family: var(--font-heading), system-ui, sans-serif;
+  font-weight: 500;
   line-height: 1.55;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   margin: 0 0 var(--space-2);
   text-wrap: pretty;
 }
+/* 大きな表示（32px 以上になる h1）は細く大きく、静かに */
 h1 {
   font-size: clamp(28px, 3.4vw, 38px);
-  line-height: 1.5;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0.07em;
 }
 h2 {
   font-size: clamp(22px, 2.6vw, 26px);
@@ -154,7 +168,6 @@ h4 {
 }
 h5 {
   font-size: 16px;
-  font-weight: 700;
 }
 h6 {
   font-size: 13px;
@@ -173,6 +186,7 @@ figure {
 }
 figcaption {
   font-size: 11px;
+  font-weight: 500;
   margin-top: var(--space-1);
   color: var(--color-text-muted);
 }
@@ -307,12 +321,14 @@ figcaption {
   }
   .field-counter {
     font-size: 11px;
+    font-weight: 500;
     margin-top: 4px;
     text-align: right;
     color: var(--color-text-muted);
   }
   .field-hint {
     font-size: 12px;
+    font-weight: 500;
     margin-top: 4px;
     color: var(--color-text-muted);
   }
@@ -356,6 +372,7 @@ figcaption {
     gap: 8px;
     cursor: pointer;
     font-size: 14px;
+    font-weight: 500;
   }
   .radio input,
   .seg-opt input {
@@ -400,6 +417,7 @@ figcaption {
     min-width: 44px;
     padding: 0 16px;
     font-size: 14px;
+    font-weight: 500;
     letter-spacing: 0.04em;
     cursor: pointer;
     transition: background-color 160ms ease;
@@ -431,13 +449,14 @@ figcaption {
   }
   .card-kicker {
     font-size: 11px;
+    font-weight: 500;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--color-text-muted);
   }
   .card-title {
-    font-family: var(--font-heading), serif;
-    font-weight: 700;
+    font-family: var(--font-heading), system-ui, sans-serif;
+    font-weight: 500;
     font-size: 17px;
     line-height: 1.5;
     letter-spacing: 0.04em;
@@ -453,6 +472,7 @@ figcaption {
     align-items: center;
     gap: 6px;
     font-size: 12px;
+    font-weight: 500;
     color: var(--color-text-muted);
   }
   .elev-sm {
@@ -470,6 +490,7 @@ figcaption {
     display: inline-flex;
     align-items: center;
     font-size: 12px;
+    font-weight: 500;
     line-height: 1.5;
     letter-spacing: 0.04em;
     padding: 3px 12px;
@@ -553,8 +574,8 @@ figcaption {
     border-bottom: 1px solid var(--color-divider);
   }
   .nav-brand {
-    font-family: var(--font-heading), serif;
-    font-weight: 700;
+    font-family: var(--font-heading), system-ui, sans-serif;
+    font-weight: 500;
     font-size: 18px;
     letter-spacing: 0.08em;
     margin-right: auto;
@@ -563,6 +584,7 @@ figcaption {
     color: inherit;
     text-decoration: none;
     font-size: 14px;
+    font-weight: 500;
   }
   .nav a:hover,
   .nav a[aria-current="page"] {
@@ -615,8 +637,8 @@ figcaption {
     box-shadow: var(--shadow-lg);
   }
   .dialog-title {
-    font-family: var(--font-heading), serif;
-    font-weight: 700;
+    font-family: var(--font-heading), system-ui, sans-serif;
+    font-weight: 500;
     font-size: 19px;
     line-height: 1.6;
     letter-spacing: 0.05em;
@@ -673,7 +695,6 @@ figcaption {
     background: var(--color-bg);
     border-color: var(--color-bg);
     color: var(--color-text);
-    font-weight: 700;
   }
   .btn-on-night:hover {
     background: var(--color-neutral-100);

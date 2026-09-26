@@ -17,7 +17,7 @@ export function LanternBadge({ badge }: { badge: Badge }) {
         <span
           aria-hidden="true"
           style={{
-            fontFamily: "var(--font-heading), serif",
+            fontFamily: "var(--font-heading), system-ui, sans-serif",
             fontSize: 30,
             lineHeight: 1.2,
             color: badge.earned ? "var(--color-accent-200)" : "var(--color-neutral-400)",
@@ -26,7 +26,7 @@ export function LanternBadge({ badge }: { badge: Badge }) {
         >
           {badge.glyph}
         </span>
-        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--color-bg)" }}>{badge.label}</span>
+        <span style={{ fontSize: 13, fontWeight: 500, color: "var(--color-bg)" }}>{badge.label}</span>
       </div>
       {threshold > 0 ? (
         <div
@@ -41,7 +41,7 @@ export function LanternBadge({ badge }: { badge: Badge }) {
           <div className="lantern-progress-fill" style={{ width: `${percent}%` }} />
         </div>
       ) : null}
-      <span style={{ fontSize: 11, color: "var(--color-neutral-400)" }}>
+      <span style={{ fontSize: 11, fontWeight: 500, color: "var(--color-neutral-400)" }}>
         {badge.earned ? "獲得済み" : `あと${badge.remaining}件`}
       </span>
     </div>

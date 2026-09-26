@@ -211,7 +211,7 @@ export function CityMapScreen({
             style={{ background: "var(--color-bg)", borderRadius: "var(--radius-md)", padding: "8px 14px", boxShadow: "var(--shadow-md)" }}
           >
             {/* SPEC §9.14-11: モバイル側の意味上のh1（デスクトップ側のh1とはCSSで排他表示）。 */}
-            <h1 className="m-0" style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 15, letterSpacing: "0.06em" }}>
+            <h1 className="m-0" style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 15, letterSpacing: "0.06em" }}>
               {cityHeading}
             </h1>
             <div className="text-xs text-muted">

@@ -47,6 +47,7 @@
   background: color-mix(in srgb, var(--color-neutral-900) 60%, transparent);
   color: var(--color-neutral-300);
   font-size: 0.75rem;
+  font-weight: 500;
   letter-spacing: 0.04em;
   cursor: pointer;
 }

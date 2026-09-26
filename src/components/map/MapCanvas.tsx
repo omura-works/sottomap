@@ -341,6 +341,7 @@ export function MapCanvas({
           bottom: 4,
           zIndex: 5,
           fontSize: 10,
+          fontWeight: 500,
           padding: "1px 6px",
           borderRadius: 999,
           background: "color-mix(in srgb, var(--color-bg) 78%, transparent)",

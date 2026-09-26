@@ -164,7 +164,7 @@ function Stat({ label, value }: { label: string; value: number }) {
       className="px-2 py-4"
       style={{ borderRadius: "var(--radius-md)", background: "var(--color-neutral-100)", border: "1px solid var(--color-divider)" }}
     >
-      <p className="m-0 text-2xl" style={{ fontFamily: "var(--font-heading)", fontWeight: 700 }}>
+      <p className="m-0 text-2xl" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>
         <AnimatedCounter value={value} />
       </p>
       <p className="m-0 text-muted text-xs">{label}</p>

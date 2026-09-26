@@ -41,7 +41,7 @@ export function BottomNav({ homeCitySlug = null }: BottomNavProps) {
             className="nav-item flex-1 flex h-[63px] flex-col items-center justify-center gap-0.5 text-[11px] leading-[1.4] tracking-[0.06em] no-underline"
             style={{
               color: active ? "var(--color-accent-700)" : "var(--color-text-muted)",
-              fontWeight: active ? 700 : 400,
+              fontWeight: 500,
             }}
           >
             <span className="nav-icon-frame h-9 w-9">

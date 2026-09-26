@@ -21,6 +21,7 @@ function MapCanvasLoading() {
         background: "var(--color-neutral-300)",
         color: "var(--color-text)",
         fontSize: 13,
+        fontWeight: 500,
       }}
     >
       地図を読み込み中…

@@ -50,7 +50,7 @@ export function SideRail({ homeCitySlug = null }: SideRailProps) {
               className="nav-item flex min-w-16 flex-col items-center gap-1 text-[11px] leading-[1.4] tracking-[0.06em] no-underline"
               style={{
                 color: active ? "var(--color-accent-700)" : "var(--color-text-muted)",
-                fontWeight: active ? 700 : 400,
+                fontWeight: 500,
               }}
             >
               <span className="nav-icon-frame h-11 w-11">

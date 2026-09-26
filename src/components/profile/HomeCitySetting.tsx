@@ -115,7 +115,7 @@ export function HomeCitySetting({ cities, currentCitySlug, nextChangeNote }: Hom
     <section className="space-y-3" aria-labelledby={`${selectId}-heading`}>
       <h3 id={`${selectId}-heading`}>住んでいる街</h3>
       <div className="flex flex-wrap items-center gap-3">
-        <p className="m-0 text-lg" style={{ fontFamily: "var(--font-heading)", fontWeight: 700 }}>
+        <p className="m-0 text-lg" style={{ fontFamily: "var(--font-heading)", fontWeight: 500 }}>
           {currentName ?? "まだ決めていません"}
         </p>
         {!editing ? (

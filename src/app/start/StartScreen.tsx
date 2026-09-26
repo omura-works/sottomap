@@ -80,7 +80,7 @@ export function StartScreen({
         style={{ background: "var(--color-bg)" }}
       >
         <div>
-          <h1 className="tracking-[0.3em]" style={{ margin: 0, fontSize: "0.75rem", color: "var(--color-neutral-700)" }}>
+          <h1 className="tracking-[0.3em]" style={{ margin: 0, fontSize: "0.75rem", fontWeight: 500, color: "var(--color-neutral-700)" }}>
             ウラスポ
           </h1>
           <p style={{ margin: "16px 0 0", color: "var(--color-neutral-800)" }}>
@@ -120,7 +120,7 @@ export function StartScreen({
       <div className="border-b" style={{ borderColor: "var(--color-divider)" }}>
         <div className="mx-auto flex h-[72px] max-w-6xl items-center gap-2.5 px-5 lg:px-10">
           <LogoMark size={26} />
-          <p style={{ margin: 0, fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 17, letterSpacing: "0.1em" }}>
+          <p style={{ margin: 0, fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 17, letterSpacing: "0.1em" }}>
             ウラスポ
           </p>
         </div>
@@ -185,14 +185,14 @@ export function StartScreen({
             <div>
               {/* 見出しの上の短い細線のアクセント */}
               <span aria-hidden className="block h-px w-6" style={{ background: "var(--color-accent-400)" }} />
+              {/* 大きな表示は細く大きく、静かに（SPEC §5 文字の階層）。32px を下回る狭い画面では 300 が細すぎるため 400 */}
               <h1
-                className="font-heading"
+                className="font-heading font-normal lg:font-light"
                 style={{
                   margin: "24px 0 0",
                   fontSize: "clamp(1.85rem, 4vw, 3rem)",
-                  fontWeight: 700,
-                  lineHeight: 1.5,
-                  letterSpacing: "0.06em",
+                  lineHeight: 1.4,
+                  letterSpacing: "0.07em",
                   color: "var(--color-neutral-100)",
                 }}
               >
@@ -219,7 +219,7 @@ export function StartScreen({
                   className="font-heading tabular-nums"
                   style={{
                     fontSize: "clamp(2.8rem, 7vw, 4.5rem)",
-                    fontWeight: 700,
+                    fontWeight: 300,
                     lineHeight: 1,
                     color: "var(--color-accent-300)",
                   }}
@@ -242,7 +242,7 @@ export function StartScreen({
               <h2
                 id="start-choose-city"
                 className="font-heading"
-                style={{ margin: 0, fontSize: "1.15rem", fontWeight: 700, letterSpacing: "0.06em", color: "var(--color-neutral-100)" }}
+                style={{ margin: 0, fontSize: "1.15rem", fontWeight: 500, letterSpacing: "0.05em", color: "var(--color-neutral-100)" }}
               >
                 どの街を歩きますか
               </h2>
@@ -259,7 +259,7 @@ export function StartScreen({
                       className="start-city-chip inline-flex items-center"
                     >
                       <span
-                        className="rounded-full px-4 py-1.5 text-sm tracking-[0.04em]"
+                        className="rounded-full px-4 py-1.5 text-sm font-medium tracking-[0.04em]"
                         style={{
                           background: active ? "var(--color-accent-600)" : "transparent",
                           color: active ? "var(--color-neutral-100)" : "var(--color-neutral-200)",
@@ -281,7 +281,7 @@ export function StartScreen({
                 style={{
                   margin: "32px 0 0",
                   fontSize: "0.8125rem",
-                  fontWeight: 700,
+                  fontWeight: 500,
                   letterSpacing: "0.08em",
                   color: "var(--color-neutral-300)",
                 }}
@@ -333,7 +333,7 @@ export function StartScreen({
           <h2
             id="start-how"
             className="font-heading"
-            style={{ margin: "16px 0 0", fontSize: "1.25rem", fontWeight: 700, letterSpacing: "0.06em" }}
+            style={{ margin: "16px 0 0", fontSize: "1.25rem", fontWeight: 500, letterSpacing: "0.05em" }}
           >
             静けさは、こうして保たれます
           </h2>
@@ -357,14 +357,14 @@ export function StartScreen({
                     className="font-heading tabular-nums"
                     style={{
                       fontSize: "1.75rem",
-                      fontWeight: 700,
+                      fontWeight: 400,
                       lineHeight: 1.2,
                       color: on ? "var(--color-accent-600)" : "var(--color-neutral-500)",
                     }}
                   >
                     {i + 1}
                   </span>
-                  <h3 className="font-heading" style={{ margin: "8px 0 0", fontSize: "1rem", fontWeight: 700, letterSpacing: "0.05em" }}>
+                  <h3 className="font-heading" style={{ margin: "8px 0 0", fontSize: "1rem", fontWeight: 500, letterSpacing: "0.05em" }}>
                     {step.title}
                   </h3>
                   <p className="text-sm" style={{ margin: "6px 0 0", color: "var(--color-text-muted)", lineHeight: 1.8 }}>

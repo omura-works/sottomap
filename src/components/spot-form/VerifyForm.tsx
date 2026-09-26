@@ -83,7 +83,7 @@ export function VerifyForm({ requestId, spotName, daysSinceLast, history, wasDor
         <Card kicker="ありがとうございます" title={quietnessLabel(answered)}>
           {showRewards ? (
             <div className="space-y-1">
-              <p className="text-lg font-bold" style={{ color: "var(--color-accent-700)" }}>
+              <p className="text-lg font-medium" style={{ color: "var(--color-accent-700)" }}>
                 +{pointsAwarded}
               </p>
               {/* SPEC §9.8: S6 の報酬説明。原本の文言を一字一句そのまま実装する。 */}

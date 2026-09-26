@@ -201,7 +201,7 @@ export default function FaqPage() {
       <div className="space-y-3">
         {FAQ_ITEMS.map((item) => (
           <details key={item.question} className="card motion-accordion">
-            <summary className="cursor-pointer" style={{ fontWeight: 700 }}>
+            <summary className="cursor-pointer" style={{ fontWeight: 500 }}>
               {item.question}
             </summary>
             <div className="pt-2">{item.answer}</div>
