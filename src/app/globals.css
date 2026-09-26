@@ -679,6 +679,19 @@ figcaption {
     border-color: var(--color-neutral-200);
   }
 
+  /* 灯り（/me）の進み具合の細い棒。進んだ分は橙で淡く光る */
+  .lantern-progress {
+    height: 4px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-bg) 15%, transparent);
+  }
+  .lantern-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: var(--color-accent-400);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--color-accent-400) 70%, transparent);
+  }
+
   /* — 丸みの規則（2026-09-26 に刷新。SPEC §5「丸みの規則」）—
      操作部品（btn / seg / input）= 10px、チップ（tag）= 丸、カード = 14px、ダイアログ・大きな面 = 20px。
      各部品の定義側で指定済み。ここでは上書きしない。 */

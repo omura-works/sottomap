@@ -9,6 +9,7 @@ import type { Quietness, SpotStatus } from "@/lib/db/types";
 import { AnimatedCounter, Card, Divider, Tag } from "@/components/ui";
 import { HomeCitySetting } from "@/components/profile/HomeCitySetting";
 import { DisplayNameSetting } from "./DisplayNameSetting";
+import { LanternBadge } from "./LanternBadge";
 import { canChangeHomeCity, formatHomeCityChangeDate, nextHomeCityChangeAt } from "@/lib/domain/home-city";
 
 /**
@@ -85,22 +86,11 @@ export default async function ProfilePage() {
 
       <section className="space-y-3">
         <h3>灯り</h3>
-        <div className="flex flex-wrap gap-3">
+        {/* 2026-09-26 案B: 暗い角丸カードのバッジ（モバイルは2列、広い画面は幅200で横に並べる） */}
+        <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:gap-4">
           {badges.map((badge) => (
-            <div
-              key={badge.id}
-              className="flex flex-col items-center gap-1 px-4 py-3"
-              style={{
-                borderRadius: "var(--radius-md)",
-                background: "var(--color-neutral-100)", border: "1px solid var(--color-divider)",
-                opacity: badge.earned ? 1 : 0.45,
-              }}
-            >
-              <span className="text-2xl" aria-hidden>
-                {badge.glyph}
-              </span>
-              <span className="text-sm">{badge.label}</span>
-              <span className="text-muted text-xs">{badge.earned ? "獲得済み" : `あと${badge.remaining}件`}</span>
+            <div key={badge.id} className="sm:w-[200px]">
+              <LanternBadge badge={badge} />
             </div>
           ))}
         </div>

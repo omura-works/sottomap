@@ -74,6 +74,14 @@ export function resolveBadges(input: LanternInput): Badge[] {
 
 /**
  * CONTRACT には無い追加ヘルパー（append only）。
+ * バッジを灯すのに必要な件数。`/me` の灯りの進み具合（(必要件数 − remaining) / 必要件数）に使う。
+ */
+export function badgeThreshold(slug: Badge["slug"]): number {
+  return BADGE_DEFINITIONS.find((def) => def.slug === slug)?.threshold ?? 0;
+}
+
+/**
+ * CONTRACT には無い追加ヘルパー（append only）。
  * ある日時が「冬（12〜2月）」の確認かどうかを判定する。
  * src/lib/db/spots.ts が verifications から LanternInput.winterVerificationCount を
  * 集計する際に使う。
