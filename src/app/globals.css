@@ -639,7 +639,7 @@ figcaption {
 }
 
 /* — モーション（https://motion-reference.takayustudio.jp/ の5つの動き）—
-   共通: 動かすのは opacity と transform だけ（アコーディオンの高さは ::details-content の block-size）。
+   共通: 動かすのは opacity と transform だけ（アコーディオンの高さは ::details-content の block-size、ナビの丸は背景色）。
    `prefers-reduced-motion: reduce` では下の @media ですべて止め、最終状態を即座に表示する。 */
 
 /* 1. スケルトンシマー（1200ms・linear・4周＝4.8秒で静止）: 骨格は固定、光の帯だけが左→右へ横切る。
@@ -735,21 +735,22 @@ figcaption {
   }
 }
 
-/* 5. タブインジケーター（520ms）: 動きは useTabIndicator（WAAPI）。ここは線の見た目だけ。
-   幅100pxの線を scaleX で文字幅に合わせる（transform だけで伸縮させるため角丸は付けない）。 */
-.motion-tab-indicator {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100px;
-  height: 2px;
-  background: var(--color-accent-600);
-  transform-origin: 0 0;
-  pointer-events: none;
+/* 5. ナビの選択中の丸（2026-09-26 の案D で、文字に沿って伸縮する線から置き換えた）:
+   選択中のタブの丸いアイコン枠が淡い橙（accent-200）に灯り、タブを移ると前の丸が消えて次の丸が灯る（色だけを 320ms で切り替える）。 */
+.nav-icon-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border-radius: 999px;
+  background-color: transparent;
+  transition: background-color 320ms cubic-bezier(0.33, 1, 0.68, 1);
 }
-.motion-tab-indicator[data-axis="y"] {
-  width: 2px;
-  height: 100px;
+.nav-item:hover .nav-icon-frame {
+  background-color: color-mix(in srgb, var(--color-text) 5%, transparent);
+}
+.nav-item[data-active="true"] .nav-icon-frame {
+  background-color: var(--color-accent-200);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -765,6 +766,9 @@ figcaption {
     display: none;
   }
   .motion-accordion::details-content {
+    transition: none;
+  }
+  .nav-icon-frame {
     transition: none;
   }
 }
