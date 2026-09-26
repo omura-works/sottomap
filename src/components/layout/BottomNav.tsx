@@ -25,7 +25,7 @@ export function BottomNav({ homeCitySlug = null }: BottomNavProps) {
       aria-label="主要ナビゲーション"
       className="lg:hidden fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t"
       style={{
-        background: "var(--color-surface)",
+        background: "var(--color-bg)",
         borderColor: "var(--color-divider)",
         paddingBottom: "env(safe-area-inset-bottom)",
       }}
@@ -37,8 +37,11 @@ export function BottomNav({ homeCitySlug = null }: BottomNavProps) {
             key={item.key}
             href={item.href}
             aria-current={active ? "page" : undefined}
-            className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[11px]"
-            style={{ color: active ? "var(--color-accent-700)" : "var(--color-text)" }}
+            className="flex-1 flex min-h-14 flex-col items-center justify-center gap-0.5 py-2 text-[12px] tracking-[0.06em]"
+            style={{
+              color: active ? "var(--color-accent-700)" : "var(--color-text-muted)",
+              fontWeight: active ? 500 : 400,
+            }}
           >
             <span ref={registerLabel(item.key)}>{item.label}</span>
           </Link>

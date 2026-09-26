@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { LogoMark } from "@/components/brand/LogoMark";
 import { cityContextFromPathname, getNavItems, isNavItemActive } from "./nav-items";
 import { useTabIndicator } from "./useTabIndicator";
 
@@ -29,10 +30,17 @@ export function SideRail({ homeCitySlug = null }: SideRailProps) {
     <aside
       aria-label="主要ナビゲーション"
       className="hidden lg:flex flex-col items-stretch w-20 shrink-0 border-r"
-      style={{ background: "var(--color-surface)", borderColor: "var(--color-divider)" }}
+      style={{ background: "var(--color-bg)", borderColor: "var(--color-divider)" }}
     >
-      <div className="px-2 py-4 text-center" style={{ fontFamily: "var(--font-heading)", fontWeight: 900, fontSize: 13 }}>
-        ウラスポ
+      {/* ロゴ: 橙の細線の地図ピン＋「ウラスポ」（見出しの明朝）。下に hairline の区切り線。 */}
+      <div
+        className="mx-3 mb-3 flex flex-col items-center gap-1.5 border-b pb-4 pt-5"
+        style={{ borderColor: "var(--color-divider)" }}
+      >
+        <LogoMark size={26} />
+        <span style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 12, letterSpacing: "0.08em" }}>
+          ウラスポ
+        </span>
       </div>
       <nav ref={containerRef} className="relative flex flex-col gap-1 px-2">
         {navItems.map((item) => {
@@ -42,10 +50,11 @@ export function SideRail({ homeCitySlug = null }: SideRailProps) {
               key={item.key}
               href={item.href}
               aria-current={active ? "page" : undefined}
-              className="flex flex-col items-center gap-1 rounded-md py-2 text-[11px]"
+              className="flex min-h-11 flex-col items-center justify-center gap-1 rounded-[var(--radius-control)] py-2 text-[12px] tracking-[0.06em]"
               style={{
-                color: active ? "var(--color-accent-700)" : "var(--color-text)",
-                background: active ? "var(--color-accent-100)" : "transparent",
+                color: active ? "var(--color-accent-700)" : "var(--color-text-muted)",
+                background: active ? "color-mix(in srgb, var(--color-accent) 8%, transparent)" : "transparent",
+                fontWeight: active ? 500 : 400,
               }}
             >
               <span ref={registerLabel(item.key)}>{item.label}</span>

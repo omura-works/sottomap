@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LogoMark } from "@/components/brand/LogoMark";
 import { Disclaimer } from "@/components/profile/Disclaimer";
 
 interface FooterLink {
@@ -24,20 +25,28 @@ const FOOTER_LINKS: readonly FooterLink[] = [
 export function SiteFooter({ demoMode = false }: { demoMode?: boolean }) {
   return (
     <footer
-      className="border-t px-4 py-6 space-y-4"
+      className="border-t px-5 pb-10 pt-8 lg:px-10 space-y-4"
       style={{ borderColor: "var(--color-divider)" }}
     >
-      <p className="m-0 text-sm" style={{ fontFamily: "var(--font-heading)", fontWeight: 700 }}>
-        ウラスポ
-      </p>
+      <div className="flex items-center gap-2">
+        <LogoMark size={20} />
+        <p className="text-sm" style={{ margin: 0, fontFamily: "var(--font-heading)", fontWeight: 700, letterSpacing: "0.08em" }}>
+          ウラスポ
+        </p>
+      </div>
       <nav aria-label="フッターリンク">
-        <ul className="flex flex-wrap gap-x-4 gap-y-1 m-0 p-0 list-none">
+        <ul className="flex flex-wrap gap-x-5 gap-y-0 m-0 p-0 list-none">
           {FOOTER_LINKS.map((link) => (
             <li key={link.href}>
               <Link
                 href={link.href}
                 className="inline-flex items-center text-sm underline"
-                style={{ minHeight: 44, textUnderlineOffset: "3px" }}
+                style={{
+                  minHeight: 44,
+                  color: "var(--color-text-muted)",
+                  textUnderlineOffset: "4px",
+                  textDecorationColor: "var(--color-line)",
+                }}
               >
                 {link.label}
               </Link>
