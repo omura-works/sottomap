@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Zen_Kaku_Gothic_New, Zen_Maru_Gothic } from "next/font/google";
+import { Zen_Kaku_Gothic_New, Zen_Old_Mincho } from "next/font/google";
 import { AppShell } from "@/components/layout/AppShell";
 import { isDemoMode } from "@/lib/supabase/env";
 import { getCurrentUserId } from "@/lib/auth";
@@ -23,9 +23,10 @@ function resolveSiteOrigin(): string | undefined {
 
 const siteOrigin = resolveSiteOrigin();
 
-// 見出し用フォント（Spec §5: 見出しは "Zen Maru Gothic"）。--font-heading に割り当てる。
-const zenMaruGothic = Zen_Maru_Gothic({
-  weight: ["400", "700", "900"],
+// 見出し用フォント（Spec §5: 見出しは "Zen Old Mincho" 700。2026-09-26 に丸ゴシックから変更）。
+// 本文の Zen Kaku Gothic New と同じ Zen ファミリーで字面・骨格がそろう明朝体。--font-heading に割り当てる。
+const zenOldMincho = Zen_Old_Mincho({
+  weight: ["400", "700"],
   subsets: ["latin"],
   display: "swap",
   variable: "--font-heading",
@@ -96,7 +97,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const showDemoBanner = shouldShowDemoBanner();
   const homeCitySlug = await resolveHomeCitySlug();
   return (
-    <html lang="ja" className={`${zenMaruGothic.variable} ${zenKakuGothicNew.variable}`}>
+    <html lang="ja" className={`${zenOldMincho.variable} ${zenKakuGothicNew.variable}`}>
       <body className="min-h-screen">
         {showDemoBanner ? (
           <p className="m-0 px-3 py-1 text-center text-xs text-muted" style={{ background: "var(--color-surface)" }}>

@@ -25,7 +25,7 @@ export function StyleguideClient() {
         <p className="text-muted text-sm">ウラスポ / スタイルガイド</p>
         <h1>デザインシステム</h1>
         <p className="text-muted">
-          docs/design-reference/design-tokens.css を移植したUIコンポーネントの一覧。配色・角丸・フォントの目視確認用。
+          UIコンポーネントの一覧（2026-09-26「落ち着いた上品なデザイン」の規則）。橙は主ボタン・選択中・ピンだけ。操作部品は高さ44px・角丸10px、カードは細線の枠・角丸14px、チップは丸い細線。
         </p>
       </header>
 
@@ -33,11 +33,11 @@ export function StyleguideClient() {
 
       <section className="space-y-3">
         <h2>タイポグラフィ</h2>
-        <h1>h1 見出し 42px / 900</h1>
-        <h2>h2 見出し 30px / 900</h2>
-        <h3>h3 見出し 22px / 700</h3>
-        <h4>h4 見出し 20px / 700</h4>
-        <p>本文テキスト。Zen Kaku Gothic New。北海道の、まだ静かな店を歩く。</p>
+        <h1>h1 見出し 明朝 700 / 28〜38px</h1>
+        <h2>h2 見出し 明朝 700 / 22〜26px</h2>
+        <h3>h3 見出し 明朝 700 / 19px</h3>
+        <h4>h4 見出し 明朝 700 / 17px</h4>
+        <p>本文テキスト。Zen Kaku Gothic New（行間 1.75）。見出しは Zen Old Mincho 700・字間 0.06em。北海道の、まだ静かな店を歩く。</p>
         <p className="text-muted">text-muted の例。地元がまだ静かだと答えた店だけです。</p>
       </section>
 
@@ -49,6 +49,7 @@ export function StyleguideClient() {
           <ColorSwatch label="bg" varName="--color-bg" />
           <ColorSwatch label="surface" varName="--color-surface" />
           <ColorSwatch label="text" varName="--color-text" dark />
+          <ColorSwatch label="text-muted" varName="--color-text-muted" dark />
           <ColorSwatch label="accent" varName="--color-accent" dark />
           <ColorSwatch label="accent-2" varName="--color-accent-2" dark />
         </div>

@@ -178,7 +178,7 @@ function ModalDialog({
       onClose={handleNativeClose}
       onPointerDown={handlePointerDown}
       onClick={handleClick}
-      className="m-auto w-[min(440px,calc(100%-2*var(--space-4)))] max-w-none border-0 bg-transparent p-0 text-inherit backdrop:bg-[color-mix(in_srgb,var(--color-neutral-900)_50%,transparent)]"
+      className="m-auto w-[min(440px,calc(100%-2*var(--space-4)))] max-w-none border-0 bg-transparent p-0 text-inherit backdrop:bg-[color-mix(in_srgb,var(--color-neutral-900)_40%,transparent)] backdrop:backdrop-blur-[2px]"
     >
       <div className={cn("dialog", className)}>
         <div id={titleId} className="dialog-title">

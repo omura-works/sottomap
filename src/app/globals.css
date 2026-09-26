@@ -1,7 +1,10 @@
 @import "tailwindcss";
 
 /* ══════════════════════════════════════════════════════════════════════════
-   デザイントークン（docs/SPEC.md §5 を一字一句そのまま移植。値の変更禁止）
+   デザイントークン（docs/SPEC.md §5。2026-09-26「落ち着いた上品なデザイン」で値と用途を整えた）
+   - 差し色の橙は「主ボタン・選択中・ピン」だけに使う。面は生成り（bg）・砂色（surface）・neutral-100。
+   - 区切り線は hairline（--color-divider）。枠を見せたい部品は --color-line（少し濃い細線）。
+   - 角丸は 8 / 10（操作部品）/ 12（カード）/ 20（大きな面）の4段。影は sm（ほぼ無し）と lg（大きくやわらか）。
    `@theme` 内の値は Tailwind のユーティリティ生成にも使われる
    （--color-接頭辞 は bg- / text- / border- 等、--radius-接頭辞 は rounded- 、
    --shadow-接頭辞 は shadow- のユーティリティを生成する）。--space-1..8 と
@@ -11,10 +14,14 @@
 @theme {
   --color-bg: #f5ead8;
   --color-surface: #ebddc5;
-  --color-text: #201e1d;
+  --color-text: #2a2622;
+  /* 補助文字（= neutral-700）。bg 上 5.5:1・surface 上 4.9:1 */
+  --color-text-muted: #645c50;
   --color-accent: #c67139;
   --color-accent-2: #7a8a5e;
-  --color-divider: color-mix(in srgb, #201e1d 16%, transparent);
+  --color-divider: color-mix(in srgb, #2a2622 11%, transparent);
+  /* 入力欄・副ボタン・チップの細線（divider より少しだけ濃い） */
+  --color-line: color-mix(in srgb, #2a2622 24%, transparent);
 
   /* neutral 100→900 */
   --color-neutral-100: #f9f4ed;
@@ -33,7 +40,8 @@
   --color-accent-300: #ffc6a5;
   --color-accent-400: #f6a06b;
   --color-accent-500: #d67f48;
-  --color-accent-600: #b2622d;
+  /* 主ボタンの塗り。neutral-100 の文字で 4.58:1（#b2622d では 4.5:1 に届かないため少し深くした） */
+  --color-accent-600: #ad5e2a;
   --color-accent-700: #8c491a;
   --color-accent-800: #643312;
   --color-accent-900: #402310;
@@ -50,12 +58,15 @@
   --color-accent-2-900: #272e1b;
 
   --radius-sm: 8px;
-  --radius-md: 16px;
-  --radius-lg: 28px;
+  /* ボタン・入力欄・セグメント（同じ高さ・同じ角丸にそろえる） */
+  --radius-control: 10px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
 
-  --shadow-sm: 0 1px 2px color-mix(in srgb, #2e2b25 14%, transparent);
-  --shadow-md: 0 3px 10px color-mix(in srgb, #2e2b25 16%, transparent);
-  --shadow-lg: 0 12px 32px color-mix(in srgb, #2e2b25 22%, transparent);
+  /* 影は2段だけ。sm/md は「ほぼ無し」の同じ段、lg はヒーロー・ダイアログの大きくやわらかい影 */
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2e2b25 6%, transparent);
+  --shadow-md: 0 1px 2px color-mix(in srgb, #2e2b25 6%, transparent), 0 8px 24px -16px color-mix(in srgb, #2e2b25 22%, transparent);
+  --shadow-lg: 0 32px 64px -32px color-mix(in srgb, #2e2b25 45%, transparent);
 }
 
 :root {
@@ -65,6 +76,15 @@
   --space-4: 17.6px;
   --space-6: 26.4px;
   --space-8: 35.2px;
+  /* セクション間の余白（mobile 56px / desktop 96px） */
+  --space-section: 56px;
+  /* タッチ対象・ボタン・入力欄の高さ */
+  --control-height: 44px;
+}
+@media (min-width: 1024px) {
+  :root {
+    --space-section: 96px;
+  }
 }
 
 /* --font-heading / --font-body は next/font/google（layout.tsx）が html 要素に
@@ -77,7 +97,7 @@
 
 /* ══════════════════════════════════════════════════════════════════════════
    基本要素（docs/design-reference/design-tokens.css の base rules を移植。
-   フォントは Spec §5 の指定どおり見出し=Zen Maru Gothic / 本文=Zen Kaku Gothic New）
+   フォントは見出し=Zen Old Mincho 700 / 本文=Zen Kaku Gothic New。見出しは字間を少し広げ、行間をゆったり）
    ══════════════════════════════════════════════════════════════════════ */
 *,
 *::before,
@@ -85,6 +105,9 @@
   box-sizing: border-box;
 }
 
+/* 要素の既定（h1〜h6・p・a など）はレイヤーの外に置いている（既存画面の余白がこれを前提に組まれているため）。
+   そのため h1〜h6・p に付けた Tailwind の余白ユーティリティ（m-0・mt-6 など）は効かない。
+   見出し・段落の余白を個別に変えるときは style の margin で指定する。 */
 html {
   text-wrap: pretty;
 }
@@ -92,9 +115,9 @@ html {
 body {
   margin: 0;
   font-size: 15px;
-  line-height: 1.55;
+  line-height: 1.75;
   font-weight: 400;
-  background: var(--color-neutral-200);
+  background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-body), system-ui, sans-serif;
   text-wrap: pretty;
@@ -106,30 +129,27 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: var(--font-heading), system-ui, sans-serif;
-  font-weight: 900;
-  line-height: 1.4;
-  letter-spacing: -0.015em;
+  font-family: var(--font-heading), serif;
+  font-weight: 700;
+  line-height: 1.55;
+  letter-spacing: 0.06em;
   margin: 0 0 var(--space-2);
   text-wrap: pretty;
 }
 h1 {
-  font-size: 42px;
-  line-height: 1.4;
+  font-size: clamp(28px, 3.4vw, 38px);
+  line-height: 1.5;
 }
 h2 {
-  font-size: 30px;
-  line-height: 1.4;
-  font-weight: 900;
+  font-size: clamp(22px, 2.6vw, 26px);
+  line-height: 1.55;
 }
 h3 {
-  font-size: 22px;
-  line-height: 1.5;
-  font-weight: 700;
+  font-size: 19px;
+  line-height: 1.6;
 }
 h4 {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 17px;
 }
 h5 {
   font-size: 16px;
@@ -137,7 +157,6 @@ h5 {
 }
 h6 {
   font-size: 13px;
-  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -158,10 +177,10 @@ figure {
 figcaption {
   font-size: 11px;
   margin-top: var(--space-1);
-  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  color: var(--color-text-muted);
 }
 .text-muted {
-  color: var(--color-neutral-700);
+  color: var(--color-text-muted);
 }
 :focus {
   outline: none;
@@ -178,292 +197,331 @@ figcaption {
   filter: saturate(0.6) contrast(0.85) brightness(1.1) opacity(0.94);
 }
 
-/* — rules — */
-.hr {
-  height: 1px;
-  border: 0;
-  margin: var(--space-4) 0;
-  background: var(--color-divider);
-}
+/* 部品のクラス（.btn・.card・.tag など）は @layer components に置き、同じ要素に付けた
+   Tailwind のユーティリティ（absolute・w-full など）が上書きできるようにする（2026-09-26）。 */
+@layer components {
+  /* — rules — */
+  .hr {
+    height: 1px;
+    border: 0;
+    margin: var(--space-6) 0;
+    background: var(--color-divider);
+  }
 
-/* — buttons — */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  cursor: pointer;
-  text-decoration: none;
-  font-family: var(--font-heading), system-ui, sans-serif;
-  font-weight: 700;
-  font-size: 14px;
-  line-height: 1.2;
-  color: var(--color-text);
-  background: transparent;
-  border: 1px solid transparent;
-  padding: var(--space-2) calc(var(--space-3) * 1.2);
-  border-radius: var(--radius-md);
-}
-.btn svg {
-  display: block;
-}
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-.btn-primary {
-  background: var(--color-accent-700);
-  color: var(--color-bg);
-}
-.btn-primary:hover {
-  background: var(--color-accent-800);
-}
-.btn-primary:active {
-  background: var(--color-accent-900);
-}
-.btn-secondary {
-  border-color: var(--color-divider);
-}
-.btn-secondary:hover {
-  background: color-mix(in srgb, var(--color-text) 7%, transparent);
-}
-.btn-secondary:active {
-  background: color-mix(in srgb, var(--color-text) 14%, transparent);
-}
-.btn-ghost {
-  color: var(--color-accent-700);
-  padding-inline: var(--space-1);
-}
-.btn-ghost:hover {
-  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
-}
-.btn-ghost:active {
-  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
-}
-.btn-icon {
-  position: relative;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-}
-/* SPEC §9.14-14: 見た目（36px）を保ったまま、タップ領域だけ44x44pxに広げる。 */
-.btn-icon::after {
-  content: "";
-  position: absolute;
-  inset: -4px;
-}
-.btn-block {
-  width: 100%;
-  margin-top: var(--space-2);
-}
+  /* — buttons —
+     主（橙の塗り）・副（細線の枠）・文字だけ の3種を、同じ高さ（44px）・同じ角丸（10px）にそろえる。 */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: var(--control-height);
+    cursor: pointer;
+    text-decoration: none;
+    font-family: var(--font-body), system-ui, sans-serif;
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 1.3;
+    letter-spacing: 0.04em;
+    color: var(--color-text);
+    background: transparent;
+    border: 1px solid transparent;
+    padding: 0 20px;
+    border-radius: var(--radius-control);
+    transition:
+      background-color 160ms ease,
+      border-color 160ms ease,
+      color 160ms ease;
+  }
+  .btn svg {
+    display: block;
+  }
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background: var(--color-accent-600);
+    border-color: var(--color-accent-600);
+    color: var(--color-neutral-100);
+  }
+  .btn-primary:hover {
+    background: var(--color-accent-700);
+    border-color: var(--color-accent-700);
+  }
+  .btn-primary:active {
+    background: var(--color-accent-800);
+    border-color: var(--color-accent-800);
+  }
+  .btn-secondary {
+    border-color: var(--color-line);
+  }
+  .btn-secondary:hover {
+    background: color-mix(in srgb, var(--color-text) 5%, transparent);
+  }
+  .btn-secondary:active {
+    background: color-mix(in srgb, var(--color-text) 10%, transparent);
+  }
+  .btn-ghost {
+    color: var(--color-accent-700);
+    padding-inline: var(--space-2);
+  }
+  .btn-ghost:hover {
+    background: color-mix(in srgb, var(--color-text) 5%, transparent);
+  }
+  .btn-ghost:active {
+    background: color-mix(in srgb, var(--color-text) 10%, transparent);
+  }
+  .btn-icon {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    min-height: 0;
+    padding: 0;
+  }
+  /* SPEC §9.14-14: 見た目（36px）を保ったまま、タップ領域だけ44x44pxに広げる。 */
+  .btn-icon::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+  }
+  .btn-block {
+    width: 100%;
+    margin-top: var(--space-2);
+  }
 
-/* — forms — */
-.field > label {
-  display: block;
-  font-size: 12px;
-  margin-bottom: 5px;
-  color: color-mix(in srgb, var(--color-text) 70%, transparent);
-}
-.field-counter {
-  font-size: 11px;
-  margin-top: 4px;
-  text-align: right;
-  color: var(--color-neutral-700);
-}
-.field-hint {
-  font-size: 12px;
-  margin-top: 4px;
-  color: var(--color-neutral-700);
-}
-.input {
-  width: 100%;
-  min-height: 36px;
-  padding: 6px 10px;
-  font: inherit;
-  font-size: 14px;
-  color: var(--color-text);
-  caret-color: var(--color-accent);
-  background: var(--color-surface);
-  border: 1px solid var(--color-divider);
-  border-radius: var(--radius-md);
-}
-.input:hover {
-  border-color: color-mix(in srgb, var(--color-text) 45%, transparent);
-}
-.input:focus-visible {
-  border-color: var(--color-accent-600);
-  outline-offset: 0;
-}
-textarea.input {
-  min-height: 90px;
-  resize: vertical;
-}
-.radio {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-size: 14px;
-}
-.radio input,
-.seg-opt input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-}
-.radio .dot {
-  width: 16px;
-  height: 16px;
-  flex: none;
-  border-radius: 50%;
-  border: 1.5px solid var(--color-divider);
-}
-.radio:hover .dot {
-  border-color: var(--color-accent-600);
-}
-.radio input:checked + .dot {
-  border-color: var(--color-accent-600);
-  background: var(--color-accent-600);
-  box-shadow: inset 0 0 0 4px var(--color-bg);
-}
-.radio input:focus-visible + .dot {
-  outline: 2px solid var(--color-accent-600);
-  outline-offset: 2px;
-}
-.seg {
-  display: inline-flex;
-  overflow: hidden;
-  border: 1px solid var(--color-divider);
-  border-radius: var(--radius-md);
-}
-.seg-opt {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 12px;
-  font-size: 13px;
-  cursor: pointer;
-}
-.seg-opt + .seg-opt {
-  border-left: 1px solid var(--color-divider);
-}
-.seg-opt:has(input:checked) {
-  background: var(--color-accent-700);
-  color: var(--color-bg);
-}
-.seg-opt:not(:has(input:checked)):hover {
-  background: color-mix(in srgb, var(--color-text) 7%, transparent);
-}
-.seg-opt:has(input:focus-visible) {
-  outline: 2px solid var(--color-accent-600);
-  outline-offset: -2px;
-}
+  /* — forms — */
+  .field > label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    margin-bottom: 6px;
+    color: var(--color-text-muted);
+  }
+  .field-counter {
+    font-size: 11px;
+    margin-top: 4px;
+    text-align: right;
+    color: var(--color-text-muted);
+  }
+  .field-hint {
+    font-size: 12px;
+    margin-top: 4px;
+    color: var(--color-text-muted);
+  }
+  .input {
+    width: 100%;
+    min-height: var(--control-height);
+    padding: 8px 14px;
+    font: inherit;
+    font-size: 15px;
+    color: var(--color-text);
+    caret-color: var(--color-accent);
+    background: var(--color-neutral-100);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-control);
+    transition:
+      border-color 160ms ease,
+      box-shadow 160ms ease;
+  }
+  .input::placeholder {
+    color: var(--color-neutral-600);
+  }
+  .input:hover {
+    border-color: color-mix(in srgb, var(--color-text) 40%, transparent);
+  }
+  /* フォーカスは橙の輪（線の色＋外側の淡い輪） */
+  .input:focus-visible {
+    border-color: var(--color-accent-600);
+    outline: 2px solid var(--color-accent-600);
+    outline-offset: 1px;
+  }
+  textarea.input {
+    min-height: 96px;
+    resize: vertical;
+  }
+  .radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .radio input,
+  .seg-opt input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+  }
+  .radio .dot {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    border-radius: 50%;
+    border: 1px solid var(--color-line);
+  }
+  .radio:hover .dot {
+    border-color: var(--color-accent-600);
+  }
+  .radio input:checked + .dot {
+    border-color: var(--color-accent-600);
+    background: var(--color-accent-600);
+    box-shadow: inset 0 0 0 4px var(--color-bg);
+  }
+  .radio input:focus-visible + .dot {
+    outline: 2px solid var(--color-accent-600);
+    outline-offset: 2px;
+  }
+  .seg {
+    display: inline-flex;
+    overflow: hidden;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-control);
+  }
+  .seg-opt {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: calc(var(--control-height) - 2px);
+    min-width: 44px;
+    padding: 0 16px;
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: background-color 160ms ease;
+  }
+  .seg-opt + .seg-opt {
+    border-left: 1px solid var(--color-line);
+  }
+  .seg-opt:has(input:checked) {
+    background: var(--color-accent-600);
+    color: var(--color-neutral-100);
+  }
+  .seg-opt:not(:has(input:checked)):hover {
+    background: color-mix(in srgb, var(--color-text) 5%, transparent);
+  }
+  .seg-opt:has(input:focus-visible) {
+    outline: 2px solid var(--color-accent-600);
+    outline-offset: -2px;
+  }
 
-/* — cards — */
-.card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-}
-.card-kicker {
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--color-accent-700);
-}
-.card-title {
-  font-family: var(--font-heading), system-ui, sans-serif;
-  font-weight: 900;
-  font-size: 17px;
-  line-height: 1.2;
-}
-.card-body {
-  margin: 0;
-  font-size: 13px;
-  opacity: 0.8;
-  flex: 1;
-}
-.card-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--color-neutral-700);
-}
-.elev-sm {
-  box-shadow: var(--shadow-sm);
-}
-.elev-md {
-  box-shadow: var(--shadow-md);
-}
-.elev-lg {
-  box-shadow: var(--shadow-lg);
-}
+  /* — cards — 生成りの面・細線の枠・影ほぼ無し — */
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: 20px;
+    border: 1px solid var(--color-divider);
+    border-radius: 14px;
+    background: var(--color-neutral-100);
+  }
+  .card-kicker {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+  .card-title {
+    font-family: var(--font-heading), serif;
+    font-weight: 700;
+    font-size: 17px;
+    line-height: 1.5;
+    letter-spacing: 0.04em;
+  }
+  .card-body {
+    margin: 0;
+    font-size: 14px;
+    color: color-mix(in srgb, var(--color-text) 82%, var(--color-neutral-100));
+    flex: 1;
+  }
+  .card-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--color-text-muted);
+  }
+  .elev-sm {
+    box-shadow: var(--shadow-sm);
+  }
+  .elev-md {
+    box-shadow: var(--shadow-md);
+  }
+  .elev-lg {
+    box-shadow: var(--shadow-lg);
+  }
 
-/* — tags — */
-.tag {
-  display: inline-flex;
-  align-items: center;
-  font-size: 11px;
-  letter-spacing: 0.02em;
-  padding: 3px 10px;
-  border-radius: calc(var(--radius-md) * 0.75);
-}
-/* SPEC §9.14-14: タグを button（as="button"）で使う場合だけ、見た目を保ったまま
-   タップ領域を44x44px以上に広げる（span のタグは非対話なので対象外）。 */
-button.tag {
-  position: relative;
-}
-button.tag::after {
-  content: "";
-  position: absolute;
-  inset: -11px;
-}
-/* SPEC §9.14-14: FilterChips は、見た目のタグ（span）を 44×44px 以上の透明なボタンで包む。
-   疑似要素で広げると gap:6px の隣接チップと判定が重なるため、ボタン自体の大きさで確保する。 */
-.chip-hit {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-}
-.chip-hit:focus-visible {
-  outline: none;
-}
-.chip-hit:focus-visible .tag {
-  outline: 2px solid var(--color-accent-600);
-  outline-offset: 2px;
-}
-.tag-accent {
-  background: var(--color-accent-100);
-  color: var(--color-accent-800);
-}
-.tag-accent-2 {
-  background: var(--color-accent-2-100);
-  color: var(--color-accent-2-800);
-}
-.tag-neutral {
-  background: var(--color-neutral-100);
-  color: var(--color-neutral-800);
-}
-.tag-outline {
-  border: 1px solid var(--color-accent-600);
-  color: var(--color-accent-700);
-}
-/* .tag-selected は CONTRACT の Tag `selected` prop 用に追加した拡張クラス
-   （原本 design-tokens.css には無い）。kind の見た目の上から選択状態を示す。 */
-.tag-selected {
-  box-shadow: 0 0 0 1.5px var(--color-accent-600) inset;
+  /* — tags — 丸い細線のチップ — */
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    line-height: 1.5;
+    letter-spacing: 0.04em;
+    padding: 3px 12px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+  }
+  /* SPEC §9.14-14: タグを button（as="button"）で使う場合だけ、見た目を保ったまま
+     タップ領域を44x44px以上に広げる（span のタグは非対話なので対象外）。 */
+  button.tag {
+    position: relative;
+  }
+  button.tag::after {
+    content: "";
+    position: absolute;
+    inset: -11px;
+  }
+  /* SPEC §9.14-14: FilterChips は、見た目のタグ（span）を 44×44px 以上の透明なボタンで包む。
+     疑似要素で広げると gap:6px の隣接チップと判定が重なるため、ボタン自体の大きさで確保する。 */
+  .chip-hit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+  .chip-hit:focus-visible {
+    outline: none;
+  }
+  .chip-hit:focus-visible .tag {
+    outline: 2px solid var(--color-accent-600);
+    outline-offset: 2px;
+  }
+  .tag-accent {
+    background: var(--color-accent-100);
+    border-color: color-mix(in srgb, var(--color-accent-600) 45%, transparent);
+    color: var(--color-accent-800);
+  }
+  .tag-accent-2 {
+    background: var(--color-accent-2-100);
+    border-color: color-mix(in srgb, var(--color-accent-2-600) 35%, transparent);
+    color: var(--color-accent-2-800);
+  }
+  .tag-neutral {
+    background: var(--color-neutral-100);
+    border-color: var(--color-divider);
+    color: var(--color-neutral-800);
+  }
+  /* 選ばれていないチップ。橙は選択中だけに使うため、枠は中立の細線 */
+  .tag-outline {
+    border-color: var(--color-line);
+    color: var(--color-text);
+  }
+  /* .tag-selected は CONTRACT の Tag `selected` prop 用に追加した拡張クラス
+     （原本 design-tokens.css には無い）。kind の見た目の上から選択状態を示す。 */
+  .tag-selected {
+    border-color: var(--color-accent-600);
+    box-shadow: 0 0 0 0.5px var(--color-accent-600) inset;
+  }
 }
 
 /* — map — */
@@ -475,103 +533,99 @@ button.tag::after {
   inset: -7px;
 }
 
-/* — navigation — */
-.nav {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  border-bottom: none;
-}
-.nav-brand {
-  font-family: var(--font-heading), system-ui, sans-serif;
-  font-weight: 900;
-  font-size: 18px;
-  margin-right: auto;
-}
-.nav a {
-  color: inherit;
-  text-decoration: none;
-  font-size: 14px;
-}
-.nav a:hover,
-.nav a[aria-current="page"] {
-  color: var(--color-accent-700);
-}
+@layer components {
+  /* — navigation — */
+  .nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-divider);
+  }
+  .nav-brand {
+    font-family: var(--font-heading), serif;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: 0.08em;
+    margin-right: auto;
+  }
+  .nav a {
+    color: inherit;
+    text-decoration: none;
+    font-size: 14px;
+  }
+  .nav a:hover,
+  .nav a[aria-current="page"] {
+    color: var(--color-accent-700);
+  }
 
-/* — tables — */
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-.table th {
-  text-align: left;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--color-text) 60%, transparent);
-  padding: var(--space-2);
-  border-bottom: 1px solid var(--color-divider);
-}
-.table td {
-  padding: var(--space-2);
-  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
-}
-.table tbody tr:hover {
-  background: color-mix(in srgb, var(--color-text) 4%, transparent);
-}
+  /* — tables — */
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .table th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-divider);
+  }
+  .table td {
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--color-divider);
+  }
+  .table tbody tr:hover {
+    background: color-mix(in srgb, var(--color-text) 3%, transparent);
+  }
 
-/* — dialog — */
-.dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: var(--space-4);
-  background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
-  z-index: 50;
-}
-.dialog {
-  width: min(440px, 100%);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-lg);
-}
-.dialog-title {
-  font-family: var(--font-heading), system-ui, sans-serif;
-  font-weight: 900;
-  font-size: 20px;
-}
-.dialog-body {
-  font-size: 14px;
-  opacity: 0.85;
-}
-.dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-}
+  /* — dialog — */
+  .dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: var(--space-4);
+    background: color-mix(in srgb, var(--color-neutral-900) 40%, transparent);
+    z-index: 50;
+  }
+  .dialog {
+    width: min(440px, 100%);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: 28px;
+    border: 1px solid var(--color-divider);
+    border-radius: var(--radius-lg);
+    background: var(--color-neutral-100);
+    box-shadow: var(--shadow-lg);
+  }
+  .dialog-title {
+    font-family: var(--font-heading), serif;
+    font-weight: 700;
+    font-size: 19px;
+    line-height: 1.6;
+    letter-spacing: 0.05em;
+  }
+  .dialog-body {
+    font-size: 14px;
+    color: color-mix(in srgb, var(--color-text) 85%, var(--color-neutral-100));
+  }
+  .dialog-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+  }
 
-/* — 丸みの規則（原本の最終上書き。Spec §5「丸みの規則」）—
-   card/dialog はより大きい角丸に、btn/tag/seg/input は完全ピルに上書きする。 */
-.card,
-.dialog {
-  border-radius: calc(var(--radius-lg) * 1.15);
-}
-.btn,
-.tag,
-.seg,
-.input {
-  border-radius: 999px;
-}
-.input {
-  padding-inline: 14px;
+  /* — 丸みの規則（2026-09-26 に刷新。SPEC §5「丸みの規則」）—
+     操作部品（btn / seg / input）= 10px、チップ（tag）= 丸、カード = 14px、ダイアログ・大きな面 = 20px。
+     各部品の定義側で指定済み。ここでは上書きしない。 */
 }
 
 /* 街の地図: 右上に重なる「栞」の丸ボタン（上端 12px＋高さ 36px 程度）の下にズームボタンを置く。 */
@@ -684,7 +738,7 @@ button.tag::after {
   left: 0;
   width: 100px;
   height: 2px;
-  background: var(--color-accent-700);
+  background: var(--color-accent-600);
   transform-origin: 0 0;
   pointer-events: none;
 }
