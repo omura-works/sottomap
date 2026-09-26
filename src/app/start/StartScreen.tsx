@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { unstable_rethrow, useRouter } from "next/navigation";
+import { LogoMark } from "@/components/brand/LogoMark";
 import { AnimatedCounter } from "@/components/ui";
 import { saveHomeCityAction } from "@/app/actions/start";
 import "./start.css";
@@ -31,17 +32,17 @@ const STEPS = [
 
 const STEP_INTERVAL_MS = 2800;
 
-/** 夜の導入に散らす灯り（位置は決め打ちで、描画ごとに変わらない）。 */
-const LIGHTS = Array.from({ length: 34 }, (_, i) => ({
-  left: (i * 37 + 11) % 100,
-  top: 38 + ((i * 53) % 55),
-  size: 3 + (i % 4),
+/** 夜の導入（暗い角丸カード）に散らす小さな灯り（位置は決め打ちで、描画ごとに変わらない）。 */
+const LIGHTS = Array.from({ length: 16 }, (_, i) => ({
+  left: 4 + ((i * 37 + 11) % 92),
+  top: 8 + ((i * 53) % 84),
+  size: 2 + (i % 3),
   delay: (i % 9) * 0.45,
   warm: i % 3 !== 0,
 }));
 
 /**
- * S1「街を選ぶ」（SPEC §9.15 案B「灯りのともる夜」）。
+ * S1「街を選ぶ」（SPEC §9.15 案B「灯りのともる夜」。2026-09-26 に暗い角丸カードのヒーローへ収めた）。
  * 街ごとの実データ（公開ピン数・今週確認された店）はサーバー側で事前に
  * まとめて取得し（`page.tsx`）、街チップの切り替えは追加の通信なしで即座に切り替える。
  */
@@ -79,10 +80,10 @@ export function StartScreen({
         style={{ background: "var(--color-bg)" }}
       >
         <div>
-          <h1 className="m-0 text-xs tracking-[0.3em]" style={{ color: "var(--color-neutral-600)" }}>
+          <h1 className="tracking-[0.3em]" style={{ margin: 0, fontSize: "0.75rem", color: "var(--color-neutral-600)" }}>
             ウラスポ
           </h1>
-          <p className="m-0 mt-4" style={{ color: "var(--color-neutral-800)" }}>
+          <p style={{ margin: "16px 0 0", color: "var(--color-neutral-800)" }}>
             まだ街が準備されていません。しばらくしてからもう一度お試しください。
           </p>
         </div>
@@ -115,181 +116,235 @@ export function StartScreen({
       // SPEC §9.12-2: /start は下部タブを持たないが、端末のホームインジケータに末尾の注記が隠れないよう余白を取る。
       style={{ background: "var(--color-bg)", paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}
     >
-      <section
-        className="relative overflow-hidden"
-        style={{
-          background: "linear-gradient(180deg, var(--color-neutral-900) 0%, var(--color-accent-900) 100%)",
-          color: "var(--color-neutral-100)",
-        }}
-      >
-        {/* Codex R8 重要4: 灯りの明滅・下の手順巡回を両方止められる切り替え（44px以上、控えめな見た目）。 */}
-        <button
-          type="button"
-          aria-pressed={motionPaused}
-          onClick={toggleMotion}
-          className="start-motion-toggle absolute right-3 top-3 z-10"
-        >
-          {motionPaused ? "動きを再開する" : "動きを止める"}
-        </button>
-
-        <div aria-hidden className="absolute inset-0">
-          {LIGHTS.map((light, i) => (
-            <span
-              key={i}
-              className="start-light absolute rounded-full"
-              style={{
-                left: `${light.left}%`,
-                top: `${light.top}%`,
-                width: light.size,
-                height: light.size,
-                animationDelay: `${light.delay}s`,
-                background: light.warm ? "var(--color-accent-300)" : "var(--color-accent-2-300)",
-                boxShadow: `0 0 ${light.size * 4}px ${light.size}px ${
-                  light.warm
-                    ? "color-mix(in srgb, var(--color-accent-400) 55%, transparent)"
-                    : "color-mix(in srgb, var(--color-accent-2-400) 45%, transparent)"
-                }`,
-              }}
-            />
-          ))}
-          {/* 稜線（明るい面へのつなぎ） */}
-          <svg className="absolute inset-x-0 bottom-0 h-24 w-full" viewBox="0 0 1200 100" preserveAspectRatio="none">
-            <path
-              d="M0 70 L140 42 L260 60 L420 22 L560 55 L700 34 L860 62 L1000 28 L1200 58 L1200 100 L0 100 Z"
-              fill="var(--color-bg)"
-            />
-          </svg>
-        </div>
-
-        <div className="relative mx-auto max-w-5xl px-5 pb-28 pt-12 lg:px-10 lg:pb-36 lg:pt-20">
-          <p className="m-0 text-xs tracking-[0.3em]" style={{ color: "var(--color-accent-300)" }}>
+      {/* ヘッダー（高さ72px・下に hairline）: 橙の細線の地図ピン＋「ウラスポ」 */}
+      <div className="border-b" style={{ borderColor: "var(--color-divider)" }}>
+        <div className="mx-auto flex h-[72px] max-w-6xl items-center gap-2.5 px-5 lg:px-10">
+          <LogoMark size={26} />
+          <p style={{ margin: 0, fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 17, letterSpacing: "0.1em" }}>
             ウラスポ
           </p>
-          <h1
-            className="font-heading m-0 mt-4"
-            style={{
-              fontSize: "clamp(2.2rem, 5.6vw, 3.9rem)",
-              fontWeight: 900,
-              lineHeight: 1.2,
-              color: "var(--color-neutral-100)",
-            }}
-          >
-            北海道の、まだ静かな店を歩く
-          </h1>
-          <p className="m-0 mt-4 max-w-lg" style={{ color: "var(--color-neutral-300)" }}>
-            住んでいる人が残した店だけを見せます。まだ静かなところから。
-          </p>
-
-          {/* 軽微1: 街を切り替えたときに件数の文章全体を読み上げる（AnimatedCounterのsr-only数字と
-              二重にならないよう、この文の外側だけに aria-live を付ける）。 */}
-          <p className="m-0 mt-10 flex flex-wrap items-baseline gap-x-3 gap-y-1" aria-live="polite" aria-atomic="true">
-            <span className="text-sm" style={{ color: "var(--color-neutral-300)" }}>
-              {selectedCity.name}には、地元が確認したピンが
-            </span>
-            <span
-              className="font-heading tabular-nums"
-              style={{
-                fontSize: "clamp(3.2rem, 9vw, 5.5rem)",
-                fontWeight: 900,
-                lineHeight: 1,
-                color: "var(--color-accent-300)",
-              }}
-            >
-              {/* SPEC §9.15-1: 街を切り替えると数字が回って変わる（Rare UI の AnimatedCounter） */}
-              <AnimatedCounter value={selectedData.publishedCount} />
-            </span>
-            <span className="text-sm" style={{ color: "var(--color-neutral-300)" }}>
-              件あります。
-            </span>
-          </p>
         </div>
-      </section>
+      </div>
 
-      <div className="mx-auto max-w-5xl px-5 lg:px-10">
+      <div className="mx-auto max-w-6xl px-4 pt-6 sm:px-5 lg:px-10 lg:pt-10">
+        {/* SPEC §9.15-1 夜の導入: 暗い角丸カードに、細い地図の線・光のにじみ・灯りの点 */}
         <section
-          aria-labelledby="start-choose-city"
-          className="relative -mt-10 rounded-[var(--radius-lg)] p-5 lg:p-8"
-          style={{ background: "var(--color-neutral-100)", boxShadow: "var(--shadow-lg)" }}
+          className="start-hero relative overflow-hidden"
+          style={{
+            borderRadius: "var(--radius-lg)",
+            background: "var(--color-neutral-900)",
+            color: "var(--color-neutral-100)",
+            boxShadow: "var(--shadow-lg)",
+          }}
         >
-          <h2 id="start-choose-city" className="m-0 font-heading" style={{ fontSize: "1.1rem", fontWeight: 700 }}>
-            どの街を歩きますか
-          </h2>
-          <div role="group" aria-label="街を選ぶ" className="mt-3 flex flex-wrap gap-x-1.5">
-            {cities.map((city) => {
-              const active = city.slug === selectedSlug;
-              return (
-                // SPEC §9.14-14: 見た目のチップを 44px 以上の透明なボタンで包む
-                <button
-                  key={city.slug}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => setSelectedSlug(city.slug)}
-                  className="start-city-chip inline-flex items-center"
-                >
-                  <span
-                    className="rounded-full px-4 py-1.5 text-sm"
-                    style={{
-                      background: active ? "var(--color-neutral-900)" : "transparent",
-                      color: active ? "var(--color-accent-200)" : "var(--color-neutral-800)",
-                      border: `1px solid ${active ? "var(--color-neutral-900)" : "var(--color-neutral-600)"}`,
-                    }}
-                  >
-                    {city.name}
-                  </span>
-                </button>
-              );
-            })}
+          {/* Codex R8 重要4: 灯りの明滅・下の手順巡回を両方止められる切り替え（44px以上、控えめな見た目）。 */}
+          <button
+            type="button"
+            aria-pressed={motionPaused}
+            onClick={toggleMotion}
+            className="start-motion-toggle absolute right-3 top-3 z-10 lg:right-5 lg:top-5"
+          >
+            {motionPaused ? "動きを再開する" : "動きを止める"}
+          </button>
+
+          <div aria-hidden className="pointer-events-none absolute inset-0">
+            {/* 光のにじみ（暖色2つ） */}
+            <span className="start-glow start-glow-a" />
+            <span className="start-glow start-glow-b" />
+            {/* 細く薄い地図の道の線 */}
+            <svg
+              className="absolute inset-0 h-full w-full"
+              viewBox="0 0 1200 720"
+              preserveAspectRatio="xMidYMid slice"
+              fill="none"
+              stroke="var(--color-neutral-100)"
+              strokeLinecap="round"
+            >
+              <path d="M-40 560 L420 260 L760 150 L1260 -40" strokeWidth="1.2" strokeOpacity="0.14" />
+              <path d="M-60 330 L300 470 L620 520 L1260 760" strokeWidth="1" strokeOpacity="0.1" />
+              <path d="M180 -40 L360 300 L470 760" strokeWidth="1" strokeOpacity="0.09" />
+              <path d="M700 -40 L820 260 L1000 420 L1260 470" strokeWidth="1" strokeOpacity="0.1" />
+              <path d="M560 760 L780 470 L1040 300 L1260 250" strokeWidth="0.8" strokeOpacity="0.08" />
+              <path d="M-40 120 C 180 160, 300 90, 520 130 S 860 60, 1260 110" strokeWidth="0.8" strokeOpacity="0.07" />
+            </svg>
+            {LIGHTS.map((light, i) => (
+              <span
+                key={i}
+                className="start-light absolute rounded-full"
+                style={{
+                  left: `${light.left}%`,
+                  top: `${light.top}%`,
+                  width: light.size,
+                  height: light.size,
+                  animationDelay: `${light.delay}s`,
+                  background: light.warm ? "var(--color-accent-400)" : "var(--color-neutral-100)",
+                  boxShadow: `0 0 ${light.size * 3}px ${light.size * 0.6}px ${
+                    light.warm
+                      ? "color-mix(in srgb, var(--color-accent-400) 45%, transparent)"
+                      : "color-mix(in srgb, var(--color-neutral-100) 30%, transparent)"
+                  }`,
+                }}
+              />
+            ))}
           </div>
 
-          <div className="mt-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="relative grid gap-10 px-6 pb-10 pt-16 sm:px-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-16 lg:px-16 lg:py-20">
             <div>
-              <h3 className="m-0 text-sm" style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--color-neutral-700)" }}>
+              {/* 見出しの上の短い細線のアクセント */}
+              <span aria-hidden className="block h-px w-6" style={{ background: "var(--color-accent-400)" }} />
+              <h1
+                className="font-heading"
+                style={{
+                  margin: "24px 0 0",
+                  fontSize: "clamp(1.85rem, 4vw, 3rem)",
+                  fontWeight: 700,
+                  lineHeight: 1.5,
+                  letterSpacing: "0.06em",
+                  color: "var(--color-neutral-100)",
+                }}
+              >
+                {/* 行の切れ目を「北海道の、／まだ静かな店を歩く」にそろえる（読み上げは一続きのまま） */}
+                <span className="inline-block">北海道の、</span>
+                <span className="inline-block">まだ静かな店を歩く</span>
+              </h1>
+              <p className="max-w-xl" style={{ margin: "20px 0 0", color: "var(--color-neutral-300)", lineHeight: 1.9 }}>
+                住んでいる人が残した店だけを見せます。まだ静かなところから。
+              </p>
+
+              {/* 軽微1: 街を切り替えたときに件数の文章全体を読み上げる（AnimatedCounterのsr-only数字と
+                  二重にならないよう、この文の外側だけに aria-live を付ける）。 */}
+              <p
+                className="flex flex-wrap items-baseline gap-x-3 gap-y-1"
+                style={{ margin: "40px 0 0" }}
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                <span className="text-sm" style={{ color: "var(--color-neutral-300)" }}>
+                  {selectedCity.name}には、地元が確認したピンが
+                </span>
+                <span
+                  className="font-heading tabular-nums"
+                  style={{
+                    fontSize: "clamp(2.8rem, 7vw, 4.5rem)",
+                    fontWeight: 700,
+                    lineHeight: 1,
+                    color: "var(--color-accent-300)",
+                  }}
+                >
+                  {/* SPEC §9.15-1: 街を切り替えると数字が回って変わる（Rare UI の AnimatedCounter） */}
+                  <AnimatedCounter value={selectedData.publishedCount} />
+                </span>
+                <span className="text-sm" style={{ color: "var(--color-neutral-300)" }}>
+                  件あります。
+                </span>
+              </p>
+            </div>
+
+            {/* SPEC §9.15-2 街を選ぶ: カードの中、細線で区切った右（モバイルは下）に置く */}
+            <section
+              aria-labelledby="start-choose-city"
+              className="border-t pt-8 lg:border-l lg:border-t-0 lg:pl-16 lg:pt-0"
+              style={{ borderColor: "color-mix(in srgb, var(--color-neutral-100) 14%, transparent)" }}
+            >
+              <h2
+                id="start-choose-city"
+                className="font-heading"
+                style={{ margin: 0, fontSize: "1.15rem", fontWeight: 700, letterSpacing: "0.06em", color: "var(--color-neutral-100)" }}
+              >
+                どの街を歩きますか
+              </h2>
+              <div role="group" aria-label="街を選ぶ" className="mt-3 flex flex-wrap gap-x-1.5">
+                {cities.map((city) => {
+                  const active = city.slug === selectedSlug;
+                  return (
+                    // SPEC §9.14-14: 見た目のチップを 44px 以上の透明なボタンで包む
+                    <button
+                      key={city.slug}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setSelectedSlug(city.slug)}
+                      className="start-city-chip inline-flex items-center"
+                    >
+                      <span
+                        className="rounded-full px-4 py-1.5 text-sm tracking-[0.04em]"
+                        style={{
+                          background: active ? "var(--color-accent-600)" : "transparent",
+                          color: active ? "var(--color-neutral-100)" : "var(--color-neutral-200)",
+                          border: `1px solid ${
+                            active
+                              ? "var(--color-accent-600)"
+                              : "color-mix(in srgb, var(--color-neutral-100) 32%, transparent)"
+                          }`,
+                        }}
+                      >
+                        {city.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <h3
+                style={{
+                  margin: "32px 0 0",
+                  fontSize: "0.8125rem",
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  color: "var(--color-neutral-300)",
+                }}
+              >
                 今週、静けさが確認された店
               </h3>
               {selectedData.recentlyVerified.length > 0 ? (
-                <ul className="m-0 mt-2 flex list-none flex-col gap-1 p-0 text-sm" style={{ color: "var(--color-neutral-800)" }}>
+                <ul className="m-0 mt-3 flex list-none flex-col gap-1.5 p-0 text-sm" style={{ color: "var(--color-neutral-100)" }}>
                   {selectedData.recentlyVerified.map((item) => (
                     <li key={item.spotId}>
-                      <span aria-hidden style={{ color: "var(--color-accent-2-700)" }}>
+                      <span aria-hidden style={{ color: "var(--color-accent-2-300)" }}>
                         ●{" "}
                       </span>
                       {item.spotName}
-                      <span className="ml-2 text-xs" style={{ color: "var(--color-neutral-700)" }}>
+                      <span className="ml-2 text-xs" style={{ color: "var(--color-neutral-400)" }}>
                         今週 {item.verifierCount}人が確認
                       </span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="m-0 mt-2 text-sm" style={{ color: "var(--color-neutral-700)" }}>
+                <p className="text-sm" style={{ margin: "12px 0 0", color: "var(--color-neutral-300)" }}>
                   今週はまだ確認がありません。
                 </p>
               )}
-            </div>
-            <div className="lg:text-right">
-              <button
-                type="button"
-                onClick={startWalking}
-                disabled={isStarting}
-                className="btn btn-primary w-full lg:w-auto"
-                style={{ minHeight: 52, paddingInline: 32, fontSize: "1rem" }}
-              >
-                歩きはじめる
-              </button>
-              {errorMessage ? (
-                <p role="alert" className="m-0 mt-2 text-sm" style={{ color: "var(--color-accent-700)" }}>
-                  {errorMessage}
-                </p>
-              ) : null}
-            </div>
+
+              <div className="mt-8">
+                <button
+                  type="button"
+                  onClick={startWalking}
+                  disabled={isStarting}
+                  className="btn btn-primary w-full lg:w-auto"
+                  style={{ minHeight: 52, paddingInline: 36, fontSize: "0.9375rem" }}
+                >
+                  歩きはじめる
+                </button>
+                {errorMessage ? (
+                  <p role="alert" className="text-sm" style={{ margin: "8px 0 0", color: "var(--color-accent-300)" }}>
+                    {errorMessage}
+                  </p>
+                ) : null}
+              </div>
+            </section>
           </div>
         </section>
 
-        <section aria-labelledby="start-how" className="mt-16">
-          <h2 id="start-how" className="m-0 font-heading" style={{ fontSize: "1.1rem", fontWeight: 700 }}>
+        <section aria-labelledby="start-how" style={{ marginTop: "var(--space-section)" }}>
+          <span aria-hidden className="block h-px w-6" style={{ background: "var(--color-accent)" }} />
+          <h2
+            id="start-how"
+            className="font-heading"
+            style={{ margin: "16px 0 0", fontSize: "1.25rem", fontWeight: 700, letterSpacing: "0.06em" }}
+          >
             静けさは、こうして保たれます
           </h2>
-          <ol className="m-0 mt-5 grid list-none gap-4 p-0 lg:grid-cols-3">
+          <ol className="m-0 mt-6 grid list-none gap-4 p-0 lg:grid-cols-3 lg:gap-5">
             {STEPS.map((step, i) => {
               const on = i === activeStep;
               return (
@@ -297,31 +352,37 @@ export function StartScreen({
                   key={step.title}
                   className="relative overflow-hidden transition-colors duration-500"
                   style={{
-                    padding: "18px 18px 20px",
-                    borderRadius: "var(--radius-md)",
+                    padding: "22px 22px 24px",
+                    borderRadius: 14,
+                    // 灯っている手順だけ、ごく淡い橙（accent-100）の面にする（選択中の扱い）
                     background: on ? "var(--color-accent-100)" : "var(--color-neutral-100)",
-                    border: `1px solid ${on ? "var(--color-accent-500)" : "var(--color-neutral-300)"}`,
+                    border: `1px solid ${on ? "color-mix(in srgb, var(--color-accent-600) 55%, transparent)" : "var(--color-divider)"}`,
                   }}
                 >
                   <span
                     aria-hidden
                     className="font-heading tabular-nums"
-                    style={{ fontSize: "2rem", fontWeight: 900, color: on ? "var(--color-accent-700)" : "var(--color-neutral-600)" }}
+                    style={{
+                      fontSize: "1.75rem",
+                      fontWeight: 700,
+                      lineHeight: 1.2,
+                      color: on ? "var(--color-accent-600)" : "var(--color-neutral-500)",
+                    }}
                   >
                     {i + 1}
                   </span>
-                  <h3 className="m-0 mt-1 font-heading" style={{ fontSize: "1rem", fontWeight: 700 }}>
+                  <h3 className="font-heading" style={{ margin: "8px 0 0", fontSize: "1rem", fontWeight: 700, letterSpacing: "0.05em" }}>
                     {step.title}
                   </h3>
-                  <p className="m-0 mt-1 text-sm" style={{ color: "var(--color-neutral-700)" }}>
+                  <p className="text-sm" style={{ margin: "6px 0 0", color: "var(--color-text-muted)", lineHeight: 1.8 }}>
                     {step.body}
                   </p>
                   <span
                     aria-hidden
-                    className="absolute bottom-0 left-0 h-1"
+                    className="absolute bottom-0 left-0 h-0.5"
                     style={{
                       width: on ? "100%" : "0%",
-                      background: "var(--color-accent-500)",
+                      background: "var(--color-accent-600)",
                       // Codex R9 重要4・R10 重要3: 実効状態が停止なら幅アニメーションもしない
                       // （transitionを切り、途中の遷移で止まらないようにする）。
                       transition: on && !effectivePaused ? `width ${STEP_INTERVAL_MS}ms linear` : "none",

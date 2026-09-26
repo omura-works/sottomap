@@ -1,4 +1,4 @@
-/* S1 トップ画面（SPEC §9.15 案B）専用のスタイル */
+/* S1 トップ画面（SPEC §9.15 案B。暗い角丸カードのヒーロー）専用のスタイル */
 @keyframes start-light-glow {
   0%,
   100% {
@@ -37,22 +37,51 @@
   animation: start-light-glow 4.2s ease-in-out infinite;
 }
 
-/* 見た目は控えめ（縁取りのみの小さな文字）だが、当たり判定は44px以上（SPEC §9.14-14）。 */
+/* 見た目は控えめ（細線の枠の小さな文字）だが、当たり判定は44px以上（SPEC §9.14-14）。 */
 .start-screen .start-motion-toggle {
   min-width: 44px;
   min-height: 44px;
-  padding: 0 12px;
-  border-radius: var(--radius-md);
-  border: 1px solid color-mix(in srgb, var(--color-neutral-100) 35%, transparent);
-  background: color-mix(in srgb, var(--color-neutral-900) 55%, transparent);
+  padding: 0 14px;
+  border-radius: var(--radius-control);
+  border: 1px solid color-mix(in srgb, var(--color-neutral-100) 22%, transparent);
+  background: color-mix(in srgb, var(--color-neutral-900) 60%, transparent);
   color: var(--color-neutral-300);
   font-size: 0.75rem;
+  letter-spacing: 0.04em;
   cursor: pointer;
 }
 
 .start-screen .start-motion-toggle:focus-visible {
   outline: 2px solid var(--color-accent-300);
   outline-offset: 2px;
+}
+
+/* ヒーローの「ぼんやりした暖色の光のにじみ」（2つ。動かさない装飾） */
+.start-screen .start-glow {
+  position: absolute;
+  border-radius: 999px;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--color-accent-500) 38%, transparent),
+    transparent
+  );
+}
+.start-screen .start-glow-a {
+  width: 560px;
+  height: 560px;
+  right: -140px;
+  top: -200px;
+}
+.start-screen .start-glow-b {
+  width: 460px;
+  height: 460px;
+  left: -160px;
+  bottom: -220px;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--color-accent-300) 22%, transparent),
+    transparent
+  );
 }
 
 /* SPEC §9.14-14: 当たり判定は透明なボタン全体（44px 以上）。見た目のチップは中の span */
