@@ -1,34 +1,16 @@
 import { ImageResponse } from "next/og";
+import { loadOgFont } from "./_og/og-font";
 
-// OGP画像（2026-09-26 の「落ち着いた上品なデザイン」: 焦げ茶の面・橙の細線のピン・生成りの明朝の見出し）。
+// OGP画像（2026-09-26 の「落ち着いた上品なデザイン」: 焦げ茶の面・橙の細線のピン・生成りの見出し。書体はサイトと同じもの（src/app/_og/og-font.ts））。
 // 色は docs/SPEC.md §5 のトークン: neutral-900 #2e2b25 / bg #f5ead8 / accent #c67139 / accent-500 #d67f48 /
 // accent-400 #f6a06b / neutral-400 #c0b6a5。
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const alt = "ウラスポ 北海道の、まだ静かな店を歩く";
 
-const HEADING_TEXT = "ウラスポ北海道の、まだ静かな店を歩く";
-
-/**
- * 見出しの Zen Old Mincho 700 を、画像に使う文字だけ取り出して読み込む（next/font と同じ Google Fonts。ビルド時に1回）。
- * 取れなければ既定の書体のまま描く（画像の生成は止めない）。
- */
-async function loadHeadingFont(): Promise<ArrayBuffer | null> {
-  try {
-    const cssUrl = `https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@700&text=${encodeURIComponent(HEADING_TEXT)}`;
-    const css = await (await fetch(cssUrl)).text();
-    const match = css.match(/src: url\((.+?)\) format\('(?:opentype|truetype)'\)/);
-    if (!match) return null;
-    const response = await fetch(match[1]);
-    return response.ok ? await response.arrayBuffer() : null;
-  } catch {
-    return null;
-  }
-}
-
 export default async function OpengraphImage() {
-  const headingFont = await loadHeadingFont();
-  const fontFamily = headingFont ? "Zen Old Mincho" : "serif";
+  // 書体はリポジトリに同梱したファイルから読む（ネットワークに頼らない。src/app/_og/og-font.ts）
+  const font = await loadOgFont();
 
   return new ImageResponse(
     (
@@ -40,7 +22,7 @@ export default async function OpengraphImage() {
           position: "relative",
           background: "#2e2b25",
           color: "#f5ead8",
-          fontFamily,
+          fontFamily: font.name,
         }}
       >
         {/* 右上の暖色の光のにじみと、灯りの点 */}
@@ -81,7 +63,7 @@ export default async function OpengraphImage() {
               />
               <circle cx={32} cy={27} r={3.4} fill="#f6a06b" />
             </svg>
-            <div style={{ display: "flex", fontSize: 34, fontWeight: 700, letterSpacing: 8 }}>ウラスポ</div>
+            <div style={{ display: "flex", fontSize: 34, fontWeight: 400, letterSpacing: 5 }}>ウラスポ</div>
           </div>
           <div style={{ display: "flex", width: 36, height: 2, background: "#f6a06b", marginTop: 56 }} />
           <div
@@ -89,9 +71,9 @@ export default async function OpengraphImage() {
               display: "flex",
               flexDirection: "column",
               fontSize: 72,
-              fontWeight: 700,
-              letterSpacing: 6,
-              lineHeight: 1.45,
+              fontWeight: 400,
+              letterSpacing: 5,
+              lineHeight: 1.4,
               marginTop: 32,
             }}
           >
@@ -103,7 +85,7 @@ export default async function OpengraphImage() {
     ),
     {
       ...size,
-      fonts: headingFont ? [{ name: "Zen Old Mincho", data: headingFont, weight: 700, style: "normal" }] : undefined,
+      fonts: [font],
     },
   );
 }

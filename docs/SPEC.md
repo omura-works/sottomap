@@ -377,7 +377,8 @@ RLS上、確認に答えられるのは投稿者だけである。したがっ�
 ### 9.9 フォントについての明記
 
 書体は **`Zen Maru Gothic` 1つ**（next/font/google）で、見出しも本文もこれを使い、階層は太さと字間で作る。§5 の指定が正。
-トークン定義（`design-tokens.css`）の `Caprasimo` / `Figtree` は雛形の既定値で、使わない。OG 画像（`opengraph-image.tsx`）も同じ書体で描く。
+トークン定義（`design-tokens.css`）の `Caprasimo` / `Figtree` は雛形の既定値で、使わない。OG 画像（`opengraph-image.tsx`）も同じ書体で描く。フォントはネットワークから取らず、リポジトリに同梱した TTF（`src/app/_og/`、SIL OFL 1.1、`OFL.txt` 同梱）を読む（取得失敗で日本語が□になるのを防ぐ。Codex R27）。
+書体を変えるときは `layout.tsx` の next/font と `src/app/_og/og-font.ts`（名前・ファイル）＋同梱ファイルだけを替える（CSS は `--font-heading` / `--font-body` 経由なので触らない）。
 （経緯: 2026-09-26 に一度 見出し Zen Old Mincho＋本文 Zen Kaku Gothic New にしたが、同日 Adobe Fonts の推薦で Zen Maru Gothic 1書体に統一した）
 
 ### 9.10 原本に無い追加仕様（意図的）
