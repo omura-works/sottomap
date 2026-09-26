@@ -105,7 +105,7 @@
   box-sizing: border-box;
 }
 
-/* 要素の既定（h1〜h6・p・a など）はレイヤーの外に置いている（既存画面の余白がこれを前提に組まれているため）。
+/* 要素の既定（h1〜h6・p など）はレイヤーの外に置いている（既存画面の余白がこれを前提に組まれているため）。
    そのため h1〜h6・p に付けた Tailwind の余白ユーティリティ（m-0・mt-6 など）は効かない。
    見出し・段落の余白を個別に変えるときは style の margin で指定する。 */
 html {
@@ -163,10 +163,6 @@ h6 {
 p {
   margin: 0 0 var(--space-3);
 }
-a {
-  color: var(--color-accent-700);
-  text-underline-offset: 3px;
-}
 img {
   display: block;
   max-width: 100%;
@@ -182,12 +178,21 @@ figcaption {
 .text-muted {
   color: var(--color-text-muted);
 }
-:focus {
-  outline: none;
-}
-:focus-visible {
-  outline: 2px solid var(--color-accent-600);
-  outline-offset: 2px;
+/* リンクの既定色とフォーカスの輪は @layer base に置く（2026-09-26）。レイヤーの外に置くと、
+   @layer components の部品（<a class="btn btn-primary"> の文字色、.chip-hit:focus-visible の輪を消す指定など）や
+   Tailwind のユーティリティより強くなり、部品側の指定が負けてしまうため。 */
+@layer base {
+  a {
+    color: var(--color-accent-700);
+    text-underline-offset: 3px;
+  }
+  :focus {
+    outline: none;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent-600);
+    outline-offset: 2px;
+  }
 }
 ::selection {
   background: color-mix(in srgb, var(--color-accent) 30%, transparent);

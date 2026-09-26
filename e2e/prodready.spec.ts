@@ -46,3 +46,32 @@ test("地図画面の表示でCSP違反がコンソールに出ない", async ({
 
   expect(cspViolations).toEqual([]);
 });
+
+// 2026-09-26 の不具合: レイヤー外の `a { color }` が @layer components の .btn 系に勝ち、
+// <a class="btn btn-primary"> の文字が暗くなっていた。<a> と <button> で文字色が同じになることを確認する。
+test("ボタンの文字色は <a> でも <button> でも部品の指定どおり", async ({ page }) => {
+  await page.goto("/styleguide");
+  const colors = await page.evaluate(() => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const result: Record<string, { a: string; button: string }> = {};
+    for (const kind of ["btn-primary", "btn-secondary", "btn-ghost"]) {
+      const anchor = document.createElement("a");
+      anchor.href = "/start";
+      anchor.className = `btn ${kind}`;
+      anchor.textContent = "リンク";
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `btn ${kind}`;
+      button.textContent = "ボタン";
+      host.append(anchor, button);
+      result[kind] = { a: getComputedStyle(anchor).color, button: getComputedStyle(button).color };
+    }
+    host.remove();
+    return result;
+  });
+  // --color-neutral-100 #f9f4ed / --color-text #2a2622 / --color-accent-700 #8c491a
+  expect(colors["btn-primary"]).toEqual({ a: "rgb(249, 244, 237)", button: "rgb(249, 244, 237)" });
+  expect(colors["btn-secondary"]).toEqual({ a: "rgb(42, 38, 34)", button: "rgb(42, 38, 34)" });
+  expect(colors["btn-ghost"]).toEqual({ a: "rgb(140, 73, 26)", button: "rgb(140, 73, 26)" });
+});
