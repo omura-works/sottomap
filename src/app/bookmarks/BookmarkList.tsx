@@ -146,7 +146,7 @@ export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[
                 <li
                   key={item.id}
                   className={cn("flex items-center gap-3 px-3 py-2", motion?.className)}
-                  style={{ borderRadius: "var(--radius-md)", background: "var(--color-surface)", ...motion?.style }}
+                  style={{ borderRadius: "var(--radius-md)", background: "var(--color-neutral-100)", border: "1px solid var(--color-divider)", ...motion?.style }}
                 >
                   {item.photoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element -- 外部URLのサムネイルをそのまま表示する

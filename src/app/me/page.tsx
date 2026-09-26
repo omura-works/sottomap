@@ -92,7 +92,7 @@ export default async function ProfilePage() {
               className="flex flex-col items-center gap-1 px-4 py-3"
               style={{
                 borderRadius: "var(--radius-md)",
-                background: "var(--color-surface)",
+                background: "var(--color-neutral-100)", border: "1px solid var(--color-divider)",
                 opacity: badge.earned ? 1 : 0.45,
               }}
             >
@@ -123,7 +123,7 @@ export default async function ProfilePage() {
               <li
                 key={spot.id}
                 className="flex items-center justify-between px-3 py-2"
-                style={{ borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}
+                style={{ borderRadius: "var(--radius-md)", background: "var(--color-neutral-100)", border: "1px solid var(--color-divider)" }}
               >
                 <span>{spot.name}</span>
                 <span className="flex gap-1">
@@ -170,8 +170,11 @@ export default async function ProfilePage() {
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="px-2 py-3" style={{ borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}>
-      <p className="m-0 text-2xl" style={{ fontFamily: "var(--font-heading)", fontWeight: 900 }}>
+    <div
+      className="px-2 py-4"
+      style={{ borderRadius: "var(--radius-md)", background: "var(--color-neutral-100)", border: "1px solid var(--color-divider)" }}
+    >
+      <p className="m-0 text-2xl" style={{ fontFamily: "var(--font-heading)", fontWeight: 700 }}>
         <AnimatedCounter value={value} />
       </p>
       <p className="m-0 text-muted text-xs">{label}</p>

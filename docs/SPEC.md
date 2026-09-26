@@ -199,40 +199,46 @@ badges / user_badges
 
 ---
 
-## 5. デザイントークン（原本から抽出・変更禁止）
+## 5. デザイントークン（2026-09-26 に「落ち着いた上品なデザイン」へ刷新。以下を正とする）
+
+依頼者が Canva で採用したデザイン（ミニマル・ポリッシュド・カーム）に合わせ、変数名は保ったまま値と用途を整えた。
+実装は `src/app/globals.css`。
 
 ```css
---color-bg:        #f5ead8;   /* クリーム地 */
---color-surface:   #ebddc5;
---color-text:      #201e1d;
---color-accent:    #c67139;   /* テラコッタ */
---color-accent-2:  #7a8a5e;   /* 苔緑 */
---color-divider:   color-mix(in srgb, #201e1d 16%, transparent);
+--color-bg:         #f5ead8;   /* 生成り。ページ地色 */
+--color-surface:    #ebddc5;   /* 砂色 */
+--color-text:       #2a2622;   /* やや柔らかい焦げ茶 */
+--color-text-muted: #645c50;   /* 補助文字（bg 上 5.5:1） */
+--color-accent:     #c67139;   /* テラコッタ（ロゴ・ピンの線） */
+--color-accent-2:   #7a8a5e;   /* 苔緑 */
+--color-divider:    color-mix(in srgb, #2a2622 11%, transparent);  /* hairline */
+--color-line:       color-mix(in srgb, #2a2622 24%, transparent);  /* 入力欄・副ボタン・チップの細線 */
 
 /* neutral 100→900 */ #f9f4ed #eee7db #dcd3c4 #c0b6a5 #a19786 #82796a #645c50 #474238 #2e2b25
-/* accent  100→900 */ #fff2eb #ffe1d0 #ffc6a5 #f6a06b #d67f48 #b2622d #8c491a #643312 #402310
+/* accent  100→900 */ #fff2eb #ffe1d0 #ffc6a5 #f6a06b #d67f48 #ad5e2a #8c491a #643312 #402310
 /* accent2 100→900 */ #f0fae1 #e1eecc #ccdbb2 #aebf92 #8fa073 #728157 #56633f #3d472b #272e1b
 
 --space-1..8: 4.4 / 8.8 / 13.2 / 17.6 / 26.4 / 35.2 px
---radius-sm: 8px;  --radius-md: 16px;  --radius-lg: 28px;
---shadow-sm: 0 1px 2px  color-mix(in srgb,#2e2b25 14%,transparent);
---shadow-md: 0 3px 10px color-mix(in srgb,#2e2b25 16%,transparent);
---shadow-lg: 0 12px 32px color-mix(in srgb,#2e2b25 22%,transparent);
+--space-section: 56px（mobile）/ 96px（1024px 以上）
+--control-height: 44px
+--radius-sm: 8px;  --radius-control: 10px;  --radius-md: 12px;  --radius-lg: 20px;
+--shadow-sm / --shadow-md: ほぼ無し（1px の影）   --shadow-lg: 0 32px 64px -32px（ヒーロー・ダイアログのみ）
 ```
 
-**フォント**（原本の実使用値）
-- 見出し: `"Zen Maru Gothic"` — h1 900/42px、h2 900/26〜30px、h3 700/22px、line-height 1.4〜1.5
-- 本文: `"Zen Kaku Gothic New"` — 13〜17px
-- ページ地色は `--color-neutral-200`、カード面が `--color-surface`
+- **差し色の橙は「主ボタン・選択中・ピン」だけ。** 面の塗りは生成り・砂色・neutral-100。主ボタンの塗りは accent-600（#ad5e2a、neutral-100 の文字で 4.58:1。旧 #b2622d では 4.5:1 に届かないため深くした）。
 
-**丸みの規則（原本の最終上書き）**
-```css
-.card, .dialog { border-radius: calc(var(--radius-lg) * 1.15); } /* ≒32px */
-.btn, .tag, .seg, .input { border-radius: 999px; }               /* 完全ピル */
-.input { padding-inline: 14px; }
-```
+**フォント**
+- 見出し: `"Zen Old Mincho"` 700（900 は使わない）— 字間 0.06em、行間 1.5〜1.6。h1 28〜38px、h2 22〜26px、h3 19px
+- 本文: `"Zen Kaku Gothic New"` — 13〜17px、行間 1.75
 
-コンポーネントCSSの原本は `docs/design-reference/design-tokens.css`。
+**部品の規則**
+- ボタン（主=橙の塗り・副=細線の枠・文字だけ）・入力欄・セグメントは高さ 44px・角丸 10px。入力欄のフォーカスは橙の輪。
+- カード: neutral-100 の面・hairline の枠・影ほぼ無し・角丸 14px。ダイアログ: 角丸 20px・影 lg。
+- タグ／チップ: 丸い細線。選ばれていないチップの枠は中立の細線、選択中だけ橙。
+- ロゴ: 橙の細線の地図ピン（中に点）＋「ウラスポ」（見出しの明朝）。`src/components/brand/LogoMark.tsx`。
+  アイコンは焦げ茶 #2e2b25 の角丸正方形に同じピン（`src/app/icon.svg`・`src/app/apple-icon.png`）。
+
+コンポーネントCSSの出発点は `docs/design-reference/design-tokens.css`（2026-09-26 の刷新で上の規則に置き換えた）。
 **この配色・角丸・フォントから逸脱しないこと。**
 
 ---
@@ -360,7 +366,7 @@ RLS上、確認に答えられるのは投稿者だけである。したがっ�
 
 トークン定義（`design-tokens.css`）の `Caprasimo` / `Figtree` は雛形の既定値であり、
 **実際にレンダリングされた原本が使っている `Zen Maru Gothic` / `Zen Kaku Gothic New` を採る**。
-§5 の指定が正。
+§5 の指定が正。（2026-09-26: 見出しは `Zen Old Mincho` 700 に変更。§5 を参照）
 
 ### 9.10 原本に無い追加仕様（意図的）
 
@@ -474,10 +480,10 @@ Server Action はこれを呼ぶだけにする。authenticated ロールから�
 ### 9.15 S1 トップ画面の刷新（2026-09-18、ユーザー選択「案B 灯りのともる夜」）
 
 S1（`/start`）は §4 の構成に代えて、次の構成にする（§4 の文言は引き続き使う）。
-1. **夜の導入**: 濃い面（neutral-900 → accent-900 のグラデーション）に、静かな店の灯りが明滅する（`prefers-reduced-motion` では静止）。下端は稜線で明るい面につながる。
-   - 小見出し「ウラスポ」、**h1 はキャッチコピー「北海道の、まだ静かな店を歩く」**、リード「住んでいる人が残した店だけを見せます。まだ静かなところから。」
+1. **夜の導入**（2026-09-26 に Canva 採用案のヒーローへ刷新）: 上に高さ72pxのヘッダー（ロゴ＋「ウラスポ」、下に hairline）。その下の**暗い角丸カード**（neutral-900・角丸20px・影 lg）に、細く薄い地図の道の線・暖色の光のにじみ2つ・小さな灯りの点（橙・淡いクリーム）を CSS/SVG で描き、灯りが明滅する（`prefers-reduced-motion`・「動きを止める」では静止）。見出しの上に短い細線（24px）のアクセント。
+   - 「ウラスポ」はヘッダーの文字、**h1 はキャッチコピー「北海道の、まだ静かな店を歩く」**、リード「住んでいる人が残した店だけを見せます。まだ静かなところから。」
    - 「{街}には、地元が確認したピンが **N** 件あります。」の N を大きく表示（数が変わるときは AnimatedCounter で回る）。
-2. **街を選ぶカード**（明るい面に重ねる）: 見出し「どの街を歩きますか」（h2）、街チップ8つ（選択中は濃い塗り、当たり判定 44px 以上）、
+2. **街を選ぶ**（暗いカードの中、細線で区切った右側。モバイルは下）: 見出し「どの街を歩きますか」（h2）、街チップ8つ（選択中は橙の塗り、当たり判定 44px 以上）、
    「今週、静けさが確認された店」3件（店名＋「今週 N人が確認」）、主ボタン **歩きはじめる**。
 3. **「静けさは、こうして保たれます」**: §1 の思想を3つの手順で順に灯す（Rare UI の Step player の発想。動きを減らす設定では止める）。
    1「住んでいる人が、ピンを残す」— 掲載しているのは実在の店名と、公開情報にある事実だけ
