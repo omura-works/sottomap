@@ -41,6 +41,14 @@ describe.each([
     expect(within(map).getByText("地図")).toBeInTheDocument();
     expect(map.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   });
+
+  it("navigation ランドマーク自体が「主要ナビゲーション」という名前を持つ（Codex R27 軽微1）", () => {
+    mockPathname = "/sapporo";
+    render(<Nav />);
+    const nav = screen.getByRole("navigation", { name: "主要ナビゲーション" });
+    expect(nav.tagName).toBe("NAV");
+    expect(within(nav).getByRole("link", { name: "地図" })).toBeInTheDocument();
+  });
 });
 
 describe("サイドレールのロゴ", () => {

@@ -26,7 +26,6 @@ export function SideRail({ homeCitySlug = null }: SideRailProps) {
 
   return (
     <aside
-      aria-label="主要ナビゲーション"
       className="hidden lg:flex flex-col items-center gap-7 w-[88px] shrink-0 border-r pt-6"
       style={{ background: "var(--color-neutral-100)", borderColor: "var(--color-divider)" }}
     >
@@ -38,7 +37,8 @@ export function SideRail({ homeCitySlug = null }: SideRailProps) {
         <LogoMark size={26} strokeColor="var(--color-accent-500)" dotColor="var(--color-accent-400)" />
         <span className="sr-only">ウラスポ</span>
       </div>
-      <nav className="flex flex-col items-center gap-2.5">
+      {/* Codex R27 軽微1: 名前は navigation ランドマーク（nav）自体に付ける（フッターにも別の nav があるため） */}
+      <nav aria-label="主要ナビゲーション" className="flex flex-col items-center gap-2.5">
         {navItems.map((item) => {
           const active = isNavItemActive(item, pathname);
           return (
