@@ -30,17 +30,27 @@ export default async function BookmarksPage() {
   });
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6 lg:py-10 space-y-6">
-      <header className="space-y-2">
-        <p className="text-muted text-xs tracking-wide uppercase">栞</p>
-        {/* Codex R8 重要3: 栞を外した行の前後どちらも無いときのフォーカス先（BookmarkList側から参照）。 */}
-        <h1 id="bookmarks-heading" tabIndex={-1} style={{ fontSize: 30 }}>
-          挟んだ店
-        </h1>
-        <p className="text-muted">{items.length}軒。旅のあいだ、地図の上でも光ります。</p>
-      </header>
-
-      <BookmarkList initialItems={items} />
+    <div className="mx-auto max-w-2xl px-4 py-6 lg:py-10">
+      <BookmarkList
+        initialItems={items}
+        header={
+          // 2026-09-26 案B: 見出しと「地図にまとめる」を夜のカード（BookmarkList 側）の中に置く。
+          <header className="flex flex-col gap-2.5">
+            <p style={{ margin: 0, fontSize: 12, letterSpacing: "0.3em", color: "var(--color-accent-400)" }}>栞</p>
+            {/* Codex R8 重要3: 栞を外した行の前後どちらも無いときのフォーカス先（BookmarkList側から参照）。 */}
+            <h1
+              id="bookmarks-heading"
+              tabIndex={-1}
+              style={{ margin: 0, fontSize: "clamp(30px, 4vw, 40px)", color: "var(--color-bg)" }}
+            >
+              挟んだ店
+            </h1>
+            <p style={{ margin: 0, fontSize: 14, color: "var(--color-neutral-400)" }}>
+              {items.length}軒。旅のあいだ、地図の上でも光ります。
+            </p>
+          </header>
+        }
+      />
     </div>
   );
 }

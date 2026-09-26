@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
+import { useEffect, useOptimistic, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { unstable_rethrow } from "next/navigation";
 import { removeBookmarkAction } from "@/app/actions/bookmark-actions";
@@ -41,8 +41,11 @@ type ListAction =
  * 「栞から外しました。」「そのままにしました。」を知らせる。フォーカスは、外した直後は
  * 次の行→無ければ前の行→どちらも無ければ一覧の見出しへ、ロールバック時は復元した行の
  * 「外す」ボタンへ移す。
+ *
+ * 2026-09-26 案B: ページの見出し（`header`）と「地図にまとめる」を、暗い角丸カード（.night-card）の中に並べる。
+ * 店のリストはカードの外（明るい地）。
  */
-export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[] }) {
+export function BookmarkList({ initialItems, header }: { initialItems: BookmarkListItem[]; header?: ReactNode }) {
   const [, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [liveMessage, setLiveMessage] = useState("");
@@ -128,7 +131,42 @@ export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[
   }
 
   return (
-    <div className="space-y-4">
+    // 夜のカードの大きな影（--shadow-lg は下へ32px）が1行目に重ならない間隔にする。
+    <div className="space-y-9">
+      {header || items.length > 0 ? (
+        <div className="night-card flex flex-col gap-6 px-6 py-7 sm:px-10 sm:py-9">
+          {/* 右上の暖色のにじみと、灯りの点2つ（装飾） */}
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+            <span className="night-glow" style={{ width: 360, height: 360, right: -100, top: -130 }} />
+            <span className="night-light" style={{ width: 5, height: 5, right: 140, top: 40 }} />
+            <span className="night-light night-light-pale" style={{ width: 4, height: 4, right: 60, top: 120 }} />
+          </div>
+          {header ? <div className="relative">{header}</div> : null}
+          {items.length > 0 ? (
+            <div className="relative flex flex-wrap gap-3">
+              {cityOrder.length <= 1 ? (
+                <Link href={`/${cityOrder[0]}?spots=${items.map((item) => item.spotId).join(",")}`} className="btn btn-on-night">
+                  {items.length}軒を地図にまとめる
+                  <NightArrow />
+                </Link>
+              ) : (
+                cityOrder.map((citySlug) => {
+                  const cityItems = itemsByCity.get(citySlug)!;
+                  const cityName = cityItems[0].cityName;
+                  const spotIds = cityItems.map((item) => item.spotId).join(",");
+                  return (
+                    <Link key={citySlug} href={`/${citySlug}?spots=${spotIds}`} className="btn btn-on-night">
+                      {cityName}の{cityItems.length}軒を地図にまとめる
+                      <NightArrow />
+                    </Link>
+                  );
+                })
+              )}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* Codex R9 重要3: 0件（早期return）でも常に描画する。行が消えても残るライブリージョン
           （Codex R8 重要3）。ConfirmRemoveButton 側は持たない。 */}
       <p role="status" aria-live="polite" className="sr-only">
@@ -183,30 +221,17 @@ export function BookmarkList({ initialItems }: { initialItems: BookmarkListItem[
             </p>
           ) : null}
 
-          {cityOrder.length <= 1 ? (
-            <Link href={`/${cityOrder[0]}?spots=${items.map((item) => item.spotId).join(",")}`} className="btn btn-primary btn-block">
-              {items.length}軒を地図にまとめる
-            </Link>
-          ) : (
-            <div className="space-y-2">
-              {cityOrder.map((citySlug) => {
-                const cityItems = itemsByCity.get(citySlug)!;
-                const cityName = cityItems[0].cityName;
-                const spotIds = cityItems.map((item) => item.spotId).join(",");
-                return (
-                  <Link
-                    key={citySlug}
-                    href={`/${citySlug}?spots=${spotIds}`}
-                    className="btn btn-primary btn-block"
-                  >
-                    {cityName}の{cityItems.length}軒を地図にまとめる
-                  </Link>
-                );
-              })}
-            </div>
-          )}
         </>
       )}
     </div>
+  );
+}
+
+/** 「地図にまとめる」の右の橙の矢印（読み上げない）。 */
+function NightArrow() {
+  return (
+    <span aria-hidden="true" style={{ color: "var(--color-accent-600)" }}>
+      →
+    </span>
   );
 }

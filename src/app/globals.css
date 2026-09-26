@@ -628,6 +628,57 @@ figcaption {
     margin-top: var(--space-3);
   }
 
+  /* — 夜のカード（2026-09-26 案B）— トップ画面のヒーロー・栞の見出し・灯りのバッジで使う暗い角丸の面。
+     地は neutral-900、文字は生成り。光のにじみ（.night-glow）と灯りの点（.night-light）は装飾なので aria-hidden の中に置く。 */
+  .night-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+    background: var(--color-neutral-900);
+    color: var(--color-neutral-100);
+    box-shadow: var(--shadow-lg);
+  }
+  /* 暗い地では橙茶の輪（accent-600）が見えにくいため、明るい橙で輪を描く */
+  .night-card :focus-visible {
+    outline-color: var(--color-accent-300);
+  }
+  .night-glow {
+    position: absolute;
+    border-radius: 999px;
+    pointer-events: none;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--color-accent-500) 38%, transparent), transparent);
+  }
+  .night-light {
+    position: absolute;
+    border-radius: 999px;
+    pointer-events: none;
+    background: var(--color-accent-400);
+    box-shadow: 0 0 8px 3px color-mix(in srgb, var(--color-accent-400) 50%, transparent);
+  }
+  .night-light-pale {
+    background: var(--color-accent-200);
+    box-shadow: none;
+  }
+  /* 夜のカードの上に置く生成りの丸いボタン（右に橙の →） */
+  .btn-on-night {
+    min-height: 48px;
+    padding: 0 22px;
+    gap: 10px;
+    border-radius: 999px;
+    background: var(--color-bg);
+    border-color: var(--color-bg);
+    color: var(--color-text);
+    font-weight: 700;
+  }
+  .btn-on-night:hover {
+    background: var(--color-neutral-100);
+    border-color: var(--color-neutral-100);
+  }
+  .btn-on-night:active {
+    background: var(--color-neutral-200);
+    border-color: var(--color-neutral-200);
+  }
+
   /* — 丸みの規則（2026-09-26 に刷新。SPEC §5「丸みの規則」）—
      操作部品（btn / seg / input）= 10px、チップ（tag）= 丸、カード = 14px、ダイアログ・大きな面 = 20px。
      各部品の定義側で指定済み。ここでは上書きしない。 */

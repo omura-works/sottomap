@@ -128,15 +128,8 @@ export function StartScreen({
 
       <div className="mx-auto max-w-6xl px-4 pt-6 sm:px-5 lg:px-10 lg:pt-10">
         {/* SPEC §9.15-1 夜の導入: 暗い角丸カードに、細い地図の線・光のにじみ・灯りの点 */}
-        <section
-          className="start-hero relative overflow-hidden"
-          style={{
-            borderRadius: "var(--radius-lg)",
-            background: "var(--color-neutral-900)",
-            color: "var(--color-neutral-100)",
-            boxShadow: "var(--shadow-lg)",
-          }}
-        >
+        {/* 暗い角丸の面は栞・灯りと共通の .night-card（globals.css） */}
+        <section className="start-hero night-card">
           {/* Codex R8 重要4: 灯りの明滅・下の手順巡回を両方止められる切り替え（44px以上、控えめな見た目）。 */}
           <button
             type="button"
@@ -149,8 +142,8 @@ export function StartScreen({
 
           <div aria-hidden className="pointer-events-none absolute inset-0">
             {/* 光のにじみ（暖色2つ） */}
-            <span className="start-glow start-glow-a" />
-            <span className="start-glow start-glow-b" />
+            <span className="night-glow start-glow-a" />
+            <span className="night-glow start-glow-b" />
             {/* 細く薄い地図の道の線 */}
             <svg
               className="absolute inset-0 h-full w-full"

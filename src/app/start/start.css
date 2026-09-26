@@ -56,16 +56,8 @@
   outline-offset: 2px;
 }
 
-/* ヒーローの「ぼんやりした暖色の光のにじみ」（2つ。動かさない装飾） */
-.start-screen .start-glow {
-  position: absolute;
-  border-radius: 999px;
-  background: radial-gradient(
-    closest-side,
-    color-mix(in srgb, var(--color-accent-500) 38%, transparent),
-    transparent
-  );
-}
+/* ヒーローの「ぼんやりした暖色の光のにじみ」（2つ。動かさない装飾）。形と色は共通の .night-glow（globals.css）、
+   ここは大きさと位置だけ。 */
 .start-screen .start-glow-a {
   width: 560px;
   height: 560px;
