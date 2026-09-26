@@ -131,7 +131,7 @@ export function BookmarkList({ initialItems, header }: { initialItems: BookmarkL
   }
 
   return (
-    // 夜のカードの大きな影（--shadow-lg は下へ32px）が1行目に重ならない間隔にする。
+    // 夜のカードの大きな影は下の行まで届くため、行（li）は relative にしてカードより後に描き、影を行の下へ回す。
     <div className="space-y-9">
       {header || items.length > 0 ? (
         <div className="night-card flex flex-col gap-6 px-6 py-7 sm:px-10 sm:py-9">
@@ -183,7 +183,7 @@ export function BookmarkList({ initialItems, header }: { initialItems: BookmarkL
               return (
                 <li
                   key={item.id}
-                  className={cn("flex items-center gap-3 px-3 py-2", motion?.className)}
+                  className={cn("relative flex items-center gap-3 px-3 py-2", motion?.className)}
                   style={{ borderRadius: "var(--radius-md)", background: "var(--color-neutral-100)", border: "1px solid var(--color-divider)", ...motion?.style }}
                 >
                   {item.photoUrl ? (
