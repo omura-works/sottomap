@@ -215,7 +215,7 @@ badges / user_badges
 --color-line:       color-mix(in srgb, #2a2622 24%, transparent);  /* 入力欄・副ボタン・チップの細線 */
 
 /* neutral 100→900 */ #f9f4ed #eee7db #dcd3c4 #c0b6a5 #a19786 #82796a #645c50 #474238 #2e2b25
-/* accent  100→900 */ #fff2eb #ffe1d0 #ffc6a5 #f6a06b #d67f48 #ad5e2a #8c491a #643312 #402310
+/* accent  100→900 */ #fff2eb #ffe1d0 #ffc6a5 #f6a06b #d67f48 #a25525 #8c491a #643312 #402310
 /* accent2 100→900 */ #f0fae1 #e1eecc #ccdbb2 #aebf92 #8fa073 #728157 #56633f #3d472b #272e1b
 
 --space-1..8: 4.4 / 8.8 / 13.2 / 17.6 / 26.4 / 35.2 px
@@ -225,14 +225,15 @@ badges / user_badges
 --shadow-sm / --shadow-md: ほぼ無し（1px の影）   --shadow-lg: 0 32px 64px -32px（ヒーロー・ダイアログのみ）
 ```
 
-- **差し色の橙は「主ボタン・選択中・ピン」だけ。** 面の塗りは生成り・砂色・neutral-100。主ボタンの塗りは accent-600（#ad5e2a、neutral-100 の文字で 4.58:1。旧 #b2622d では 4.5:1 に届かないため深くした）。
+- **差し色の橙は「主ボタン・選択中・ピン」だけ。** 面の塗りは生成り・砂色・neutral-100。主ボタン・選択中の Segment・街チップの塗りは accent-600（#a25525。neutral-100 の文字で 4.97:1、生成り bg の文字で 4.57:1。旧 #ad5e2a は実測 4.35:1 で足りなかったため深くした。Codex R26 重要2）。
+- 入力欄・ラジオ・セグメントの枠は neutral-600（neutral-100 に 3.92:1・bg に 3.61:1）、placeholder は neutral-700（neutral-100 に 6.02:1）。暗い面（夜のカード）のフォーカスの輪は accent-300（neutral-900 に 9.32:1）。
 
 **フォント**
 - 見出し: `"Zen Old Mincho"` 700（900 は使わない）— 字間 0.06em、行間 1.5〜1.6。h1 28〜38px、h2 22〜26px、h3 19px
 - 本文: `"Zen Kaku Gothic New"` — 13〜17px、行間 1.75
 
 **部品の規則**
-- ボタン（主=橙の塗り・副=細線の枠・文字だけ）・入力欄・セグメントは高さ 44px・角丸 10px。入力欄のフォーカスは橙の輪。
+- ボタン（主=橙の塗り・副=細線の枠・文字だけ）・入力欄・セグメントは高さ 44px・角丸 10px（セグメントは各選択肢の当たり判定が 44px、ラジオもラベル全体で 44px）。入力欄のフォーカスは橙の輪。
 - カード: neutral-100 の面・hairline の枠・影ほぼ無し・角丸 14px。ダイアログ: 角丸 20px・影 lg。
 - タグ／チップ: 丸い細線。選ばれていないチップの枠は中立の細線、選択中だけ橙。
 - ロゴ: 橙の細線の地図ピン（中に点）＋「ウラスポ」（見出しの明朝）。`src/components/brand/LogoMark.tsx`。
@@ -371,9 +372,9 @@ RLS上、確認に答えられるのは投稿者だけである。したがっ�
 
 ### 9.9 フォントについての明記
 
-トークン定義（`design-tokens.css`）の `Caprasimo` / `Figtree` は雛形の既定値であり、
-**実際にレンダリングされた原本が使っている `Zen Maru Gothic` / `Zen Kaku Gothic New` を採る**。
-§5 の指定が正。（2026-09-26: 見出しは `Zen Old Mincho` 700 に変更。§5 を参照）
+見出しは **`Zen Old Mincho` 700**、本文は **`Zen Kaku Gothic New`**（どちらも next/font/google）。§5 の指定が正。
+トークン定義（`design-tokens.css`）の `Caprasimo` / `Figtree` は雛形の既定値で、使わない。
+（経緯: 当初は原本どおり見出しに `Zen Maru Gothic` を使っていたが、2026-09-26 の「落ち着いた上品なデザイン」で `Zen Old Mincho` に変えた）
 
 ### 9.10 原本に無い追加仕様（意図的）
 

@@ -80,7 +80,7 @@ export function StartScreen({
         style={{ background: "var(--color-bg)" }}
       >
         <div>
-          <h1 className="tracking-[0.3em]" style={{ margin: 0, fontSize: "0.75rem", color: "var(--color-neutral-600)" }}>
+          <h1 className="tracking-[0.3em]" style={{ margin: 0, fontSize: "0.75rem", color: "var(--color-neutral-700)" }}>
             ウラスポ
           </h1>
           <p style={{ margin: "16px 0 0", color: "var(--color-neutral-800)" }}>

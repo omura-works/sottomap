@@ -20,7 +20,8 @@
   --color-accent: #c67139;
   --color-accent-2: #7a8a5e;
   --color-divider: color-mix(in srgb, #2a2622 11%, transparent);
-  /* 入力欄・副ボタン・チップの細線（divider より少しだけ濃い） */
+  /* 副ボタン・チップの細線（divider より少しだけ濃い）。入力欄・ラジオ・セグメントの枠は 3:1 が要るため
+     neutral-600（neutral-100 に 3.92:1、bg に 3.61:1）を使う（Codex R26 重要3） */
   --color-line: color-mix(in srgb, #2a2622 24%, transparent);
 
   /* neutral 100→900 */
@@ -40,8 +41,8 @@
   --color-accent-300: #ffc6a5;
   --color-accent-400: #f6a06b;
   --color-accent-500: #d67f48;
-  /* 主ボタンの塗り。neutral-100 の文字で 4.58:1（#b2622d では 4.5:1 に届かないため少し深くした） */
-  --color-accent-600: #ad5e2a;
+  /* 主ボタン・選択中の塗り。neutral-100 の文字で 4.97:1、bg の文字で 4.57:1（Codex R26 重要2: 旧 #ad5e2a は実測 4.35:1 だった） */
+  --color-accent-600: #a25525;
   --color-accent-700: #8c491a;
   --color-accent-800: #643312;
   --color-accent-900: #402310;
@@ -324,17 +325,18 @@ figcaption {
     color: var(--color-text);
     caret-color: var(--color-accent);
     background: var(--color-neutral-100);
-    border: 1px solid var(--color-line);
+    border: 1px solid var(--color-neutral-600);
     border-radius: var(--radius-control);
     transition:
       border-color 160ms ease,
       box-shadow 160ms ease;
   }
+  /* neutral-100 の上で 6.02:1（Codex R26 重要3: 旧 neutral-600 は 3.92:1） */
   .input::placeholder {
-    color: var(--color-neutral-600);
+    color: var(--color-neutral-700);
   }
   .input:hover {
-    border-color: color-mix(in srgb, var(--color-text) 40%, transparent);
+    border-color: var(--color-neutral-700);
   }
   /* フォーカスは橙の輪（線の色＋外側の淡い輪） */
   .input:focus-visible {
@@ -346,9 +348,11 @@ figcaption {
     min-height: 96px;
     resize: vertical;
   }
+  /* ラベル全体が当たり判定。高さ 44px 以上（SPEC §9.14-14、Codex R26 重要3） */
   .radio {
     display: inline-flex;
     align-items: center;
+    min-height: 44px;
     gap: 8px;
     cursor: pointer;
     font-size: 14px;
@@ -366,7 +370,7 @@ figcaption {
     height: 16px;
     flex: none;
     border-radius: 50%;
-    border: 1px solid var(--color-line);
+    border: 1px solid var(--color-neutral-600);
   }
   .radio:hover .dot {
     border-color: var(--color-accent-600);
@@ -383,7 +387,7 @@ figcaption {
   .seg {
     display: inline-flex;
     overflow: hidden;
-    border: 1px solid var(--color-line);
+    border: 1px solid var(--color-neutral-600);
     border-radius: var(--radius-control);
   }
   .seg-opt {
@@ -391,7 +395,8 @@ figcaption {
     align-items: center;
     justify-content: center;
     gap: 6px;
-    min-height: calc(var(--control-height) - 2px);
+    /* 当たり判定（label）そのものを 44px 以上にする（枠の 2px は外側に足す。Codex R26 重要3） */
+    min-height: var(--control-height);
     min-width: 44px;
     padding: 0 16px;
     font-size: 14px;

@@ -90,7 +90,8 @@
   outline: none;
 }
 
+/* 暗いヒーローの上なので明るい輪（accent-300: neutral-900 に 9.32:1。accent-600 では 2.96:1 だった。Codex R26 軽微1） */
 .start-screen .start-city-chip:focus-visible > span {
-  outline: 2px solid var(--color-accent-600);
+  outline: 2px solid var(--color-accent-300);
   outline-offset: 2px;
 }
