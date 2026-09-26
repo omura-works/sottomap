@@ -76,6 +76,18 @@ export function StyleguideClient() {
         <Button variant="primary" block>
           block button
         </Button>
+        {/* <a> に付けても文字色が <button> と同じになること（a の既定色は @layer base） */}
+        <div className="flex flex-wrap items-center gap-2">
+          <a href="#button-links" className="btn btn-primary">
+            link primary
+          </a>
+          <a href="#button-links" className="btn btn-secondary">
+            link secondary
+          </a>
+          <a href="#button-links" className="btn btn-ghost">
+            link ghost
+          </a>
+        </div>
       </section>
 
       <Divider />
@@ -115,6 +127,24 @@ export function StyleguideClient() {
           <Card kicker="カード" title="elevation=lg" elevation="lg">
             elev-lg のシャドウ確認用カード。
           </Card>
+        </div>
+        {/* 夜のカード（トップのヒーロー・栞の見出し・灯りのバッジと共通の .night-card） */}
+        <div className="night-card flex flex-col gap-4 p-6">
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+            <span className="night-glow" style={{ width: 280, height: 280, right: -80, top: -110 }} />
+            <span className="night-light" style={{ width: 5, height: 5, right: 120, top: 32 }} />
+          </div>
+          <p className="relative" style={{ margin: 0, color: "var(--color-neutral-400)", fontSize: 14 }}>
+            night-card / btn-on-night
+          </p>
+          <div className="relative flex flex-wrap gap-3">
+            <a href="#button-links" className="btn btn-on-night">
+              btn-on-night
+              <span aria-hidden="true" style={{ color: "var(--color-accent-600)" }}>
+                →
+              </span>
+            </a>
+          </div>
         </div>
       </section>
 
