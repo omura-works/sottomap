@@ -98,11 +98,11 @@ Supabaseプロジェクトではこの設定はダッシュボード側に反映
 
 | テンプレート | 件名（そのままコピー） | 本文ファイル |
 | --- | --- | --- |
-| Magic link or OTP | ウラスポにログインする | `supabase/templates/magic_link.html` |
-| Confirm sign up | ウラスポのメールアドレスを確認する | `supabase/templates/confirmation.html` |
-| Change email address | ウラスポのメールアドレス変更を確認する | `supabase/templates/email_change.html` |
-| Reauthentication | ウラスポの確認コード | `supabase/templates/reauthentication.html` |
-| Invite user | ウラスポにご招待します | `supabase/templates/invite.html` |
+| Magic link or OTP | そっとマップにログインする | `supabase/templates/magic_link.html` |
+| Confirm sign up | そっとマップのメールアドレスを確認する | `supabase/templates/confirmation.html` |
+| Change email address | そっとマップのメールアドレス変更を確認する | `supabase/templates/email_change.html` |
+| Reauthentication | そっとマップの確認コード | `supabase/templates/reauthentication.html` |
+| Invite user | そっとマップにご招待します | `supabase/templates/invite.html` |
 
 各 `.html` ファイルの中身をテキストエディタで開き、本文欄にそのまま貼り付けてください。色はデザイン
 トークンの値を直書きしているため、`src/app/globals.css` のトークンを本番前に変更した場合はメールの
@@ -116,7 +116,7 @@ HTMLも合わせて直してください。
 で独自のSMTP（例: Resend、SendGrid、Amazon SES など）を設定してください。設定後も送信数の上限（Rate Limits）を
 確認し、想定する利用者数に足りるよう調整してください。
 
-- 送信元アドレス・送信者名は、利用者が届いたメールを見て「ウラスポ」と分かるものにしてください。
+- 送信元アドレス・送信者名は、利用者が届いたメールを見て「そっとマップ」と分かるものにしてください。
 - SMTPのAPIキー・パスワードは、Supabaseダッシュボードにのみ入力し、このリポジトリのどこにも
   コミットしないでください。
 
@@ -278,7 +278,7 @@ select slug, name from cities order by slug;    -- asahikawa/furano/hakodate/kus
 | `CONTACT_RATE_SALT` | 32文字以上のランダムな値（**必須**。未設定だと送信がすべて拒否される） | 本番とは別の値 | **Secret** |
 | `RESEND_API_KEY` | 通知する場合だけ。Resend の API キー | 設定しない（推奨） | **Secret** |
 | `CONTACT_NOTIFY_TO` | 通知する場合だけ。運営のメールアドレス（複数はカンマ区切り） | 設定しない（推奨） | Config |
-| `CONTACT_NOTIFY_FROM` | 任意。Resend で検証済みのドメインの送信元（例: `ウラスポ <notify@urasupo.jp>`） | 設定しない | Config |
+| `CONTACT_NOTIFY_FROM` | 任意。Resend で検証済みのドメインの送信元（例: `そっとマップ <notify@urasupo.jp>`） | 設定しない | Config |
 
 **回数制限と容量。** 送信元IPはそのまま保存せず、`sha256(IP + CONTACT_RATE_SALT)` だけを
 `public.contact_rate` に24時間残す。上限は**1時間に5件・1日に20件／送信元**、全体で**1日に500件**。

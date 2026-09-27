@@ -36,7 +36,7 @@ git diff -U10 <BASE>..HEAD >> .superpowers/sdd/urasupo/final-review-package.txt
 ## プロンプトの骨子
 
 ```
-あなたは「ウラスポ」の最終レビューを行います。コードは変更せず、読むだけで判定してください。日本語で回答。
+あなたは「そっとマップ」の最終レビューを行います。コードは変更せず、読むだけで判定してください。日本語で回答。
 
 ## 読むもの
 1. .superpowers/sdd/urasupo/final-review-package.txt（レビュー対象の全差分）

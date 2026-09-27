@@ -1,6 +1,6 @@
-# ウラスポ
+# そっとマップ
 
-ウラスポは、北海道の「まだ静かな店」を地元の人が地図に残すWebアプリです。投稿したピンは同じ街の2人の承認で公開され、投稿者が90日ごとに静けさを確認することで、観光情報だけでは見つけにくい場所を地域の手で保ちます。
+そっとマップは、北海道の「まだ静かな店」を地元の人が地図に残すWebアプリです。投稿したピンは同じ街の2人の承認で公開され、投稿者が90日ごとに静けさを確認することで、観光情報だけでは見つけにくい場所を地域の手で保ちます。
 
 ## デモモードで起動する
 
@@ -52,11 +52,11 @@ DBは `supabase/migrations/` のSQLを番号順（`0001` → `0006`）に適用�
 
 | テンプレート | 件名 | 本文ファイル |
 | --- | --- | --- |
-| Magic Link | ウラスポにログインする | `supabase/templates/magic_link.html` |
-| Confirm signup | ウラスポのメールアドレスを確認する | `supabase/templates/confirmation.html` |
-| Change Email Address | ウラスポのメールアドレス変更を確認する | `supabase/templates/email_change.html` |
-| Reauthentication | ウラスポの確認コード | `supabase/templates/reauthentication.html` |
-| Invite user | ウラスポにご招待します | `supabase/templates/invite.html` |
+| Magic Link | そっとマップにログインする | `supabase/templates/magic_link.html` |
+| Confirm signup | そっとマップのメールアドレスを確認する | `supabase/templates/confirmation.html` |
+| Change Email Address | そっとマップのメールアドレス変更を確認する | `supabase/templates/email_change.html` |
+| Reauthentication | そっとマップの確認コード | `supabase/templates/reauthentication.html` |
+| Invite user | そっとマップにご招待します | `supabase/templates/invite.html` |
 
 各ファイルの中身（HTML）をそのままダッシュボードの本文欄に貼れば反映されます。色はデザイントークンの値を直書きしているため、`src/app/globals.css` のトークンを変えた場合はメールのHTMLも合わせて直してください。
 

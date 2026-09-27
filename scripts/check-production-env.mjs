@@ -242,7 +242,7 @@ check("NEXT_DIST_DIR（本番では未設定であること）", (messages) => {
 });
 
 // --- 出力 ---
-console.log("ウラスポ 本番環境変数チェック");
+console.log("そっとマップ 本番環境変数チェック");
 console.log("================================");
 let hasFailure = false;
 for (const result of results) {

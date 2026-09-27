@@ -1,4 +1,4 @@
-# ウラスポ 実装計画（Plan）
+# そっとマップ 実装計画（Plan）
 
 Spec: `docs/SPEC.md`（これが権威。矛盾したらSpecを採る）
 デザイン原本: `docs/design-reference/`

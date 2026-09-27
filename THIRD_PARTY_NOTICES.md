@@ -1,11 +1,11 @@
 # サードパーティの通知
 
-ウラスポは次のソフトウェアのコードを含みます（改変あり）。
+そっとマップは次のソフトウェアのコードを含みます（改変あり）。
 
 ## Rare UI
 
 - 出典: https://rareui.com / https://github.com/swamimalode07/rare-ui
-- 使用箇所: `src/components/ui/AnimatedCounter.tsx`、`src/components/ui/ConfirmRemoveButton.tsx`（ウラスポのデザイントークンと日本語に合わせて調整）
+- 使用箇所: `src/components/ui/AnimatedCounter.tsx`、`src/components/ui/ConfirmRemoveButton.tsx`（そっとマップのデザイントークンと日本語に合わせて調整）
 - ライセンス: MIT
 
 ```
