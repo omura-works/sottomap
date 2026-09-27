@@ -1,4 +1,4 @@
-// Rare UI (MIT) https://rareui.com — ウラスポ向けに調整
+// Rare UI (MIT) https://rareui.com — そっとマップ向けに調整
 // 出典: https://github.com/swamimalode07/rare-ui（`.superpowers/sdd/urasupo/rareui/animated-counter.json`）
 // 調整点: import元を `@/lib/utils` → `@/components/ui/cn`（このプロジェクトの共有ヘルパー）に変更。
 // 見た目・挙動（`prefers-reduced-motion` 対応・sr-only の数字表示）は変更していない。

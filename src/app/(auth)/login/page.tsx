@@ -11,7 +11,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   return (
     <div className="mx-auto max-w-md px-4 py-10 lg:py-16 space-y-6">
       <header className="space-y-2">
-        <p className="text-muted text-xs tracking-wide uppercase">ウラスポ</p>
+        <p className="text-muted text-xs tracking-wide uppercase">そっとマップ</p>
         <h1>ログイン</h1>
         <p className="text-muted">メールに届くリンクから、歩きつづけられます。</p>
       </header>

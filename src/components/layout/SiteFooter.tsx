@@ -31,7 +31,7 @@ export function SiteFooter({ demoMode = false }: { demoMode?: boolean }) {
       <div className="flex items-center gap-2">
         <LogoMark size={20} />
         <p className="text-sm" style={{ margin: 0, fontFamily: "var(--font-heading)", fontWeight: 500, letterSpacing: "0.08em" }}>
-          ウラスポ
+          そっとマップ
         </p>
       </div>
       <nav aria-label="フッターリンク">

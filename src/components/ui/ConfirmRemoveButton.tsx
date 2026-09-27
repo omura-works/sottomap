@@ -1,9 +1,9 @@
-// Rare UI (MIT) https://rareui.com — ウラスポ向けに調整
+// Rare UI (MIT) https://rareui.com — そっとマップ向けに調整
 // 出典: https://github.com/swamimalode07/rare-ui（`.superpowers/sdd/urasupo/rareui/delete-button.json`
-// の `DeleteButton`。ウラスポでは栞の「外す」ボタンとして使うため `ConfirmRemoveButton` に改名）。
+// の `DeleteButton`。そっとマップでは栞の「外す」ボタンとして使うため `ConfirmRemoveButton` に改名）。
 // 調整点:
 // - 色の固定値（#F4F4F9 等）をすべてデザイントークン（src/app/globals.css）に置き換え、
-//   ダークモードの指定は削除（ウラスポはライトのみ）。
+//   ダークモードの指定は削除（そっとマップはライトのみ）。
 // - ラベルを日本語化。トリガーの aria-label は呼び出し側から渡す `label` に、
 //   確定は「外す」、取り消しは「やめる」、状態の読み上げは「栞から外しました。」/
 //   「そのままにしました。」に変更。

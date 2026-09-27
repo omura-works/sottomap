@@ -70,7 +70,7 @@ describe("OG 画像（Codex R27 重要: ネットワーク不通でも日本語�
   it("同梱のフォントに、OG 画像で使う日本語すべての字形がある", async () => {
     const font = await loadOgFont();
     expect(font.name).toBe(OG_FONT_NAME);
-    const missing = [..."ウラスポ北海道の、まだ静かな店を歩く"].filter((ch) => glyphIndex(font.data, ch.codePointAt(0) ?? 0) === 0);
+    const missing = [..."そっとマップ北海道の、まだ静かな店を歩く"].filter((ch) => glyphIndex(font.data, ch.codePointAt(0) ?? 0) === 0);
     expect(missing).toEqual([]);
   });
 

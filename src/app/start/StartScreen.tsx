@@ -81,7 +81,7 @@ export function StartScreen({
       >
         <div>
           <h1 className="tracking-[0.3em]" style={{ margin: 0, fontSize: "0.75rem", fontWeight: 500, color: "var(--color-neutral-700)" }}>
-            ウラスポ
+            そっとマップ
           </h1>
           <p style={{ margin: "16px 0 0", color: "var(--color-neutral-800)" }}>
             まだ街が準備されていません。しばらくしてからもう一度お試しください。
@@ -116,12 +116,12 @@ export function StartScreen({
       // SPEC §9.12-2: /start は下部タブを持たないが、端末のホームインジケータに末尾の注記が隠れないよう余白を取る。
       style={{ background: "var(--color-bg)", paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}
     >
-      {/* ヘッダー（高さ72px・下に hairline）: 橙の細線の地図ピン＋「ウラスポ」 */}
+      {/* ヘッダー（高さ72px・下に hairline）: 橙の細線の地図ピン＋「そっとマップ」 */}
       <div className="border-b" style={{ borderColor: "var(--color-divider)" }}>
         <div className="mx-auto flex h-[72px] max-w-6xl items-center gap-2.5 px-5 lg:px-10">
           <LogoMark size={26} />
           <p style={{ margin: 0, fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 17, letterSpacing: "0.1em" }}>
-            ウラスポ
+            そっとマップ
           </p>
         </div>
       </div>

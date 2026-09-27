@@ -40,7 +40,7 @@ describe("PrivacyPage", () => {
   it("個人情報保護法で求められる事項を書いている（R19 重要3）", () => {
     render(<PrivacyPage />);
     const text = document.body.textContent ?? "";
-    expect(text).toMatch(/「ウラスポ運営」が運営しています/);
+    expect(text).toMatch(/「そっとマップ運営」が運営しています/);
     expect(text).toMatch(/氏名（名称）・住所・代表者（法人の場合）は、お問い合わせフォーム（\/contact）からご請求いただければ、遅滞なく回答します/);
     expect(text).toMatch(/安全のためにしていること/);
     expect(text).toMatch(/「自分の個人情報について」を選んで送ってください/);

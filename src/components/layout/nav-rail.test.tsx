@@ -52,10 +52,10 @@ describe.each([
 });
 
 describe("サイドレールのロゴ", () => {
-  it("焦げ茶の角丸正方形に置き、「ウラスポ」の文字は読み上げ用に残す", () => {
+  it("焦げ茶の角丸正方形に置き、「そっとマップ」の文字は読み上げ用に残す", () => {
     mockPathname = "/sapporo";
     render(<SideRail />);
-    const name = screen.getByText("ウラスポ");
+    const name = screen.getByText("そっとマップ");
     expect(name).toHaveClass("sr-only");
   });
 });

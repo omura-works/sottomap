@@ -32,6 +32,6 @@ describe("SiteFooter", () => {
 
   it("サイト名を先頭に出す", () => {
     render(<SiteFooter />);
-    expect(screen.getByText("ウラスポ")).toBeInTheDocument();
+    expect(screen.getByText("そっとマップ")).toBeInTheDocument();
   });
 });

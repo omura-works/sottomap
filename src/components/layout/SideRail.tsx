@@ -29,13 +29,13 @@ export function SideRail({ homeCitySlug = null }: SideRailProps) {
       className="hidden lg:flex flex-col items-center gap-7 w-[88px] shrink-0 border-r pt-6"
       style={{ background: "var(--color-neutral-100)", borderColor: "var(--color-divider)" }}
     >
-      {/* ロゴ: 焦げ茶の角丸正方形に橙の細線の地図ピン＋灯りの点。「ウラスポ」の文字は読み上げ用に残す。 */}
+      {/* ロゴ: 焦げ茶の角丸正方形に橙の細線の地図ピン＋灯りの点。「そっとマップ」の文字は読み上げ用に残す。 */}
       <div
         className="flex h-12 w-12 items-center justify-center"
         style={{ background: "var(--color-neutral-900)", borderRadius: 14 }}
       >
         <LogoMark size={26} strokeColor="var(--color-accent-500)" dotColor="var(--color-accent-400)" />
-        <span className="sr-only">ウラスポ</span>
+        <span className="sr-only">そっとマップ</span>
       </div>
       {/* Codex R27 軽微1: 名前は navigation ランドマーク（nav）自体に付ける（フッターにも別の nav があるため） */}
       <nav aria-label="主要ナビゲーション" className="flex flex-col items-center gap-2.5">

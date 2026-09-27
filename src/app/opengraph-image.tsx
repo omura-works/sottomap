@@ -6,7 +6,7 @@ import { loadOgFont } from "./_og/og-font";
 // accent-400 #f6a06b / neutral-400 #c0b6a5。
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "ウラスポ 北海道の、まだ静かな店を歩く";
+export const alt = "そっとマップ 北海道の、まだ静かな店を歩く";
 
 export default async function OpengraphImage() {
   // 書体はリポジトリに同梱したファイルから読む（ネットワークに頼らない。src/app/_og/og-font.ts）
@@ -63,7 +63,7 @@ export default async function OpengraphImage() {
               />
               <circle cx={32} cy={27} r={3.4} fill="#f6a06b" />
             </svg>
-            <div style={{ display: "flex", fontSize: 34, fontWeight: 400, letterSpacing: 5 }}>ウラスポ</div>
+            <div style={{ display: "flex", fontSize: 34, fontWeight: 400, letterSpacing: 5 }}>そっとマップ</div>
           </div>
           <div style={{ display: "flex", width: 36, height: 2, background: "#f6a06b", marginTop: 56 }} />
           <div

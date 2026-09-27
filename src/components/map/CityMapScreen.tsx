@@ -120,7 +120,7 @@ export function CityMapScreen({
   return (
     <div className="relative h-[calc(100dvh-4rem)] lg:h-screen lg:flex">
       {/* D1: 左サイドバー（街見出し／リード文／絞り込みチップ／店リスト）。
-          ブランド「ウラスポ」表記はグローバル SideRail 側にのみ出す
+          ブランド「そっとマップ」表記はグローバル SideRail 側にのみ出す
           （SPEC §9.12-1: ページ内サイドバーからは外す）。 */}
       <aside
         className="hidden lg:flex lg:w-[360px] lg:shrink-0 lg:flex-col lg:gap-4 lg:overflow-y-auto lg:p-4"

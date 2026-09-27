@@ -22,7 +22,7 @@ export function StyleguideClient() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 lg:py-12 space-y-10">
       <header className="space-y-2">
-        <p className="text-muted text-sm">ウラスポ / スタイルガイド</p>
+        <p className="text-muted text-sm">そっとマップ / スタイルガイド</p>
         <h1>デザインシステム</h1>
         <p className="text-muted">
           UIコンポーネントの一覧（2026-09-26「落ち着いた上品なデザイン」の規則）。橙は主ボタン・選択中・ピンだけ。操作部品は高さ44px・角丸10px、カードは細線の枠・角丸14px、チップは丸い細線。

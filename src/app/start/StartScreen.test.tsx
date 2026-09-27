@@ -244,7 +244,7 @@ describe("StartScreen（SPEC §9.15 案B）", () => {
   it("R14暫定レビュー軽微8: 街が0件の空状態にも h1 を付け、main は AppShell に任せて重ねない", () => {
     render(<StartScreen cities={[]} dataBySlug={{}} defaultCitySlug="sapporo" />);
 
-    expect(screen.getByRole("heading", { level: 1, name: "ウラスポ" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "そっとマップ" })).toBeInTheDocument();
     expect(screen.queryByRole("main")).not.toBeInTheDocument();
   });
 });

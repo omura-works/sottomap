@@ -36,21 +36,21 @@ const zenMaruGothic = Zen_Maru_Gothic({
 export const metadata: Metadata = {
   ...(siteOrigin ? { metadataBase: new URL(siteOrigin) } : {}),
   title: {
-    default: "ウラスポ",
-    template: "%s｜ウラスポ",
+    default: "そっとマップ",
+    template: "%s｜そっとマップ",
   },
   description:
     "住んでいる人が残した店だけを見せる、北海道の街の地図。まだ静かな店を、地元の確認だけで歩く。",
   openGraph: {
-    title: "ウラスポ",
+    title: "そっとマップ",
     description: "北海道の、まだ静かな店を歩く",
-    siteName: "ウラスポ",
+    siteName: "そっとマップ",
     locale: "ja_JP",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "ウラスポ",
+    title: "そっとマップ",
     description: "北海道の、まだ静かな店を歩く",
   },
 };

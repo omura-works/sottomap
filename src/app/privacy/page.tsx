@@ -47,7 +47,7 @@ export default function PrivacyPage() {
     <LegalPage title="プライバシーポリシー" effectiveDate="施行日: 2026年9月20日（最終改定: 2026年9月25日）">
       <LegalSection heading="1. 運営者">
         <p className="m-0">
-          本サービス「ウラスポ」は「ウラスポ運営」が運営しています。運営者の氏名（名称）・住所・代表者（法人の場合）は、お問い合わせフォーム（<Link href="/contact">/contact</Link>）からご請求いただければ、遅滞なく回答します。
+          本サービス「そっとマップ」は「そっとマップ運営」が運営しています。運営者の氏名（名称）・住所・代表者（法人の場合）は、お問い合わせフォーム（<Link href="/contact">/contact</Link>）からご請求いただければ、遅滞なく回答します。
         </p>
       </LegalSection>
 
@@ -276,7 +276,7 @@ export default function PrivacyPage() {
 
       <LegalSection heading="11. ご意見・苦情の窓口">
         <p className="m-0">
-          情報の扱いについてのご意見・苦情は、お問い合わせフォーム（<Link href="/contact">/contact</Link>）から、「ウラスポ運営」宛にお送りください。
+          情報の扱いについてのご意見・苦情は、お問い合わせフォーム（<Link href="/contact">/contact</Link>）から、「そっとマップ運営」宛にお送りください。
         </p>
       </LegalSection>
 
