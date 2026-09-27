@@ -11,7 +11,7 @@ import { CONTACT_CATEGORY_OPTIONS, type ContactCategory } from "@/app/contact/sc
 export const RESEND_EMAILS_ENDPOINT = "https://api.resend.com/emails";
 
 /** CONTACT_NOTIFY_FROM が未設定のときの送信元（Resend の検証用アドレス。本番は独自ドメインの送信元を設定する）。 */
-export const DEFAULT_CONTACT_NOTIFY_FROM = "ウラスポ <onboarding@resend.dev>";
+export const DEFAULT_CONTACT_NOTIFY_FROM = "そっとマップ <onboarding@resend.dev>";
 
 /** 通知の送信を待つ上限（Server Action の応答を長く止めない）。 */
 const NOTIFY_TIMEOUT_MS = 5000;
@@ -66,9 +66,9 @@ export function buildContactNotificationEmail(notification: ContactNotification)
 } {
   const label = categoryLabel(notification.category);
   return {
-    subject: `【ウラスポ】お問い合わせが届きました（${label}）`,
+    subject: `【そっとマップ】お問い合わせが届きました（${label}）`,
     text: [
-      "ウラスポにお問い合わせが届きました。",
+      "そっとマップにお問い合わせが届きました。",
       "",
       `用件: ${label}`,
       `受付ID: ${notification.id}`,

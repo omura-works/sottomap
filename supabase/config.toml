@@ -245,23 +245,23 @@ otp_expiry = 3600
 
 # 仕上げA-1: ログインメールの日本語化（supabase/templates/*.html）。
 [auth.email.template.magic_link]
-subject = "ウラスポにログインする"
+subject = "そっとマップにログインする"
 content_path = "./supabase/templates/magic_link.html"
 
 [auth.email.template.confirmation]
-subject = "ウラスポのメールアドレスを確認する"
+subject = "そっとマップのメールアドレスを確認する"
 content_path = "./supabase/templates/confirmation.html"
 
 [auth.email.template.email_change]
-subject = "ウラスポのメールアドレス変更を確認する"
+subject = "そっとマップのメールアドレス変更を確認する"
 content_path = "./supabase/templates/email_change.html"
 
 [auth.email.template.reauthentication]
-subject = "ウラスポの確認コード"
+subject = "そっとマップの確認コード"
 content_path = "./supabase/templates/reauthentication.html"
 
 [auth.email.template.invite]
-subject = "ウラスポにご招待します"
+subject = "そっとマップにご招待します"
 content_path = "./supabase/templates/invite.html"
 
 # Uncomment to customize notification email template
