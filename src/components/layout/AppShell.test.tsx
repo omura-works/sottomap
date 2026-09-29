@@ -43,4 +43,16 @@ describe("AppShell のフッター表示", () => {
     expect(screen.queryByText(/架空のデータ/)).not.toBeInTheDocument();
     expect(screen.getByText(/国土地理院/)).toBeInTheDocument();
   });
+
+  it("ナビのある・なしが切り替わっても <main> は同じ要素のまま（/start → 地図でページの包みの出入り＝アイリスが起きるように）", () => {
+    mockPathname = "/start";
+    const { rerender } = render(<AppShell>content</AppShell>);
+    const main = screen.getByRole("main");
+    expect(screen.queryByRole("navigation", { name: "主要ナビゲーション" })).not.toBeInTheDocument();
+    mockPathname = "/sapporo";
+    rerender(<AppShell>content</AppShell>);
+    expect(screen.getByRole("main")).toBe(main);
+    expect(screen.getAllByRole("navigation", { name: "主要ナビゲーション" }).length).toBeGreaterThan(0);
+  });
 });
+

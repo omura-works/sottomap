@@ -12,7 +12,15 @@ export function setIrisOrigin(el: Element): void {
   const railOffset = typeof window.matchMedia === "function" && window.matchMedia("(min-width: 1024px)").matches ? RAIL_WIDTH : 0;
   const banner = document.querySelector<HTMLElement>("[data-demo-banner]");
   const bannerOffset = banner ? banner.offsetHeight : 0;
+  const x = r.left + r.width / 2 - railOffset;
+  const y = r.top + r.height / 2 - bannerOffset;
+  // 円の最後の大きさは、押した所から画面（新しいページの箱の見えている範囲）のいちばん遠い角まで。
+  // 150vmax のように大きすぎると、円の縁が画面の外へ出るのが早すぎて「円で開く」が見えないため。
+  const width = window.innerWidth - railOffset;
+  const height = window.innerHeight - bannerOffset;
+  const radius = Math.max(Math.hypot(x, y), Math.hypot(width - x, y), Math.hypot(x, height - y), Math.hypot(width - x, height - y));
   const style = document.documentElement.style;
-  style.setProperty("--iris-x", `${Math.round(r.left + r.width / 2 - railOffset)}px`);
-  style.setProperty("--iris-y", `${Math.round(r.top + r.height / 2 - bannerOffset)}px`);
+  style.setProperty("--iris-x", `${Math.round(x)}px`);
+  style.setProperty("--iris-y", `${Math.round(y)}px`);
+  style.setProperty("--iris-r", `${Math.ceil(radius + 24)}px`);
 }

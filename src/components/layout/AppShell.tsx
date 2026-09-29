@@ -27,23 +27,16 @@ export function AppShell({ children, homeCitySlug = null, demoMode = false }: Ap
   const hideChrome = isChromeHidden(pathname);
   const showFooter = !isFooterHidden(pathname);
 
-  if (hideChrome) {
-    return (
-      <div className="flex min-h-screen flex-col">
-        <main className="flex-1">{children}</main>
-        {showFooter ? <SiteFooter demoMode={demoMode} /> : null}
-      </div>
-    );
-  }
-
+  // ナビのある・なしで木の形を変えない（<main> を同じ位置に保つ）。分岐ごとに別の木を返すと、/start → 地図のように
+  // 切り替わるとき <main> の中のページの包み（ViewTransition）が作り直され、出入りの演出（アイリス）が起きないため。
   return (
-    <div className="flex min-h-screen">
-      <SideRail homeCitySlug={homeCitySlug} moved={moved} />
-      <div className="flex-1 flex flex-col min-w-0 pb-16 lg:pb-0">
+    <div className={hideChrome ? "flex min-h-screen flex-col" : "flex min-h-screen"}>
+      {hideChrome ? null : <SideRail homeCitySlug={homeCitySlug} moved={moved} />}
+      <div className={hideChrome ? "flex-1 flex flex-col min-w-0" : "flex-1 flex flex-col min-w-0 pb-16 lg:pb-0"}>
         <main className="flex-1">{children}</main>
         {showFooter ? <SiteFooter demoMode={demoMode} /> : null}
       </div>
-      <BottomNav homeCitySlug={homeCitySlug} moved={moved} />
+      {hideChrome ? null : <BottomNav homeCitySlug={homeCitySlug} moved={moved} />}
     </div>
   );
 }
