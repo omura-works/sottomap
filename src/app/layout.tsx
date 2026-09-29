@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { Zen_Maru_Gothic } from "next/font/google";
+import { Mochiy_Pop_One, Zen_Maru_Gothic } from "next/font/google";
 import { AppShell } from "@/components/layout/AppShell";
+import { MotionRoot } from "@/components/motion/MotionRoot";
 import { isDemoMode } from "@/lib/supabase/env";
 import { getCurrentUserId } from "@/lib/auth";
 import { getUserProfile, listCities } from "@/lib/db/spots";
@@ -23,14 +24,23 @@ function resolveSiteOrigin(): string | undefined {
 
 const siteOrigin = resolveSiteOrigin();
 
-// サイトの書体（Spec §5: "Zen Maru Gothic" 1書体。2026-09-26 に Zen Old Mincho＋Zen Kaku Gothic New から統一）。
-// 階層は太さ（300/400/500/700）と字間で作る。Spec の変数名を保つため、--font-heading と --font-body の
-// 両方をこの書体に向ける（next/font の variable は1つなので、もう片方は globals.css の :root で同じ値を指す）。
+// サイトの書体は2つ（SPEC motion §2.1「灯りの地図帳」。docs/SPEC.md §9.9 に優先する）。
+// - 本文・ボタン・h3 以下: Zen Maru Gothic（400/500/700。300 は使わなくなった）。
+// - 見出し h1・h2・大きな数字・判子の字・ワードマーク: Mochiy Pop One（400 のみ）。
+//   preload しない・swap: 読み込まれるまでは Zen Maru Gothic で描かれ、最初の表示（LCP）を待たせない。
+// globals.css の --font-heading / --font-body がこの2つの variable を指す。
 const zenMaruGothic = Zen_Maru_Gothic({
-  weight: ["300", "400", "500", "700"],
+  weight: ["400", "500", "700"],
   subsets: ["latin"],
   display: "swap",
   variable: "--font-zen-maru-gothic",
+});
+const mochiyPopOne = Mochiy_Pop_One({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+  preload: false,
+  variable: "--font-mochiy",
 });
 
 export const metadata: Metadata = {
@@ -90,14 +100,17 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const showDemoBanner = shouldShowDemoBanner();
   const homeCitySlug = await resolveHomeCitySlug();
   return (
-    <html lang="ja" className={zenMaruGothic.variable}>
+    <html lang="ja" className={`${zenMaruGothic.variable} ${mochiyPopOne.variable}`}>
       <body className="min-h-screen">
         {showDemoBanner ? (
-          <p className="m-0 px-3 py-1 text-center text-xs text-muted" style={{ background: "var(--color-surface)" }}>
+          <p data-demo-banner="" className="m-0 px-3 py-1 text-center text-xs text-muted" style={{ background: "var(--color-surface)" }}>
             デモモード（保存されません）
           </p>
         ) : null}
-        <AppShell homeCitySlug={homeCitySlug} demoMode={showDemoBanner}>{children}</AppShell>
+        {/* 灯りの層と motion の設定は AppShell の外に置く（ナビあり・なしの分岐が切り替わっても作り直さない。SPEC motion §4.1.4） */}
+        <MotionRoot>
+          <AppShell homeCitySlug={homeCitySlug} demoMode={showDemoBanner}>{children}</AppShell>
+        </MotionRoot>
       </body>
     </html>
   );
