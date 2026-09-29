@@ -109,6 +109,16 @@ describe("灯りの地図帳の配色（SPEC motion §6.1）", () => {
   });
 });
 
+describe("フォーカスの輪が塗りに溶けない", () => {
+  it("選ばれたセグメント（accent-600 の塗り）でも、輪の内側に neutral-100 の帯を重ねた二重の輪になる", () => {
+    const rule = block(".seg-opt:has(input:focus-visible)");
+    expect(rule).toContain("outline: 2px solid var(--ring, var(--color-accent-600))");
+    expect(rule).toContain("box-shadow: inset 0 0 0 4px var(--color-neutral-100)");
+    // 帯（neutral-100）は、塗り（accent-600）とも輪（accent-600）とも 3:1 以上の差がある
+    expect(contrast(token("neutral-100"), token("accent-600"))).toBeGreaterThanOrEqual(3);
+  });
+});
+
 describe("タッチ領域", () => {
   it(".seg-opt（当たり判定の label）は高さ 44px（--control-height）以上", () => {
     expect(css).toMatch(/--control-height: 44px;/);

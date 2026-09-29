@@ -546,9 +546,12 @@ figcaption {
   }
   .field-counter[data-near="true"] .field-count {
     color: var(--color-accent-700);
+  }
+  /* 残り10字・0字の境目をまたいだときだけ跳ねる（Field が data-bump を a / b と交互に替える） */
+  .field-counter[data-bump="a"] .field-count {
     animation: v-bump 450ms var(--ease-out-soft);
   }
-  .field-counter[data-full="true"] .field-count {
+  .field-counter[data-bump="b"] .field-count {
     animation: v-bump-2 450ms var(--ease-out-soft);
   }
   .field-rest {
@@ -694,9 +697,12 @@ figcaption {
   .seg-opt:not(:has(input:checked)):hover {
     background: color-mix(in srgb, var(--color-text) 5%, transparent);
   }
+  /* 選ばれている（accent-600 で塗った）選択肢でも輪が見えるよう、外周の輪（--ring）の内側に
+     neutral-100 の細い帯を重ねた二重の輪にする（塗りと輪が同じ色で溶けない） */
   .seg-opt:has(input:focus-visible) {
     outline: 2px solid var(--ring, var(--color-accent-600));
     outline-offset: -2px;
+    box-shadow: inset 0 0 0 4px var(--color-neutral-100);
   }
   .seg[data-variant="circle"] {
     overflow: visible;
@@ -740,7 +746,8 @@ figcaption {
     display: inline-flex;
     align-items: center;
     height: 36px;
-    padding: 0 16px 0 20px;
+    /* 左右は対称（✓ の置き場 10px＋すき間を両側に同じだけ取り、選んでも字の位置が変わらない） */
+    padding: 0 20px;
     border-radius: var(--radius-pill);
     font-family: var(--font-body);
     font-weight: 700;
@@ -1112,13 +1119,15 @@ figcaption {
     inset: 0;
     pointer-events: none;
   }
+  /* 生成りの点は光らない（光るのは橙の灯りだけ。SPEC motion §0.5） */
   .lamp-dot {
     position: absolute;
     border-radius: 999px;
     background: var(--color-neutral-100);
-    box-shadow: 0 0 calc(var(--dot, 2px) * 3) calc(var(--dot, 2px) * 0.6) color-mix(in srgb, var(--color-neutral-100) 30%, transparent);
+    opacity: 0.7;
   }
   .lamp-dot[data-warm="true"] {
+    opacity: 1;
     background: var(--color-accent-400);
     box-shadow: 0 0 calc(var(--dot, 2px) * 3) calc(var(--dot, 2px) * 0.6) color-mix(in srgb, var(--color-accent-400) 45%, transparent);
   }
@@ -1780,18 +1789,21 @@ figcaption {
 
 /* 動詞のクラス（初回表示の演出と Reveal の両方で使う。遅れは --d）。字や操作部品には .keep-visible を付け、透明から始めない */
 @layer components {
-  .verb-stick {
+  .verb-stick,
+  [data-reveal="play"][data-verb="stick"] {
     animation:
       v-stick var(--dur-settle) var(--spring-settle) var(--d, 0ms) both,
       var(--verb-fade, v-fade-in) 120ms var(--ease-out-soft) var(--d, 0ms) both;
   }
-  .verb-stamp {
+  .verb-stamp,
+  [data-reveal="play"][data-verb="stamp"] {
     animation:
       v-stamp var(--dur-stamp) var(--spring-stamp) var(--d, 0ms) both,
       var(--verb-fade, v-fade-in) 80ms var(--ease-out-soft) var(--d, 0ms) both;
   }
   /* 判子のインクの輪。判子の部品は position: relative を持つ */
-  .verb-stamp::after {
+  .verb-stamp::after,
+  [data-reveal="play"][data-verb="stamp"]::after {
     content: "";
     position: absolute;
     inset: 0;
@@ -1801,13 +1813,15 @@ figcaption {
     animation: v-ink 420ms var(--ease-out-soft) calc(var(--d, 0ms) + 120ms) 1 both;
     pointer-events: none;
   }
-  .verb-tuck {
+  .verb-tuck,
+  [data-reveal="play"][data-verb="tuck"] {
     animation:
       v-tuck var(--dur-tuck) var(--spring-tuck) var(--d, 0ms) both,
       v-sway 900ms linear calc(var(--d, 0ms) + 500ms) 1 both;
     transform-origin: top center;
   }
-  .verb-pop {
+  .verb-pop,
+  [data-reveal="play"][data-verb="pop"] {
     animation: v-pop var(--dur-pop) var(--spring-pop) var(--d, 0ms) both;
   }
   .verb-draw,
@@ -1815,7 +1829,8 @@ figcaption {
     stroke-dasharray: 1 1.5;
     animation: v-draw var(--dur-draw) var(--ease-draw) var(--d, 0ms) both;
   }
-  .verb-ignite {
+  .verb-ignite,
+  [data-reveal="play"][data-verb="ignite"] {
     animation: v-ignite-core 240ms var(--ease-out-soft) var(--d, 0ms) both;
   }
   .verb-ignite-glow {
@@ -1906,6 +1921,8 @@ figcaption {
   .verb-ignite-glow,
   .verb-peel,
   .verb-stamp::after,
+  [data-reveal="play"],
+  [data-reveal="play"]::after,
   .motion-ambient,
   .motion-stagger-item,
   [data-reveal="play"][data-verb="draw"] path,
@@ -1920,7 +1937,7 @@ figcaption {
     animation: none !important;
   }
   .verb-draw,
-  [data-reveal] path {
+  [data-verb="draw"] path {
     stroke-dashoffset: 0;
   }
   ::view-transition-old(*),

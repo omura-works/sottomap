@@ -82,6 +82,31 @@ describe("灯りの層", () => {
     expect(layer.childElementCount).toBe(0);
   });
 
+  it("reduce で行き先が要素なら、飛ばずにその場で 120ms 明るくなってから onArrive", async () => {
+    mockReducedMotion(true);
+    let finish: () => void = () => {};
+    const animate = vi.fn(
+      (...args: [Keyframe[], KeyframeAnimationOptions]) =>
+        args &&
+        ({ finished: new Promise<Animation>((resolve) => (finish = () => resolve({} as Animation))) }) as unknown as Animation,
+    );
+    Object.defineProperty(Element.prototype, "animate", { value: animate, configurable: true, writable: true });
+    const { api, layer } = renderWithLayer();
+    const target = document.createElement("span");
+    document.body.appendChild(target);
+    const onArrive = vi.fn();
+    api.fly({ x: 10, y: 10 }, target, { onArrive, kind: "ribbon" });
+    expect(layer.childElementCount).toBe(0);
+    expect(animate).toHaveBeenCalledTimes(1);
+    expect(animate.mock.instances[0]).toBe(target);
+    expect(animate.mock.calls[0][0]).toEqual([{ opacity: 0.4 }, { opacity: 1 }]);
+    expect(animate.mock.calls[0][1]).toMatchObject({ duration: 120 });
+    expect(onArrive).not.toHaveBeenCalled();
+    await act(async () => finish());
+    expect(onArrive).toHaveBeenCalledTimes(1);
+    target.remove();
+  });
+
   it("同時に飛ぶのは 8 つまで。9 個目は飛ばず onArrive だけ呼ぶ", async () => {
     mockReducedMotion(false);
     const animate = stubAnimate();

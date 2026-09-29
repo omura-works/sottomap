@@ -20,7 +20,7 @@ export interface FlyOptions {
   duration?: number;
   /** 既定 0。 */
   delay?: number;
-  /** 着いた瞬間（reduce・非対応・打ち止めのときは即座）に1回呼ぶ。 */
+  /** 着いた瞬間に1回呼ぶ（非対応・打ち止めのときは即座、reduce では行き先が 120ms で明るくなった後）。 */
   onArrive?: () => void;
 }
 
@@ -37,6 +37,8 @@ export interface LampApi {
 export const MAX_FLYING = 8;
 const DEFAULT_DURATION = 520;
 const FADE_OUT_MS = 120;
+/** reduce のとき、行き先が明るくなる長さ。 */
+const REDUCED_ARRIVE_MS = 120;
 const ARC_SAMPLES = 16;
 
 interface LampContextValue {
@@ -165,7 +167,19 @@ export function LampProvider({ children }: { children: ReactNode }) {
       opts.onArrive?.();
     };
     const layer = layerRef.current;
-    if (!layer || prefersReducedMotion() || !canAnimate() || flyingRef.current >= MAX_FLYING) {
+    // reduce: 飛ばない。行き先が要素なら、その場で 120ms で明るくなってから着いたことにする（opacity だけ。§3.6）
+    if (prefersReducedMotion()) {
+      if (isElement(to) && canAnimate()) {
+        to.animate([{ opacity: 0.4 }, { opacity: 1 }], { duration: REDUCED_ARRIVE_MS, easing: cubicBezier(EASE.outSoft) }).finished.then(
+          arrive,
+          arrive,
+        );
+      } else {
+        arrive();
+      }
+      return;
+    }
+    if (!layer || !canAnimate() || flyingRef.current >= MAX_FLYING) {
       arrive();
       return;
     }

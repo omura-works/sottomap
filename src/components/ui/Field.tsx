@@ -1,4 +1,6 @@
-import { useId } from "react";
+"use client";
+
+import { useId, useState } from "react";
 import type { InputHTMLAttributes, ReactNode } from "react";
 import { cn } from "./cn";
 
@@ -33,6 +35,16 @@ export function Field({ label, maxLength, value, description, error, id, classNa
   const length = value?.length ?? 0;
   const describedBy = [description ? descriptionId : null, error ? errorId : null].filter(Boolean).join(" ") || undefined;
   const remaining = typeof maxLength === "number" ? Math.max(0, maxLength - length) : null;
+  const near = remaining !== null && remaining <= FIELD_NEAR_REMAINING;
+  const full = remaining === 0;
+  // 境目（残り10字・0字）をまたいだときだけ数字を跳ねさせる。最初の描画と1字ごとの変化では跳ねない。
+  // 前回の描画の値と比べて調整する（React 公式の「前の描画の情報を持つ」パターン）。
+  const [previous, setPrevious] = useState({ near, full });
+  const [bump, setBump] = useState<"a" | "b" | null>(null);
+  if (previous.near !== near || previous.full !== full) {
+    setPrevious({ near, full });
+    if (near) setBump((current) => (current === "a" ? "b" : "a"));
+  }
 
   return (
     <div className={cn("field", className)}>
@@ -49,11 +61,12 @@ export function Field({ label, maxLength, value, description, error, id, classNa
       {typeof maxLength === "number" && remaining !== null ? (
         <div
           className="field-counter"
-          data-near={remaining <= FIELD_NEAR_REMAINING ? "true" : "false"}
-          data-full={remaining === 0 ? "true" : "false"}
+          data-near={near ? "true" : "false"}
+          data-full={full ? "true" : "false"}
+          data-bump={bump ?? undefined}
         >
           <span className="field-count">{length}</span>/{maxLength}
-          {remaining <= FIELD_NEAR_REMAINING ? <span className="field-rest"> あと{remaining}字</span> : null}
+          {near ? <span className="field-rest"> あと{remaining}字</span> : null}
         </div>
       ) : null}
       {description ? (

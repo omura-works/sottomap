@@ -87,6 +87,32 @@ describe("Field", () => {
   });
 });
 
+describe("Field の文字数の跳ね（境目をまたいだときだけ）", () => {
+  const renderCount = (n: number) => <Field label="理由" maxLength={60} value={"あ".repeat(n)} onChange={() => {}} />;
+  const counter = () => document.querySelector(".field-counter");
+
+  it("最初の描画では、残り10字以下でも跳ねない", () => {
+    render(renderCount(55));
+    expect(counter()).toHaveAttribute("data-near", "true");
+    expect(counter()).not.toHaveAttribute("data-bump");
+  });
+
+  it("残り10字・0字をまたいだときだけ跳ね、1字ごとには跳ねない", () => {
+    const { rerender } = render(renderCount(40));
+    rerender(renderCount(49));
+    expect(counter()).not.toHaveAttribute("data-bump");
+    rerender(renderCount(50));
+    expect(counter()).toHaveAttribute("data-bump", "a");
+    rerender(renderCount(55));
+    expect(counter()).toHaveAttribute("data-bump", "a");
+    rerender(renderCount(60));
+    expect(counter()).toHaveAttribute("data-bump", "b");
+    rerender(renderCount(40));
+    expect(counter()).toHaveAttribute("data-bump", "b");
+    expect(counter()).toHaveAttribute("data-near", "false");
+  });
+});
+
 describe("Segment", () => {
   const options = [
     { value: "weekly", label: "週1で行く" },

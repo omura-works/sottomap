@@ -616,7 +616,7 @@ function FlyDemo() {
             判子を飛ばす
           </Button>
         </div>
-        <span className="sg-fly-target" ref={targetRef} data-lamp-target="bookmarks">
+        <span className="sg-fly-target" ref={targetRef}>
           <span className="mochiy" aria-hidden="true">
             栞
           </span>
