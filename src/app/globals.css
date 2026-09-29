@@ -81,7 +81,7 @@
   --shadow-lift: 0 18px 36px -14px color-mix(in srgb, #2e2b25 32%, transparent);
 
   /* 小さな文字（text-xs = 12px）は 500。細すぎると読めないため（font-bold 等を付けた所はそちらが勝つ） */
-  --text-xs--font-weight: 500;
+  --text-xs--font-weight: 400;
 }
 
 :root {
@@ -106,7 +106,7 @@
 }
 
 /* 書体は2つ（SPEC motion §2.1）: 見出し・大きな数字・判子・ワードマークは Mochiy Pop One（400 のみ）、
-   本文・ボタン・h3 以下は Zen Maru Gothic（400/500/700）。next/font/google（layout.tsx）が html 要素に
+   本文・ボタン・h3 以下は Zen Maru Gothic（400/700 の2つ。2026-09-30 に 500 をやめた）。next/font/google（layout.tsx）が html 要素に
    --font-mochiy と --font-zen-maru-gothic を注入する。Mochiy が読み込まれるまでは Zen Maru Gothic で描かれる。
    @theme inline は Tailwind の font-* ユーティリティ（font-heading / font-body）への橋渡し。 */
 :root {
@@ -282,7 +282,7 @@ figure {
 }
 figcaption {
   font-size: var(--fs-micro);
-  font-weight: 500;
+  font-weight: 400;
   margin-top: var(--space-1);
   color: var(--color-text-muted);
 }
@@ -353,19 +353,19 @@ figcaption {
   }
   .fs-lead {
     font-size: var(--fs-lead);
-    font-weight: 500;
+    font-weight: 400;
     line-height: 1.9;
     letter-spacing: 0.03em;
   }
   .fs-small {
     font-size: var(--fs-small);
-    font-weight: 500;
+    font-weight: 400;
     line-height: 1.7;
     letter-spacing: 0.03em;
   }
   .fs-micro {
     font-size: var(--fs-micro);
-    font-weight: 500;
+    font-weight: 400;
     line-height: 1.6;
     letter-spacing: 0.04em;
   }
@@ -517,7 +517,7 @@ figcaption {
   .field > label {
     display: block;
     font-size: var(--fs-small);
-    font-weight: 500;
+    font-weight: 400;
     letter-spacing: 0.02em;
     margin-bottom: 6px;
     color: var(--color-text-muted);
@@ -530,7 +530,7 @@ figcaption {
     flex-wrap: wrap;
     margin-top: 4px;
     font-size: var(--fs-small);
-    font-weight: 500;
+    font-weight: 400;
     line-height: 1.4;
     color: var(--color-text-muted);
   }
@@ -561,7 +561,7 @@ figcaption {
   }
   .field-hint {
     font-size: var(--fs-micro);
-    font-weight: 500;
+    font-weight: 400;
     margin-top: 4px;
     color: var(--color-text-muted);
   }
@@ -633,7 +633,7 @@ figcaption {
     gap: 8px;
     cursor: pointer;
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 400;
   }
   .radio input,
   .seg-opt input {
@@ -679,7 +679,7 @@ figcaption {
     min-width: 44px;
     padding: 0 18px;
     font-size: var(--fs-label);
-    font-weight: 500;
+    font-weight: 400;
     letter-spacing: 0.04em;
     cursor: pointer;
     transition:
@@ -841,7 +841,7 @@ figcaption {
     align-items: center;
     gap: 6px;
     font-size: var(--fs-micro);
-    font-weight: 500;
+    font-weight: 400;
     color: var(--color-text-muted);
   }
   .elev-sm {
@@ -1345,7 +1345,7 @@ figcaption {
     color: inherit;
     text-decoration: none;
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 400;
   }
   .nav a:hover,
   .nav a[aria-current="page"] {
@@ -1361,7 +1361,7 @@ figcaption {
   .table th {
     text-align: left;
     font-size: var(--fs-micro);
-    font-weight: 500;
+    font-weight: 400;
     letter-spacing: 0.1em;
     color: var(--color-text-muted);
     padding: var(--space-2) var(--space-3);
@@ -1499,7 +1499,7 @@ figcaption {
     display: inline-flex;
     align-items: center;
     font-size: var(--fs-micro);
-    font-weight: 500;
+    font-weight: 400;
     line-height: 1.5;
     letter-spacing: 0.04em;
     padding: 3px 12px;
@@ -2187,7 +2187,7 @@ figcaption {
     align-items: center;
     min-height: 44px;
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 400;
     color: var(--color-neutral-300);
     text-decoration: underline;
     text-decoration-color: var(--color-neutral-500);
@@ -2249,7 +2249,7 @@ figcaption {
   .loading-draft-note {
     margin-left: 12px;
     font-size: var(--fs-small);
-    font-weight: 500;
+    font-weight: 400;
     color: var(--color-text-muted);
     white-space: nowrap;
   }
@@ -2335,8 +2335,26 @@ figcaption {
     position: absolute;
     inset: 0;
     overflow: hidden;
-    background: var(--color-bg);
+    background: var(--color-neutral-200);
     pointer-events: none;
+  }
+  .map-underlay-paper {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  /* 型付きの遷移で移ってきたとき（nav-intent.ts の html[data-nav]）は、ロード中の骨格を待たずに出し、
+     紙の地図の道も描き終わった形で出す（入る側のスライド・アイリスの円の中が無地の紙にならないように） */
+  html[data-nav] .loading-draft-line,
+  html[data-nav] .loading-draft-row,
+  html[data-nav] .loading-draft-note,
+  html[data-nav] .city-loading-card::before {
+    animation: none;
+  }
+  html[data-nav] .map-underlay .verb-draw {
+    animation: none;
+    stroke-dashoffset: 0;
   }
 }
 

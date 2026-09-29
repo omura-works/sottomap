@@ -156,6 +156,35 @@ describe("StartScreen（SPEC motion §5.1）", () => {
     expect(document.documentElement.style.getPropertyValue("--iris-y")).toMatch(/px$/);
   });
 
+  it("アイリスの中心と半径: 押したボタンの中心（左ナビ・デモの帯が無ければそのまま）と、そこから画面のいちばん遠い角まで", async () => {
+    renderStart();
+    const button = screen.getByRole("button", { name: "札幌を歩いてみる" });
+    vi.spyOn(button, "getBoundingClientRect").mockReturnValue({ left: 100, top: 200, width: 200, height: 50, right: 300, bottom: 250, x: 100, y: 200, toJSON: () => ({}) } as DOMRect);
+    await act(async () => {
+      fireEvent.click(button);
+    });
+    const style = document.documentElement.style;
+    expect(style.getPropertyValue("--iris-x")).toBe("200px");
+    expect(style.getPropertyValue("--iris-y")).toBe("225px");
+    // jsdom の画面は 1024×768。いちばん遠い角 (1024, 768) まで hypot(824, 543) ≈ 986.8 → 切り上げ 987 ＋ 24
+    expect(style.getPropertyValue("--iris-r")).toBe("1011px");
+    expect(document.documentElement.dataset.nav).toBe("lamp-iris");
+  });
+
+  it("今週の店: 最初の表示では行を動かさず、街を替えたときだけ行の灯りが灯る", () => {
+    mockReducedMotion(false);
+    const data = {
+      sapporo: DATA.sapporo,
+      otaru: { publishedCount: 3, recentlyVerified: [{ spotId: "o1", spotName: "南樽市場", verifierCount: 2 }] },
+    };
+    const { container } = render(<StartScreen cities={CITIES} dataBySlug={data} defaultCitySlug="sapporo" />);
+    const firstDot = container.querySelector(".start-weekly-dot");
+    expect(firstDot).not.toHaveClass("verb-ignite");
+    fireEvent.click(screen.getByRole("button", { name: "小樽" }));
+    const newRow = screen.getByText("南樽市場").closest("li")!;
+    expect(newRow.querySelector(".start-weekly-dot")).toHaveClass("verb-ignite");
+  });
+
   it("保存に失敗したら、やわらかい言い方のエラーを alert で出す", async () => {
     mocks.save.mockImplementation(async () => {
       throw new Error("network");

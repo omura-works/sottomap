@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { MotionConfig } from "motion/react";
 import { usePathname } from "next/navigation";
 import { LampLayer, LampProvider } from "./LampLayer";
+import { settleNavigation } from "./nav-intent";
 
 /**
  * 動きの土台（SPEC motion §4.1.4）。`layout.tsx` の `<body>` の中で `AppShell` を包む
@@ -16,6 +17,7 @@ import { LampLayer, LampProvider } from "./LampLayer";
 export function MotionRoot({ children }: { children: ReactNode }) {
   useChipPressOrigin();
   usePageLampGuard();
+  useNavigationSettle();
   return (
     <MotionConfig reducedMotion="user">
       <LampProvider>
@@ -24,6 +26,14 @@ export function MotionRoot({ children }: { children: ReactNode }) {
       </LampProvider>
     </MotionConfig>
   );
+}
+
+/** ページが変わるたびに、型付き遷移の印（`<html data-nav>`）を進める・外す（nav-intent.ts）。 */
+function useNavigationSettle() {
+  const pathname = usePathname();
+  useEffect(() => {
+    settleNavigation();
+  }, [pathname]);
 }
 
 const CHIP_HIT_SELECTOR = ".chip-hit, .start-city-chip";

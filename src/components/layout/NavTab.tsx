@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import { EASE, SPRING } from "@/components/motion/tokens";
 import { usePrefersReducedMotion } from "@/components/ui/motion-prefs";
+import { markNavigation } from "@/components/motion/nav-intent";
 import { NavIcon } from "./NavIcon";
 import { NavPending } from "./NavPending";
 import { isNavItemActive, navDirection } from "./nav-items";
@@ -51,6 +52,7 @@ export function NavTab({ item, pathname, variant, moved }: NavTabProps) {
     <Link
       href={item.href}
       transitionTypes={direction ? [direction] : undefined}
+      onClick={direction ? () => markNavigation(direction) : undefined}
       aria-current={active ? "page" : undefined}
       data-active={active ? "true" : undefined}
       className={
@@ -60,7 +62,7 @@ export function NavTab({ item, pathname, variant, moved }: NavTabProps) {
       }
       style={{
         color: active ? "var(--color-accent-700)" : "var(--color-text-muted)",
-        fontWeight: 500,
+        fontWeight: 400,
       }}
     >
       <span

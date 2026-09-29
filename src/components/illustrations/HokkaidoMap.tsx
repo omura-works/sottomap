@@ -38,7 +38,7 @@ export function HokkaidoMap({ selectedSlug, className, style, ignite = false }: 
       <svg viewBox="0 0 486 454" focusable="false" aria-hidden="true">
         <path className="hokkaido-coast" d={HOKKAIDO_PATH} />
         {Object.entries(HOKKAIDO_TOWNS).map(([slug, point]) => (
-          <circle key={slug} className="hokkaido-town" cx={point.x} cy={point.y} r={4} />
+          <circle key={slug} className="hokkaido-town" cx={point.x} cy={point.y} r={8} />
         ))}
       </svg>
       {town ? (

@@ -298,10 +298,10 @@ export function StartScreen({
         </section>
 
         <div className="start-trail">
-          <span className="start-trail-col" aria-hidden="true" />
-
           {/* やくそく: スクロールで1枚ずつ貼られる */}
           <section className="start-promise" aria-labelledby="start-promise-h">
+            {/* 縦の散歩道（PC）: やくそくの灯りから凡例の灯りまで */}
+            <span className="start-trail-col" aria-hidden="true" />
             <div className="start-sec-head">
               <div className="start-sec-title">
                 <span className="start-trail-lamp" aria-hidden="true" />

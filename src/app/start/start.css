@@ -40,6 +40,8 @@
 
 /* ── 夜の舞台 ── */
 .start-hero {
+  /* .night-card の overflow: hidden はスクロールの箱になり、view() の基準が舞台の中になって視差が動かない。clip にする */
+  overflow: clip;
   margin-top: 8px;
   border-radius: var(--radius-hero);
   background: var(--night-horizon);
@@ -74,19 +76,20 @@
   bottom: -220px;
   background: radial-gradient(closest-side, color-mix(in srgb, var(--color-accent-300) 22%, transparent), transparent);
 }
+/* 視差で最大 18px 上へずれるので、そのぶん下へ伸ばしておく（下端に隙間を作らない） */
 .start-par-ridge {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 0;
-  height: 64px;
+  bottom: -18px;
+  height: calc(64px + 18px);
 }
 .start-par-ridge .night-ridge {
   height: 100%;
 }
 @media (min-width: 1024px) {
   .start-par-ridge {
-    height: 120px;
+    height: calc(120px + 18px);
   }
 }
 
@@ -105,7 +108,7 @@
 .start-screen .start-light.lamp-dot-ignite {
   animation:
     v-ignite-core 480ms var(--ease-out-soft) var(--d, 0ms) both,
-    start-light-glow 4.2s ease-in-out calc(var(--d, 0ms) + 480ms) infinite;
+    start-light-glow 4.2s ease-in-out calc(var(--d, 0ms) + 1800ms) infinite;
 }
 /* Codex R10 重要3: SSR・利用者が未選択の間（data-motion="auto"）もOSの reduce を効かせる（JS無効でも初回表示から止まる） */
 @media (prefers-reduced-motion: reduce) {
@@ -122,7 +125,13 @@
 .start-screen[data-motion="playing"] .start-light.lamp-dot-ignite {
   animation:
     v-ignite-core 480ms var(--ease-out-soft) var(--d, 0ms) both,
-    start-light-glow 4.2s ease-in-out calc(var(--d, 0ms) + 480ms) infinite;
+    start-light-glow 4.2s ease-in-out calc(var(--d, 0ms) + 1800ms) infinite;
+}
+/* OS の reduce のまま「動きを再開する」を押したときは、灯り直さず（一度消えず）明滅だけ始める */
+@media (prefers-reduced-motion: reduce) {
+  .start-screen[data-motion="playing"] .start-light.lamp-dot-ignite {
+    animation: start-light-glow 4.2s ease-in-out var(--d, 0ms) infinite;
+  }
 }
 
 /* 「動きを止める」（控えめな見た目、当たり判定は44px以上。SPEC §9.14-14） */
@@ -203,9 +212,10 @@
   color: var(--color-neutral-100);
 }
 .start-h1-r2 {
-  font-size: min(var(--fs-display), 13.4cqi);
+  /* 左の列の幅に収まる大きさ（13.4cqi）。ただし1行目（北海道の、）より小さくはしない（文字を 200% に拡大したとき）。
+     収まらないときは折り返す（山の字は折り返してよい。§6.6） */
+  font-size: max(calc(clamp(1.75rem, 1.4rem + 1.5vw, 2.75rem) * 1.2), min(var(--fs-display), 13.4cqi));
   line-height: 1.25;
-  white-space: nowrap;
   color: var(--color-neutral-100);
 }
 .start-h1-r3 {
@@ -232,8 +242,10 @@
 .start-lead {
   margin: 24px 0 0;
   max-width: 32em;
+  text-wrap: pretty;
+  word-break: auto-phrase;
   font-size: var(--fs-lead);
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.9;
   color: var(--color-neutral-300);
 }
@@ -312,7 +324,7 @@
   position: relative;
   display: inline-block;
   margin-block: -0.22em;
-  clip-path: inset(0.1em -0.3em 0.1em -0.3em);
+  clip-path: inset(0.04em -0.3em 0.04em -0.3em);
   font-family: var(--font-heading);
   font-weight: 400;
   font-synthesis: none;
@@ -331,7 +343,7 @@
   display: block;
   margin-top: 6px;
   font-size: var(--fs-small);
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.7;
   color: var(--color-text-muted);
 }
@@ -344,7 +356,10 @@
 .start-weekly {
   position: relative;
   display: grid;
+  align-content: start;
   gap: 6px;
+  /* 3行ぶん（店名 15px×1.5 ＋ メタ 13px×1.5 ＋ すき間）。街を替えても高さを変えず、h1 を跳ばさない */
+  min-height: calc(3 * (15px * 1.5 + 13px * 1.5) + 2 * 6px);
   margin: 8px 0 0;
   padding: 0;
   list-style: none;
@@ -373,7 +388,7 @@
   flex-basis: 100%;
   padding-left: 18px;
   font-size: var(--fs-small);
-  font-weight: 500;
+  font-weight: 400;
   color: var(--color-text-muted);
 }
 .start-weekly-empty {
@@ -402,7 +417,7 @@
   text-wrap: balance;
   word-break: auto-phrase;
   font-size: var(--fs-small);
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: 0.02em;
   color: var(--color-text-muted);
 }
@@ -426,8 +441,9 @@
     display: block;
     position: absolute;
     left: -28px;
-    top: calc(var(--space-section) + 10px);
-    bottom: 40px;
+    /* 上端はやくそくの灯りの中心、下端は凡例の灯りの中心（節の間 --space-section ＋ 灯りの中心 11px） */
+    top: 11px;
+    bottom: calc(-1 * var(--space-section) - 11px);
     width: 4px;
     background-image: radial-gradient(circle, var(--color-neutral-400) 2px, transparent 2.5px);
     background-size: 4px 18px;
@@ -450,6 +466,7 @@
   position: relative;
 }
 .start-promise {
+  position: relative;
   margin-top: var(--space-section);
 }
 .start-sec-head {

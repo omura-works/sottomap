@@ -11,8 +11,8 @@ const ROADS: ReadonlyArray<{ d: string; width: number; opacity: number }> = [
   { d: "M-40 120 C 180 160, 300 90, 520 130 S 860 60, 1260 110", width: 0.8, opacity: 0.07 },
 ];
 
-/** 紙の地図（MapUnderlay）で使う不透明度（0.5〜0.8）。 */
-const PAPER_OPACITY = [0.8, 0.6, 0.55, 0.65, 0.5, 0.5] as const;
+/** 紙の地図（MapUnderlay）の大通りの不透明度（地図と読めるよう、はっきりめ）。 */
+const PAPER_OPACITY = [0.95, 0.85, 0.8, 0.85, 0.75, 0.75] as const;
 
 export interface RoadLinesProps {
   className?: string;
@@ -44,7 +44,7 @@ export function RoadLines({ className, style, tone = "night", draw = false }: Ro
           pathLength={draw ? 1 : undefined}
           className={draw ? "verb-draw" : undefined}
           style={draw ? ({ "--d": `${i * 60}ms`, "--dur-draw": "1200ms" } as CSSProperties) : undefined}
-          strokeWidth={paper ? 1.5 : road.width}
+          strokeWidth={paper ? 3 : road.width}
           strokeOpacity={paper ? PAPER_OPACITY[i] : road.opacity}
           vectorEffect={paper ? "non-scaling-stroke" : undefined}
         />

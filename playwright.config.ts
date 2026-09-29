@@ -23,6 +23,7 @@ export default defineConfig({
         "**/user-flows.spec.ts",
         "**/geolocation.spec.ts",
         "**/start-motion.spec.ts",
+        "**/start-parallax.spec.ts",
         "**/prodready.spec.ts",
         "**/legal-links.spec.ts",
         "**/contact.spec.ts",
