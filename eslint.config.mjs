@@ -17,6 +17,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // predev/prebuild で node_modules からコピーする MapLibre の Worker（生成物）
     "public/maplibre/**",
+    // 設計・見本の作業フォルダ（.gitignore 済み。動く見本の撮影スクリプトなどアプリ外の物）
+    ".superpowers/**",
   ]),
 ]);
 

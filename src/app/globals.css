@@ -1,13 +1,14 @@
 @import "tailwindcss";
 
 /* ══════════════════════════════════════════════════════════════════════════
-   デザイントークン（docs/SPEC.md §5。2026-09-26「落ち着いた上品なデザイン」で値と用途を整えた）
-   - 差し色の橙は「主ボタン・選択中・ピン」だけに使う。面は生成り（bg）・砂色（surface）・neutral-100。
+   デザイントークン（2026-09-28「灯りの地図帳」。.superpowers/sdd/urasupo/motion/SPEC.md §2・§3 が
+   docs/SPEC.md §5 に優先する）
+   - 色は既存の値だけを使う（新しい色の値は作らない）。光るのは灯り（accent-400）だけ。
    - 区切り線は hairline（--color-divider）。枠を見せたい部品は --color-line（少し濃い細線）。
-   - 角丸は 8 / 10（操作部品）/ 12（カード）/ 20（大きな面）の4段。影は sm（ほぼ無し）と lg（大きくやわらか）。
+   - 角丸は 8（サムネ）/ 14（入力欄）/ 16（行・小さなカード）/ 22（カード・ダイアログ）/ 28（夜の面）/ ピル（ボタン・チップ・判子）。
    `@theme` 内の値は Tailwind のユーティリティ生成にも使われる
    （--color-接頭辞 は bg- / text- / border- 等、--radius-接頭辞 は rounded- 、
-   --shadow-接頭辞 は shadow- のユーティリティを生成する）。--space-1..8 と
+   --shadow-接頭辞 は shadow- のユーティリティを生成する）。--space-1..8・--fs-*・--dur-* と
    --font-heading/--font-body は Spec の変数名をそのまま保つため、Tailwind の
    命名規則には乗らない独自の名前空間として plain CSS 変数のまま使う。
    ══════════════════════════════════════════════════════════════════════ */
@@ -58,16 +59,26 @@
   --color-accent-2-800: #3d472b;
   --color-accent-2-900: #272e1b;
 
+  /* 角丸（SPEC motion §2.6） */
   --radius-sm: 8px;
-  /* ボタン・入力欄・セグメント（同じ高さ・同じ角丸にそろえる） */
-  --radius-control: 10px;
-  --radius-md: 12px;
-  --radius-lg: 20px;
+  /* 入力欄・テキストエリア */
+  --radius-control: 14px;
+  /* 一覧の行・小さなカード・地図の札 */
+  --radius-md: 16px;
+  /* カード・ダイアログ・/start の紙の札 */
+  --radius-lg: 22px;
+  /* 夜の面（ヒーロー・栞の見出し）・ログインのカード */
+  --radius-hero: 28px;
+  /* ボタン・チップ・タグ・ナビの丸・判子・キッカーの札 */
+  --radius-pill: 999px;
 
-  /* 影は2段だけ。sm/md は「ほぼ無し」の同じ段、lg はヒーロー・ダイアログの大きくやわらかい影 */
+  /* 影（止まった絵として持ち、影の値そのものは動かさない。SPEC motion §2.7） */
   --shadow-sm: 0 1px 2px color-mix(in srgb, #2e2b25 6%, transparent);
   --shadow-md: 0 1px 2px color-mix(in srgb, #2e2b25 6%, transparent), 0 8px 24px -16px color-mix(in srgb, #2e2b25 22%, transparent);
   --shadow-lg: 0 32px 64px -32px color-mix(in srgb, #2e2b25 45%, transparent);
+  --shadow-paper: 0 1px 0 var(--color-divider), 0 10px 24px -16px color-mix(in srgb, #2e2b25 30%, transparent);
+  --shadow-sticker: 0 8px 20px -8px color-mix(in srgb, #2e2b25 22%, transparent);
+  --shadow-lift: 0 18px 36px -14px color-mix(in srgb, #2e2b25 32%, transparent);
 
   /* 小さな文字（text-xs = 12px）は 500。細すぎると読めないため（font-bold 等を付けた所はそちらが勝つ） */
   --text-xs--font-weight: 500;
@@ -80,35 +91,102 @@
   --space-4: 17.6px;
   --space-6: 26.4px;
   --space-8: 35.2px;
-  /* セクション間の余白（mobile 56px / desktop 96px） */
-  --space-section: 56px;
+  /* セクション間の余白（mobile 64px / desktop 120px。足し算で増えた要素の間に息をする所を作る） */
+  --space-section: 64px;
+  /* 夜の面の内側 */
+  --space-stage: 24px;
   /* タッチ対象・ボタン・入力欄の高さ */
   --control-height: 44px;
 }
 @media (min-width: 1024px) {
   :root {
-    --space-section: 96px;
+    --space-section: 120px;
+    --space-stage: 64px;
   }
 }
 
-/* 書体は Zen Maru Gothic 1つ（2026-09-26）。next/font/google（layout.tsx）が html 要素に
-   --font-zen-maru-gothic を注入し、Spec の変数名 --font-heading / --font-body の両方をそこへ向ける。
+/* 書体は2つ（SPEC motion §2.1）: 見出し・大きな数字・判子・ワードマークは Mochiy Pop One（400 のみ）、
+   本文・ボタン・h3 以下は Zen Maru Gothic（400/500/700）。next/font/google（layout.tsx）が html 要素に
+   --font-mochiy と --font-zen-maru-gothic を注入する。Mochiy が読み込まれるまでは Zen Maru Gothic で描かれる。
    @theme inline は Tailwind の font-* ユーティリティ（font-heading / font-body）への橋渡し。 */
 :root {
-  --font-heading: var(--font-zen-maru-gothic);
-  --font-body: var(--font-zen-maru-gothic);
+  --font-heading: var(--font-mochiy), var(--font-zen-maru-gothic), system-ui, sans-serif;
+  --font-body: var(--font-zen-maru-gothic), system-ui, sans-serif;
 }
 @theme inline {
-  --font-heading: var(--font-zen-maru-gothic);
-  --font-body: var(--font-zen-maru-gothic);
+  --font-heading: var(--font-mochiy), var(--font-zen-maru-gothic), system-ui, sans-serif;
+  --font-body: var(--font-zen-maru-gothic), system-ui, sans-serif;
+}
+
+/* 文字の段（SPEC motion §2.2）。390px と 1280px の2点を結ぶ clamp()。rem なのでブラウザの文字の大きさに追従する。
+   1画面に「山」（peak / giant）はちょうど1つ。山のすぐ隣に small か lead の添え字を置き、大小の比を5倍以上にする。 */
+:root {
+  --fs-peak: clamp(5.5rem, 4.0756rem + 5.843vw, 8.75rem);
+  --fs-giant: clamp(4.5rem, 3.1856rem + 5.393vw, 7.5rem);
+  --fs-display: clamp(2.5rem, 1.6238rem + 3.596vw, 4.5rem);
+  --fs-num: clamp(2.75rem, 2.2025rem + 2.247vw, 4rem);
+  --fs-h1: clamp(2rem, 1.5619rem + 1.798vw, 3rem);
+  --fs-h2: clamp(1.5rem, 1.2263rem + 1.124vw, 2.125rem);
+  --fs-h3: clamp(1.1875rem, 1.1056rem + 0.337vw, 1.375rem);
+  --fs-lead: clamp(1.0625rem, 1.0075rem + 0.225vw, 1.1875rem);
+  --fs-body: 1rem;
+  --fs-label: 0.9375rem;
+  --fs-small: 0.8125rem;
+  --fs-micro: 0.75rem;
+
+  /* 夜の面の地（下端の地平線をほんのり暖かく） */
+  --night-horizon: linear-gradient(
+    180deg,
+    var(--color-neutral-900) 55%,
+    color-mix(in srgb, var(--color-neutral-900) 88%, var(--color-accent-900)) 100%
+  );
+
+  /* にじむ光（灯りだけが光る）。層の opacity と scale だけを動かす */
+  --glow-sm: 0 0 10px 2px color-mix(in srgb, var(--color-accent-400) 55%, transparent);
+  --glow-md: 0 0 24px 6px color-mix(in srgb, var(--color-accent-400) 40%, transparent);
+  --glow-lg: 0 0 64px 18px color-mix(in srgb, var(--color-accent-400) 28%, transparent);
+}
+
+/* 動きの時間・イージング・スプリング（SPEC motion §3.1・§3.2。src/components/motion/tokens.ts と同じ値） */
+:root {
+  --dur-press: 90ms;
+  --dur-quick: 160ms;
+  --dur-peel: 200ms;
+  --dur-base: 240ms;
+  --dur-enter: 320ms;
+  --dur-stamp: 480ms;
+  --dur-settle: 600ms;
+  --dur-stage: 640ms;
+  --dur-draw: 700ms;
+  --dur-tuck: 700ms;
+  --dur-pop: 800ms;
+  --dur-ignite: 900ms;
+  --dur-breath: 2400ms;
+  --stagger: 45ms;
+  --stagger-pin: 30ms;
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-stage: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-draw: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-sink: cubic-bezier(0.33, 1, 0.68, 1);
+  --ease-peel: cubic-bezier(0.55, 0, 1, 0.45);
+  --ease-breath: cubic-bezier(0.37, 0, 0.63, 1);
+
+  /* スプリング: x(t)=1−e^(−ζωt)(cos ω_d t + (ζω/ω_d) sin ω_d t) を点で写した。
+     linear() が読めないブラウザでは、前に書いた --ease-out-soft が残る。 */
+  --spring-pop: var(--ease-out-soft);
+  --spring-pop: linear(0, 0.130 5%, 0.418 10%, 0.731 15%, 0.985 20%, 1.142 25%, 1.203 30%, 1.191 35%, 1.138 40%, 1.073 45%, 1.016 50%, 0.978 55%, 0.960 60%, 0.959 65%, 0.968 70%, 0.981 75%, 0.994 80%, 1.003 85%, 1.008 90%, 1.009 95%, 1);
+  --spring-settle: var(--ease-out-soft);
+  --spring-settle: linear(0, 0.130 8.3%, 0.376 16.7%, 0.610 25%, 0.787 33.3%, 0.903 41.7%, 0.969 50%, 1.001 58.3%, 1.013 66.7%, 1.015 75%, 1.012 83.3%, 1.008 91.7%, 1);
+  --spring-stamp: var(--ease-out-soft);
+  --spring-stamp: linear(0, 0.171 6.3%, 0.514 12.5%, 0.841 18.8%, 1.059 25%, 1.153 31.3%, 1.155 37.5%, 1.108 43.8%, 1.051 50%, 1.005 56.3%, 0.980 62.5%, 0.973 68.8%, 0.978 75%, 0.987 81.3%, 0.996 87.5%, 1.002 93.8%, 1);
+  --spring-tuck: var(--ease-out-soft);
+  --spring-tuck: linear(0, 0.080 6.3%, 0.262 12.5%, 0.478 18.8%, 0.682 25%, 0.849 31.3%, 0.970 37.5%, 1.046 43.8%, 1.085 50%, 1.095 56.3%, 1.087 62.5%, 1.069 68.8%, 1.049 75%, 1.030 81.3%, 1.014 87.5%, 1.003 93.8%, 1);
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   基本要素（docs/design-reference/design-tokens.css の base rules を移植。
-   フォントは Zen Maru Gothic 1書体（2026-09-26）。階層は太さと字間で作る:
-   大きな表示 = 400・字間 0.07em・行間 1.4 / 見出し h2〜h4 = 500・字間 0.05em /
-   本文 = 400・行間 1.85・字間 0.025em / 11〜13px の補助・ラベル・ボタン・ナビ・チップ = 500。
-   300 は小さな文字に使わない。700 は本当に要る強調だけ、900 は使わない）
+   基本要素（SPEC motion §2.2）。見出し h1・h2 は Mochiy（400・偽の太字を作らない）、h3 以下は Zen Maru 700。
+   強弱は大きさと色で作る。本文は 16px・行間 1.9。
    ══════════════════════════════════════════════════════════════════════ */
 *,
 *::before,
@@ -122,16 +200,22 @@
 html {
   text-wrap: pretty;
 }
+/* 固定の下部タブ（スマホ）の下にフォーカスした要素が隠れないように（SPEC motion §2.5・§6.3） */
+@media (max-width: 1023.98px) {
+  html {
+    scroll-padding-bottom: 80px;
+  }
+}
 
 body {
   margin: 0;
-  font-size: 15px;
-  line-height: 1.85;
-  letter-spacing: 0.025em;
+  font-size: var(--fs-body);
+  line-height: 1.9;
+  letter-spacing: 0.03em;
   font-weight: 400;
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: var(--font-body), system-ui, sans-serif;
+  font-family: var(--font-body);
   text-wrap: pretty;
 }
 
@@ -141,38 +225,50 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: var(--font-heading), system-ui, sans-serif;
-  font-weight: 500;
-  line-height: 1.55;
-  letter-spacing: 0.05em;
   margin: 0 0 var(--space-2);
-  text-wrap: pretty;
 }
-/* 大きな表示（32px 以上になる h1）は細く大きく、静かに */
-h1 {
-  font-size: clamp(28px, 3.4vw, 38px);
+h1,
+h2 {
+  font-family: var(--font-heading);
   font-weight: 400;
-  line-height: 1.4;
-  letter-spacing: 0.07em;
+  font-synthesis: none;
+  text-wrap: balance;
+  word-break: auto-phrase;
+}
+h1 {
+  font-size: var(--fs-h1);
+  line-height: 1.3;
+  letter-spacing: 0.02em;
 }
 h2 {
-  font-size: clamp(22px, 2.6vw, 26px);
-  line-height: 1.55;
+  font-size: var(--fs-h2);
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+}
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-body);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-wrap: pretty;
 }
 h3 {
-  font-size: 19px;
-  line-height: 1.6;
+  font-size: var(--fs-h3);
+  line-height: 1.5;
 }
 h4 {
-  font-size: 17px;
+  font-size: 1.0625rem;
+  line-height: 1.55;
 }
 h5 {
-  font-size: 16px;
+  font-size: 1rem;
+  line-height: 1.6;
 }
 h6 {
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 0.8125rem;
+  line-height: 1.6;
 }
 p {
   margin: 0 0 var(--space-3);
@@ -185,7 +281,7 @@ figure {
   margin: 0;
 }
 figcaption {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   font-weight: 500;
   margin-top: var(--space-1);
   color: var(--color-text-muted);
@@ -195,7 +291,8 @@ figcaption {
 }
 /* リンクの既定色とフォーカスの輪は @layer base に置く（2026-09-26）。レイヤーの外に置くと、
    @layer components の部品（<a class="btn btn-primary"> の文字色、.chip-hit:focus-visible の輪を消す指定など）や
-   Tailwind のユーティリティより強くなり、部品側の指定が負けてしまうため。 */
+   Tailwind のユーティリティより強くなり、部品側の指定が負けてしまうため。
+   フォーカスの輪は動かさず、すぐ出す（transition・animation を付けない）。夜の面の中は --ring で accent-300 にする（§6.3）。 */
 @layer base {
   a {
     color: var(--color-accent-700);
@@ -205,7 +302,7 @@ figcaption {
     outline: none;
   }
   :focus-visible {
-    outline: 2px solid var(--color-accent-600);
+    outline: 2px solid var(--ring, var(--color-accent-600));
     outline-offset: 2px;
   }
 }
@@ -220,6 +317,74 @@ figcaption {
 /* 部品のクラス（.btn・.card・.tag など）は @layer components に置き、同じ要素に付けた
    Tailwind のユーティリティ（absolute・w-full など）が上書きできるようにする（2026-09-26）。 */
 @layer components {
+  /* — 文字の段のクラス（SPEC motion §2.2 の表の書体・行間・字間をまとめて付ける）— */
+  .mochiy {
+    font-family: var(--font-heading);
+    font-weight: 400;
+    font-synthesis: none;
+  }
+  .fs-peak,
+  .fs-giant,
+  .fs-display,
+  .fs-num {
+    font-family: var(--font-heading);
+    font-weight: 400;
+    font-synthesis: none;
+  }
+  .fs-peak {
+    font-size: var(--fs-peak);
+    line-height: 1.05;
+    letter-spacing: 0.01em;
+  }
+  .fs-giant {
+    font-size: var(--fs-giant);
+    line-height: 1;
+    letter-spacing: 0;
+  }
+  .fs-display {
+    font-size: var(--fs-display);
+    line-height: 1.25;
+    letter-spacing: 0.02em;
+  }
+  .fs-num {
+    font-size: var(--fs-num);
+    line-height: 1;
+    letter-spacing: 0;
+  }
+  .fs-lead {
+    font-size: var(--fs-lead);
+    font-weight: 500;
+    line-height: 1.9;
+    letter-spacing: 0.03em;
+  }
+  .fs-small {
+    font-size: var(--fs-small);
+    font-weight: 500;
+    line-height: 1.7;
+    letter-spacing: 0.03em;
+  }
+  .fs-micro {
+    font-size: var(--fs-micro);
+    font-weight: 500;
+    line-height: 1.6;
+    letter-spacing: 0.04em;
+  }
+
+  /* — フォーカスの輪の色（§6.3）: 夜の面の中は accent-300、夜の中に置いた紙の面は accent-600 に戻す — */
+  .night-card,
+  .night-band,
+  .login-night,
+  .sticky[data-tone="night"],
+  .lantern-badge {
+    --ring: var(--color-accent-300);
+  }
+  .card,
+  .dialog,
+  .sticky[data-tone="orange"],
+  .sticky[data-tone="moss"] {
+    --ring: var(--color-accent-600);
+  }
+
   /* — rules — */
   .hr {
     height: 1px;
@@ -228,30 +393,38 @@ figcaption {
     background: var(--color-divider);
   }
 
-  /* — buttons —
-     主（橙の塗り）・副（細線の枠）・文字だけ の3種を、同じ高さ（44px）・同じ角丸（10px）にそろえる。 */
+  /* — buttons —（SPEC motion §2.9）
+     ピルの形。主（橙の塗り）・副（細線の枠）・文字だけ・夜の上の主（灯りの地）。
+     押す: 押した瞬間 90ms で「ぎゅっ」と沈み、離すと判子のスプリングで戻る（Space キーでも :active が効く）。 */
   .btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 10px;
     min-height: var(--control-height);
     cursor: pointer;
     text-decoration: none;
-    font-family: var(--font-body), system-ui, sans-serif;
-    font-weight: 500;
-    font-size: 14px;
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: var(--fs-label);
     line-height: 1.3;
     letter-spacing: 0.04em;
     color: var(--color-text);
     background: transparent;
-    border: 1px solid transparent;
-    padding: 0 20px;
-    border-radius: var(--radius-control);
+    border: 1.5px solid transparent;
+    padding: 0 22px;
+    border-radius: var(--radius-pill);
+    -webkit-tap-highlight-color: transparent;
     transition:
+      transform var(--dur-stamp) var(--spring-stamp),
       background-color 160ms ease,
       border-color 160ms ease,
       color 160ms ease;
+  }
+  .btn:active:not(:disabled) {
+    transform: scale(0.97, 0.94);
+    transition-duration: var(--dur-press), 160ms, 160ms, 160ms;
+    transition-timing-function: var(--ease-out-soft);
   }
   .btn svg {
     display: block;
@@ -259,6 +432,12 @@ figcaption {
   .btn:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+  }
+  /* 各画面の主な行動の大きい主ボタン */
+  .btn-lg {
+    min-height: 56px;
+    padding-inline: 32px;
+    font-size: 1.0625rem;
   }
   .btn-primary {
     background: var(--color-accent-600);
@@ -292,6 +471,30 @@ figcaption {
   .btn-ghost:active {
     background: color-mix(in srgb, var(--color-text) 10%, transparent);
   }
+  /* 夜の上の主ボタン: 灯りの地に墨の字（7.26:1）。押した時は accent-500 の地に墨の字（4.9:1） */
+  .btn-night {
+    background: var(--color-accent-400);
+    border-color: var(--color-accent-400);
+    color: var(--color-text);
+  }
+  .btn-night:hover {
+    background: color-mix(in srgb, var(--color-accent-400) 88%, white);
+    border-color: color-mix(in srgb, var(--color-accent-400) 88%, white);
+  }
+  .btn-night:active {
+    background: var(--color-accent-500);
+    border-color: var(--color-accent-500);
+    color: var(--color-text);
+  }
+  /* 右の「→」: ホバー・フォーカスで右へ 4px 出て戻る */
+  .btn-arrow {
+    display: inline-block;
+    transition: translate 240ms var(--spring-pop);
+  }
+  .btn:hover .btn-arrow,
+  .btn:focus-visible .btn-arrow {
+    translate: 4px 0;
+  }
   .btn-icon {
     position: relative;
     width: 36px;
@@ -313,35 +516,62 @@ figcaption {
   /* — forms — */
   .field > label {
     display: block;
-    font-size: 13px;
+    font-size: var(--fs-small);
     font-weight: 500;
     letter-spacing: 0.02em;
     margin-bottom: 6px;
     color: var(--color-text-muted);
   }
+  /* 文字数（SPEC motion §5.8.1）: Mochiy の数字＋「/上限」。残り10字から「あと N 字」。境目をまたいだときだけ跳ねる */
   .field-counter {
-    font-size: 11px;
-    font-weight: 500;
+    display: flex;
+    justify-content: flex-end;
+    align-items: baseline;
+    flex-wrap: wrap;
     margin-top: 4px;
-    text-align: right;
+    font-size: var(--fs-small);
+    font-weight: 500;
+    line-height: 1.4;
     color: var(--color-text-muted);
   }
+  .field-count {
+    display: inline-block;
+    margin-right: 2px;
+    font-family: var(--font-heading);
+    font-weight: 400;
+    font-synthesis: none;
+    font-size: 20px;
+    line-height: 1;
+    color: var(--color-text);
+  }
+  .field-counter[data-near="true"] .field-count {
+    color: var(--color-accent-700);
+    animation: v-bump 450ms var(--ease-out-soft);
+  }
+  .field-counter[data-full="true"] .field-count {
+    animation: v-bump-2 450ms var(--ease-out-soft);
+  }
+  .field-rest {
+    margin-left: 6px;
+    font-weight: 700;
+    color: var(--color-accent-700);
+  }
   .field-hint {
-    font-size: 12px;
+    font-size: var(--fs-micro);
     font-weight: 500;
     margin-top: 4px;
     color: var(--color-text-muted);
   }
   .input {
     width: 100%;
-    min-height: var(--control-height);
-    padding: 8px 14px;
+    min-height: 48px;
+    padding: 10px 16px;
     font: inherit;
-    font-size: 15px;
+    font-size: var(--fs-body);
     color: var(--color-text);
-    caret-color: var(--color-accent);
+    caret-color: var(--color-accent-600);
     background: var(--color-neutral-100);
-    border: 1px solid var(--color-neutral-600);
+    border: 1.5px solid var(--color-neutral-600);
     border-radius: var(--radius-control);
     transition:
       border-color 160ms ease,
@@ -354,7 +584,7 @@ figcaption {
   .input:hover {
     border-color: var(--color-neutral-700);
   }
-  /* フォーカスは橙の輪（線の色＋外側の淡い輪） */
+  /* フォーカスは橙の輪（線の色＋外側の輪） */
   .input:focus-visible {
     border-color: var(--color-accent-600);
     outline: 2px solid var(--color-accent-600);
@@ -363,6 +593,34 @@ figcaption {
   textarea.input {
     min-height: 96px;
     resize: vertical;
+  }
+  /* 検索欄とログインのメール欄だけ: フォーカスで欄の下に手描きの下線が 280ms で描かれ、外れると 160ms で消える */
+  .input-ink {
+    position: relative;
+    display: block;
+  }
+  .input-ink-line {
+    position: absolute;
+    left: 12px;
+    bottom: -16px;
+    width: calc(100% - 24px);
+    height: 18px;
+    color: var(--color-accent-500);
+    opacity: 0;
+    transition: opacity 0s linear var(--dur-quick);
+  }
+  .input-ink-line path {
+    stroke-dasharray: 1 1.5;
+    stroke-dashoffset: 1.001;
+    transition: stroke-dashoffset var(--dur-quick) var(--ease-out-soft);
+  }
+  .input-ink:focus-within .input-ink-line {
+    opacity: 1;
+    transition: none;
+  }
+  .input-ink:focus-within .input-ink-line path {
+    stroke-dashoffset: 0;
+    transition: stroke-dashoffset 280ms var(--ease-draw);
   }
   /* ラベル全体が当たり判定。高さ 44px 以上（SPEC §9.14-14、Codex R26 重要3） */
   .radio {
@@ -398,72 +656,176 @@ figcaption {
     box-shadow: inset 0 0 0 4px var(--color-bg);
   }
   .radio input:focus-visible + .dot {
-    outline: 2px solid var(--color-accent-600);
+    outline: 2px solid var(--ring, var(--color-accent-600));
     outline-offset: 2px;
   }
+  /* セグメント（SPEC motion §2.9）: 外枠はピル・1.5px。"circle" は塗りの代わりに手描きの丸で囲む */
   .seg {
     display: inline-flex;
     overflow: hidden;
-    border: 1px solid var(--color-neutral-600);
-    border-radius: var(--radius-control);
+    border: 1.5px solid var(--color-neutral-600);
+    border-radius: var(--radius-pill);
   }
   .seg-opt {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    /* 当たり判定（label）そのものを 44px 以上にする（枠の 2px は外側に足す。Codex R26 重要3） */
+    /* 当たり判定（label）そのものを 44px 以上にする（枠の 3px は外側に足す。Codex R26 重要3） */
     min-height: var(--control-height);
     min-width: 44px;
-    padding: 0 16px;
-    font-size: 14px;
+    padding: 0 18px;
+    font-size: var(--fs-label);
     font-weight: 500;
     letter-spacing: 0.04em;
     cursor: pointer;
-    transition: background-color 160ms ease;
+    transition:
+      background-color 160ms ease,
+      color 160ms ease;
   }
   .seg-opt + .seg-opt {
     border-left: 1px solid var(--color-line);
   }
-  .seg-opt:has(input:checked) {
+  .seg:not([data-variant="circle"]) .seg-opt:has(input:checked) {
     background: var(--color-accent-600);
     color: var(--color-neutral-100);
+    font-weight: 700;
   }
   .seg-opt:not(:has(input:checked)):hover {
     background: color-mix(in srgb, var(--color-text) 5%, transparent);
   }
   .seg-opt:has(input:focus-visible) {
-    outline: 2px solid var(--color-accent-600);
+    outline: 2px solid var(--ring, var(--color-accent-600));
     outline-offset: -2px;
   }
+  .seg[data-variant="circle"] {
+    overflow: visible;
+  }
+  .seg[data-variant="circle"] .seg-opt:has(input:checked) {
+    color: var(--color-accent-800);
+    font-weight: 700;
+  }
+  .seg-label {
+    position: relative;
+    display: inline-block;
+    line-height: 1.4;
+  }
+  .seg-circle {
+    position: absolute;
+    left: -14px;
+    top: -9px;
+    width: calc(100% + 28px);
+    height: calc(100% + 18px);
+    color: var(--color-accent-600);
+    pointer-events: none;
+  }
+  .seg-circle path {
+    stroke-dasharray: 1 1.5;
+    stroke-dashoffset: 1.001;
+    opacity: 0;
+    transition:
+      opacity 120ms var(--ease-out-soft),
+      stroke-dashoffset 0s linear 120ms;
+  }
+  .seg-opt:has(input:checked) .seg-circle path {
+    opacity: 1;
+    stroke-dashoffset: 0;
+    transition: stroke-dashoffset 360ms var(--ease-draw);
+  }
 
-  /* — cards — 生成りの面・細線の枠・影ほぼ無し — */
+  /* — チップ（SPEC motion §2.9）— 見た目 36px（当たり判定は包みの .chip-hit / .start-city-chip が 44px）。
+     選ばれると塗りが押した位置から円で広がり（280ms）、外すと逆に閉じる（160ms）。✓ は 200ms で描かれる。 */
+  .chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 16px 0 20px;
+    border-radius: var(--radius-pill);
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: var(--fs-label);
+    line-height: 1;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    color: var(--color-text);
+    background: var(--color-neutral-100);
+    box-shadow: inset 0 0 0 1.5px var(--color-line);
+    transition: transform var(--dur-stamp) var(--spring-stamp);
+  }
+  .chip[data-surface="sand"] {
+    background: var(--color-surface);
+    box-shadow: none;
+  }
+  .chip-fill {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    padding: inherit;
+    border-radius: inherit;
+    background: var(--color-accent-600);
+    color: var(--color-neutral-100);
+    clip-path: circle(0 at var(--px, 50%) var(--py, 50%));
+    transition: clip-path var(--dur-quick) var(--ease-peel);
+    pointer-events: none;
+  }
+  .chip[data-on="true"] .chip-fill {
+    clip-path: circle(150% at var(--px, 50%) var(--py, 50%));
+    transition: clip-path 280ms var(--ease-out-soft);
+  }
+  .chip-check {
+    position: absolute;
+    left: 6px;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    margin-top: -5px;
+    overflow: visible;
+  }
+  .chip-check path {
+    stroke-dasharray: 1 1.5;
+    stroke-dashoffset: 1.001;
+    transition: stroke-dashoffset 0s linear var(--dur-quick);
+  }
+  .chip[data-on="true"] .chip-check path {
+    stroke-dashoffset: 0;
+    transition: stroke-dashoffset 200ms var(--ease-draw) 80ms;
+  }
+  .chip-hit:active .chip,
+  .start-city-chip:active .chip {
+    transform: scale(0.97, 0.94);
+    transition-duration: var(--dur-press);
+    transition-timing-function: var(--ease-out-soft);
+  }
+
+  /* — cards — 白い紙・細線の枠・紙の影 — */
   .card {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
-    padding: 20px;
+    padding: 24px;
     border: 1px solid var(--color-divider);
-    border-radius: 14px;
+    border-radius: var(--radius-lg);
     background: var(--color-neutral-100);
+    box-shadow: var(--shadow-paper);
   }
   .card-kicker {
-    font-size: 11px;
-    font-weight: 500;
+    font-size: var(--fs-micro);
+    font-weight: 700;
     letter-spacing: 0.12em;
-    text-transform: uppercase;
     color: var(--color-text-muted);
   }
   .card-title {
-    font-family: var(--font-heading), system-ui, sans-serif;
-    font-weight: 500;
-    font-size: 17px;
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: var(--fs-h3);
     line-height: 1.5;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.03em;
   }
   .card-body {
     margin: 0;
-    font-size: 14px;
+    font-size: 15px;
     color: color-mix(in srgb, var(--color-text) 82%, var(--color-neutral-100));
     flex: 1;
   }
@@ -471,7 +833,7 @@ figcaption {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 12px;
+    font-size: var(--fs-micro);
     font-weight: 500;
     color: var(--color-text-muted);
   }
@@ -485,17 +847,655 @@ figcaption {
     box-shadow: var(--shadow-lg);
   }
 
-  /* — tags — 丸い細線のチップ — */
+  /* — 付箋（SPEC motion §2.9）— 短い補足だけ（本文は3行まで）。止まったときに ±1.5° まで傾いてよい — */
+  .sticky {
+    position: relative;
+    border-radius: 14px;
+    padding: 16px 20px;
+    box-shadow: var(--shadow-sticker);
+    rotate: var(--tilt, -1.5deg);
+  }
+  .sticky::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 6px;
+    border-radius: 14px 14px 0 0;
+    opacity: 0.6;
+    pointer-events: none;
+  }
+  .sticky[data-tone="orange"] {
+    background: var(--color-accent-200);
+    color: var(--color-accent-800);
+  }
+  .sticky[data-tone="orange"]::before {
+    background: var(--color-accent-300);
+  }
+  .sticky[data-tone="moss"] {
+    background: var(--color-accent-2-200);
+    color: var(--color-accent-2-800);
+  }
+  .sticky[data-tone="moss"]::before {
+    background: var(--color-accent-2-300);
+  }
+  .sticky[data-tone="night"] {
+    background: var(--color-neutral-900);
+    color: var(--color-neutral-100);
+  }
+  .sticky[data-tone="night"]::before {
+    background: var(--color-neutral-800);
+  }
+
+  /* — マスキングテープ（飾り・1画面に2か所まで）— */
+  .tape {
+    position: absolute;
+    width: 56px;
+    height: 18px;
+    background: color-mix(in srgb, var(--color-accent-200) 70%, transparent);
+    clip-path: polygon(3% 0, 97% 0, 100% 20%, 97% 40%, 100% 60%, 97% 80%, 100% 100%, 3% 100%, 0 80%, 3% 60%, 0 40%, 3% 20%);
+    rotate: -3deg;
+    pointer-events: none;
+  }
+
+  /* — キッカーの札（飾りの札なので −2° 傾けてよい）— */
+  .kicker-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 14px;
+    border-radius: var(--radius-pill);
+    font-family: var(--font-body);
+    font-size: var(--fs-small);
+    font-weight: 700;
+    line-height: 1.3;
+    letter-spacing: 0.1em;
+    background: var(--color-accent-100);
+    color: var(--color-accent-700);
+    rotate: -2deg;
+  }
+  .kicker-pill[data-tone="night"] {
+    background: color-mix(in srgb, var(--color-accent-400) 18%, transparent);
+    color: var(--color-accent-300);
+  }
+  .kicker-pill[data-tone="moss"] {
+    background: var(--color-accent-2-200);
+    color: var(--color-accent-2-800);
+  }
+
+  /* — 栞のリボン（下端が燕尾）— */
+  .ribbon {
+    display: block;
+    background: var(--color-accent-600);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
+    pointer-events: none;
+  }
+
+  /* — 判子（SPEC motion §2.9）— 丸い面に Mochiy の1字。内側の細い輪で判子らしく、外側の neutral-800 の輪郭で
+     地図・紙の上の境目 3:1 を取る。影は付けない。押せない。 */
+  .stamp {
+    --sz: 30px;
+    --bgc: var(--color-accent-2-400);
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: var(--sz);
+    height: var(--sz);
+    border-radius: var(--radius-pill);
+    font-family: var(--font-heading);
+    font-weight: 400;
+    font-synthesis: none;
+    line-height: 1;
+    letter-spacing: 0;
+    white-space: nowrap;
+    background: var(--bgc);
+    color: var(--color-accent-2-900);
+    box-shadow:
+      inset 0 0 0 2px color-mix(in srgb, var(--bgc) 55%, white),
+      0 0 0 2px var(--color-neutral-800);
+    rotate: var(--tilt, 0deg);
+    pointer-events: none;
+    user-select: none;
+  }
+  .stamp[data-tone="quiet"] {
+    --bgc: var(--color-accent-2-400);
+    color: var(--color-accent-2-900);
+  }
+  .stamp[data-tone="crowding"] {
+    --bgc: var(--color-accent-400);
+    color: var(--color-accent-900);
+  }
+  .stamp[data-tone="touristy"] {
+    --bgc: var(--color-neutral-700);
+    color: var(--color-neutral-100);
+  }
+  .stamp[data-tone="orange"] {
+    --bgc: var(--color-accent-200);
+    color: var(--color-accent-800);
+  }
+  .stamp[data-tone="moss"] {
+    --bgc: var(--color-accent-2-200);
+    color: var(--color-accent-2-800);
+  }
+  .stamp[data-tone="night"] {
+    --bgc: var(--color-neutral-800);
+    color: var(--color-accent-300);
+  }
+  /* Reveal verb="stamp" の包み（インクの輪が判子と同じ丸になるように） */
+  .reveal-stamp {
+    position: relative;
+    display: inline-grid;
+    border-radius: var(--radius-pill);
+  }
+
+  /* — ワードマーク「そっとマップ」（Mochiy。昼: 墨＋accent-600、夜: neutral-100＋accent-300）— */
+  .wordmark {
+    font-family: var(--font-heading);
+    font-weight: 400;
+    font-synthesis: none;
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .wordmark-a {
+    color: var(--color-text);
+  }
+  .wordmark-b {
+    color: var(--color-accent-600);
+  }
+  .wordmark[data-tone="night"] .wordmark-a {
+    color: var(--color-neutral-100);
+  }
+  .wordmark[data-tone="night"] .wordmark-b {
+    color: var(--color-accent-300);
+  }
+  .wordmark-tsu {
+    display: inline-block;
+  }
+  /* /start の初回表示: 「っ」だけが上 0.35em から落ちて止まる（字は最初から見えている） */
+  .wordmark-tsu.verb-pop {
+    --from-y: -0.35em;
+    --from-scale: 1;
+    --d: 200ms;
+  }
+  .brand-lockup {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .brand-lockup-mark {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: var(--color-neutral-900);
+  }
+  .brand-lockup[data-tone="night"] .brand-lockup-mark {
+    box-shadow: inset 0 0 0 1.5px var(--color-neutral-700);
+  }
+  .logo-mark-glow,
+  .logo-mark-dot {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .logo-mark.is-breathing .logo-mark-glow {
+    animation: v-breath var(--dur-breath) var(--ease-breath) 2;
+  }
+
+  /* — ページの灯り（SPEC motion §4.1.2）— */
+  .page-lamp {
+    display: inline-block;
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: var(--color-accent-400);
+    box-shadow: var(--glow-sm);
+    vertical-align: middle;
+    margin-right: 10px;
+  }
+
+  /* — 灯りの層（SPEC motion §4.1.3）: 全体で1枚。飛ぶ物は着いたら取り除く — */
+  .lamp-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 60;
+    contain: strict;
+  }
+  .lamp-fly {
+    position: absolute;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+    opacity: 0;
+  }
+  .lamp-fly[data-kind="lamp"] {
+    width: 10px;
+    height: 10px;
+    margin: -5px 0 0 -5px;
+    border-radius: 999px;
+    background: var(--color-accent-400);
+    box-shadow: var(--glow-md);
+  }
+  .lamp-fly[data-kind="ribbon"] {
+    margin: -12px 0 0 -5px;
+  }
+  .lamp-fly[data-kind="stamp"] {
+    margin: -24px 0 0 -24px;
+  }
+
+  /* — 数字の跳ね（BounceNumber）: 交互の名前で毎回再生する — */
+  .bounce-number {
+    display: inline-flex;
+  }
+  .bounce-number[data-bump="a"] {
+    animation: v-bump 450ms var(--ease-out-soft);
+  }
+  .bounce-number[data-bump="b"] {
+    animation: v-bump-2 450ms var(--ease-out-soft);
+  }
+
+  /* — 挿絵と模様（SPEC motion §2.10。すべて飾り・押せない）— */
+  .road-lines {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .lamp-dots {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .lamp-dot {
+    position: absolute;
+    border-radius: 999px;
+    background: var(--color-neutral-100);
+    box-shadow: 0 0 calc(var(--dot, 2px) * 3) calc(var(--dot, 2px) * 0.6) color-mix(in srgb, var(--color-neutral-100) 30%, transparent);
+  }
+  .lamp-dot[data-warm="true"] {
+    background: var(--color-accent-400);
+    box-shadow: 0 0 calc(var(--dot, 2px) * 3) calc(var(--dot, 2px) * 0.6) color-mix(in srgb, var(--color-accent-400) 45%, transparent);
+  }
+  .lamp-dot-ignite {
+    animation: v-ignite-core 480ms var(--ease-out-soft) var(--d, 0ms) both;
+  }
+  .night-ridge {
+    display: block;
+    width: 100%;
+    pointer-events: none;
+  }
+  .hand-line {
+    display: block;
+    overflow: visible;
+    pointer-events: none;
+  }
+  .walk-path {
+    display: block;
+    pointer-events: none;
+  }
+  .lantern-child {
+    position: relative;
+    display: inline-block;
+    flex: none;
+    border-radius: 999px;
+    background: var(--color-accent-400);
+    box-shadow: var(--glow-md);
+    pointer-events: none;
+  }
+  .lantern-child-eye {
+    position: absolute;
+    top: 41.5%;
+    width: 9%;
+    height: 9%;
+    border-radius: 999px;
+    background: var(--color-text);
+  }
+  .lantern-child-eye[data-side="l"] {
+    left: 33.5%;
+  }
+  .lantern-child-eye[data-side="r"] {
+    left: 57.5%;
+  }
+  .lantern-child[data-look="around"] .lantern-child-eye {
+    top: 37.5%;
+  }
+  .lantern-child[data-look="around"] .lantern-child-eye[data-side="l"] {
+    left: 40.5%;
+  }
+  .lantern-child[data-look="around"] .lantern-child-eye[data-side="r"] {
+    left: 64.5%;
+  }
+  .lantern-child-blink .lantern-child-eye {
+    animation: v-blink 120ms linear 500ms 1 both;
+  }
+  .lantern {
+    display: inline-block;
+    flex: none;
+    overflow: visible;
+    pointer-events: none;
+  }
+  .lantern-glow {
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+    transition: opacity var(--dur-quick) var(--ease-out-soft);
+  }
+  .lantern[data-lit="true"] .lantern-glow {
+    opacity: 1;
+  }
+  .noren {
+    display: block;
+    overflow: visible;
+    pointer-events: none;
+  }
+  .noren-cloth {
+    transform-box: fill-box;
+    transform-origin: top center;
+  }
+  .night-alley {
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 4 / 3;
+    background: var(--night-horizon);
+  }
+  .night-alley > svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .alley-window {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .envelope {
+    display: block;
+    overflow: visible;
+    pointer-events: none;
+  }
+  .envelope-flap {
+    transform-box: fill-box;
+    transform-origin: top;
+  }
+  .promise-art {
+    display: block;
+    flex: none;
+    overflow: visible;
+    pointer-events: none;
+  }
+  .promise-art-pin {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+  }
+  .promise-art-faces {
+    transform-box: fill-box;
+    transform-origin: 50% 90%;
+  }
+  .promise-art-dot {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  /* 北海道の小さな地図（§2.10.1）。灯りは HTML の丸を重ね、translate をコンテナの大きさで置く */
+  .hokkaido-map {
+    position: relative;
+    flex: none;
+    width: 112px;
+    height: 104px;
+    container-type: size;
+    pointer-events: none;
+  }
+  .hokkaido-map > svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+  .hokkaido-coast {
+    fill: none;
+    stroke: var(--color-neutral-500);
+    stroke-width: 1.5px;
+    vector-effect: non-scaling-stroke;
+    stroke-linejoin: round;
+  }
+  .hokkaido-town {
+    fill: var(--color-neutral-400);
+  }
+  .hokkaido-lamp {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: 0;
+    translate: calc(var(--x) / 486 * 100cqw) calc(var(--y) / 454 * 100cqh);
+    transition: translate var(--dur-settle) var(--spring-settle);
+  }
+  .hokkaido-lamp-halo {
+    position: absolute;
+    left: -15px;
+    top: -15px;
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--color-accent-400) 45%, transparent), transparent);
+  }
+  .hokkaido-lamp-core {
+    position: absolute;
+    left: -5px;
+    top: -5px;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: var(--color-accent-400);
+    box-shadow: 0 0 0 2px var(--color-bg);
+  }
+  /* 着いたら1回だけにじむ輪（渡る 600ms の後） */
+  .hokkaido-lamp-ring {
+    position: absolute;
+    left: -8px;
+    top: -8px;
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    border: 2px solid var(--color-accent-500);
+    opacity: 0;
+    animation: v-ink 600ms var(--ease-out-soft) var(--dur-settle) 1 both;
+  }
+  .hokkaido-lamp-ignite .hokkaido-lamp-core {
+    animation: v-ignite-core 480ms var(--ease-out-soft) 560ms both;
+  }
+  .hokkaido-lamp-ignite .hokkaido-lamp-halo {
+    animation: v-ignite-glow 480ms var(--ease-out-soft) 560ms both;
+  }
+
+  /* — navigation — */
+  .nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-divider);
+  }
+  /* ワードマークの役割（Mochiy 400・18px） */
+  .nav-brand {
+    font-family: var(--font-heading);
+    font-weight: 400;
+    font-synthesis: none;
+    font-size: 18px;
+    letter-spacing: 0.02em;
+    margin-right: auto;
+  }
+  .nav a {
+    color: inherit;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .nav a:hover,
+  .nav a[aria-current="page"] {
+    color: var(--color-accent-700);
+  }
+
+  /* — tables — */
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .table th {
+    text-align: left;
+    font-size: var(--fs-micro);
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    color: var(--color-text-muted);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-divider);
+  }
+  .table td {
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--color-divider);
+  }
+  .table tbody tr:hover {
+    background: color-mix(in srgb, var(--color-text) 3%, transparent);
+  }
+
+  /* — dialog（SPEC motion §5.17）— 開くとき下から少し持ち上がって置かれる（@starting-style。閉じるときは即座） — */
+  .dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: var(--space-4);
+    background: color-mix(in srgb, var(--color-neutral-900) 40%, transparent);
+    z-index: 50;
+  }
+  .dialog {
+    width: min(440px, 100%);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: 28px;
+    border: 1px solid var(--color-divider);
+    border-radius: var(--radius-lg);
+    background: var(--color-neutral-100);
+    box-shadow: var(--shadow-lg);
+  }
+  .dialog-title {
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 19px;
+    line-height: 1.5;
+    letter-spacing: 0.03em;
+  }
+  .dialog-body {
+    font-size: 15px;
+    color: color-mix(in srgb, var(--color-text) 85%, var(--color-neutral-100));
+  }
+  .dialog-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+  }
+  dialog[open] > .dialog {
+    transition:
+      translate var(--dur-settle) var(--spring-settle),
+      scale var(--dur-settle) var(--spring-settle),
+      opacity var(--dur-quick) var(--ease-out-soft);
+  }
+  dialog[open]::backdrop {
+    transition: opacity 200ms var(--ease-out-soft);
+  }
+  @starting-style {
+    dialog[open] > .dialog {
+      translate: 0 16px;
+      scale: 0.98;
+      opacity: 0;
+    }
+    dialog[open]::backdrop {
+      opacity: 0;
+    }
+  }
+
+  /* — 夜のカード（2026-09-26 案B）— トップ画面のヒーロー・栞の見出し・灯りのバッジで使う暗い角丸の面。
+     地は neutral-900、文字は生成り。光のにじみ（.night-glow）と灯りの点（.night-light）は装飾なので aria-hidden の中に置く。
+     中のフォーカスの輪は --ring（accent-300。上の「フォーカスの輪の色」）。 */
+  .night-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+    background: var(--color-neutral-900);
+    color: var(--color-neutral-100);
+    box-shadow: var(--shadow-lg);
+  }
+  .night-glow {
+    position: absolute;
+    border-radius: 999px;
+    pointer-events: none;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--color-accent-500) 38%, transparent), transparent);
+  }
+  .night-light {
+    position: absolute;
+    border-radius: 999px;
+    pointer-events: none;
+    background: var(--color-accent-400);
+    box-shadow: 0 0 8px 3px color-mix(in srgb, var(--color-accent-400) 50%, transparent);
+  }
+  .night-light-pale {
+    background: var(--color-accent-200);
+    box-shadow: none;
+  }
+  /* 夜のカードの上に置く生成りの丸いボタン（右に橙の →） */
+  .btn-on-night {
+    min-height: 48px;
+    padding: 0 22px;
+    gap: 10px;
+    border-radius: var(--radius-pill);
+    background: var(--color-bg);
+    border-color: var(--color-bg);
+    color: var(--color-text);
+  }
+  .btn-on-night:hover {
+    background: var(--color-neutral-100);
+    border-color: var(--color-neutral-100);
+  }
+  .btn-on-night:active {
+    background: var(--color-neutral-200);
+    border-color: var(--color-neutral-200);
+  }
+
+  /* 灯り（/me）の進み具合の細い棒。進んだ分は橙で淡く光る */
+  .lantern-progress {
+    height: 4px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-bg) 15%, transparent);
+  }
+  .lantern-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: var(--color-accent-400);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--color-accent-400) 70%, transparent);
+  }
+
+  /* — tags — データのタグ（丸い細線）。絞り込みの切り替えは .chip（上）— */
   .tag {
     display: inline-flex;
     align-items: center;
-    font-size: 12px;
+    font-size: var(--fs-micro);
     font-weight: 500;
     line-height: 1.5;
     letter-spacing: 0.04em;
     padding: 3px 12px;
     border: 1px solid transparent;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
   }
   /* SPEC §9.14-14: タグを button（as="button"）で使う場合だけ、見た目を保ったまま
      タップ領域を44x44px以上に広げる（span のタグは非対話なので対象外）。 */
@@ -507,8 +1507,8 @@ figcaption {
     position: absolute;
     inset: -11px;
   }
-  /* SPEC §9.14-14: FilterChips は、見た目のタグ（span）を 44×44px 以上の透明なボタンで包む。
-     疑似要素で広げると gap:6px の隣接チップと判定が重なるため、ボタン自体の大きさで確保する。 */
+  /* SPEC §9.14-14: チップは、見た目（.chip / 旧 .tag）を 44×44px 以上の透明なボタンで包む。
+     疑似要素で広げると隣接チップと判定が重なるため、ボタン自体の大きさで確保する。 */
   .chip-hit {
     display: inline-flex;
     align-items: center;
@@ -519,12 +1519,14 @@ figcaption {
     border: 0;
     background: transparent;
     cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
   }
   .chip-hit:focus-visible {
     outline: none;
   }
+  .chip-hit:focus-visible .chip,
   .chip-hit:focus-visible .tag {
-    outline: 2px solid var(--color-accent-600);
+    outline: 2px solid var(--ring, var(--color-accent-600));
     outline-offset: 2px;
   }
   .tag-accent {
@@ -564,173 +1566,400 @@ figcaption {
   inset: -7px;
 }
 
-@layer components {
-  /* — navigation — */
-  .nav {
-    display: flex;
-    align-items: center;
-    gap: var(--space-4);
-    padding: var(--space-3) var(--space-4);
-    border-bottom: 1px solid var(--color-divider);
-  }
-  .nav-brand {
-    font-family: var(--font-heading), system-ui, sans-serif;
-    font-weight: 500;
-    font-size: 18px;
-    letter-spacing: 0.08em;
-    margin-right: auto;
-  }
-  .nav a {
-    color: inherit;
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 500;
-  }
-  .nav a:hover,
-  .nav a[aria-current="page"] {
-    color: var(--color-accent-700);
-  }
-
-  /* — tables — */
-  .table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 14px;
-  }
-  .table th {
-    text-align: left;
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--color-text-muted);
-    padding: var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--color-divider);
-  }
-  .table td {
-    padding: var(--space-3);
-    border-bottom: 1px solid var(--color-divider);
-  }
-  .table tbody tr:hover {
-    background: color-mix(in srgb, var(--color-text) 3%, transparent);
-  }
-
-  /* — dialog — */
-  .dialog-backdrop {
-    position: fixed;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    padding: var(--space-4);
-    background: color-mix(in srgb, var(--color-neutral-900) 40%, transparent);
-    z-index: 50;
-  }
-  .dialog {
-    width: min(440px, 100%);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    padding: 28px;
-    border: 1px solid var(--color-divider);
-    border-radius: var(--radius-lg);
-    background: var(--color-neutral-100);
-    box-shadow: var(--shadow-lg);
-  }
-  .dialog-title {
-    font-family: var(--font-heading), system-ui, sans-serif;
-    font-weight: 500;
-    font-size: 19px;
-    line-height: 1.6;
-    letter-spacing: 0.05em;
-  }
-  .dialog-body {
-    font-size: 14px;
-    color: color-mix(in srgb, var(--color-text) 85%, var(--color-neutral-100));
-  }
-  .dialog-actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: var(--space-2);
-    margin-top: var(--space-3);
-  }
-
-  /* — 夜のカード（2026-09-26 案B）— トップ画面のヒーロー・栞の見出し・灯りのバッジで使う暗い角丸の面。
-     地は neutral-900、文字は生成り。光のにじみ（.night-glow）と灯りの点（.night-light）は装飾なので aria-hidden の中に置く。 */
-  .night-card {
-    position: relative;
-    overflow: hidden;
-    border-radius: var(--radius-lg);
-    background: var(--color-neutral-900);
-    color: var(--color-neutral-100);
-    box-shadow: var(--shadow-lg);
-  }
-  /* 暗い地では橙茶の輪（accent-600）が見えにくいため、明るい橙で輪を描く */
-  .night-card :focus-visible {
-    outline-color: var(--color-accent-300);
-  }
-  .night-glow {
-    position: absolute;
-    border-radius: 999px;
-    pointer-events: none;
-    background: radial-gradient(closest-side, color-mix(in srgb, var(--color-accent-500) 38%, transparent), transparent);
-  }
-  .night-light {
-    position: absolute;
-    border-radius: 999px;
-    pointer-events: none;
-    background: var(--color-accent-400);
-    box-shadow: 0 0 8px 3px color-mix(in srgb, var(--color-accent-400) 50%, transparent);
-  }
-  .night-light-pale {
-    background: var(--color-accent-200);
-    box-shadow: none;
-  }
-  /* 夜のカードの上に置く生成りの丸いボタン（右に橙の →） */
-  .btn-on-night {
-    min-height: 48px;
-    padding: 0 22px;
-    gap: 10px;
-    border-radius: 999px;
-    background: var(--color-bg);
-    border-color: var(--color-bg);
-    color: var(--color-text);
-  }
-  .btn-on-night:hover {
-    background: var(--color-neutral-100);
-    border-color: var(--color-neutral-100);
-  }
-  .btn-on-night:active {
-    background: var(--color-neutral-200);
-    border-color: var(--color-neutral-200);
-  }
-
-  /* 灯り（/me）の進み具合の細い棒。進んだ分は橙で淡く光る */
-  .lantern-progress {
-    height: 4px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--color-bg) 15%, transparent);
-  }
-  .lantern-progress-fill {
-    height: 100%;
-    border-radius: 999px;
-    background: var(--color-accent-400);
-    box-shadow: 0 0 8px color-mix(in srgb, var(--color-accent-400) 70%, transparent);
-  }
-
-  /* — 丸みの規則（2026-09-26 に刷新。SPEC §5「丸みの規則」）—
-     操作部品（btn / seg / input）= 10px、チップ（tag）= 丸、カード = 14px、ダイアログ・大きな面 = 20px。
-     各部品の定義側で指定済み。ここでは上書きしない。 */
-}
-
 /* 街の地図: 右上に重なる「栞」の丸ボタン（上端 12px＋高さ 36px 程度）の下にズームボタンを置く。 */
 .city-map .maplibregl-ctrl-top-right {
   top: 56px;
 }
 
-/* — モーション（https://motion-reference.takayustudio.jp/ の5つの動き）—
-   共通: 動かすのは opacity と transform だけ（アコーディオンの高さは ::details-content の block-size、ナビの丸は背景色）。
-   `prefers-reduced-motion: reduce` では下の @media ですべて止め、最終状態を即座に表示する。 */
+/* ══════════════════════════════════════════════════════════════════════════
+   7つの動詞（SPEC motion §1.2・§3.3）: 描く・貼る・押す・挟む・跳ねる（昼）、灯る・渡る（夜）。
+   移動（スプリング）と不透明度（短いイーズ）は別の animation に分ける（1つの keyframes に混ぜると
+   スプリングの形が崩れるため）。動かすのは translate / scale / rotate / opacity / clip-path / stroke-dashoffset だけ。
+   ══════════════════════════════════════════════════════════════════════ */
+@keyframes v-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes v-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+/* 貼る: 少し上から、少し傾いて・少し大きく置かれ、ぴたっと止まる */
+@keyframes v-stick {
+  from {
+    translate: 0 var(--from-y, -14px);
+    rotate: calc(var(--tilt, 0deg) + var(--from-rot, -3deg));
+    scale: 1.04;
+  }
+  to {
+    translate: 0 0;
+    rotate: var(--tilt, 0deg);
+    scale: 1;
+  }
+}
+/* はがす: 上へ少し持ち上がって消える（弾まない） */
+@keyframes v-peel {
+  to {
+    opacity: 0;
+    translate: 0 -8px;
+    rotate: calc(var(--tilt, 0deg) + 2.5deg);
+  }
+}
+/* 押す: 大きく傾いた所からぎゅっと押される（始まりの大きさは --stamp-from で少しだけ変えられる。既定 1.6） */
+@keyframes v-stamp {
+  from {
+    scale: var(--stamp-from, 1.6);
+    rotate: calc(var(--tilt, 0deg) - 8deg);
+  }
+  to {
+    scale: 1;
+    rotate: var(--tilt, 0deg);
+  }
+}
+/* インクの輪（押した後・着いた後に1回） */
+@keyframes v-ink {
+  from {
+    opacity: 0.35;
+    scale: 1;
+  }
+  to {
+    opacity: 0;
+    scale: 1.6;
+  }
+}
+/* 挟む: 上からするりと入る（親に overflow: clip） */
+@keyframes v-tuck {
+  from {
+    translate: 0 -100%;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+/* 挟んだ後に1回ゆれる（θ = 2.5°·e^(−4t)·sin(14t) を 0.9 秒で写した。timing は linear） */
+@keyframes v-sway {
+  0% {
+    rotate: 0deg;
+  }
+  8% {
+    rotate: 1.61deg;
+  }
+  17% {
+    rotate: 1.18deg;
+  }
+  25% {
+    rotate: 0deg;
+  }
+  33% {
+    rotate: -0.66deg;
+  }
+  42% {
+    rotate: -0.48deg;
+  }
+  50% {
+    rotate: 0deg;
+  }
+  58% {
+    rotate: 0.27deg;
+  }
+  67% {
+    rotate: 0.19deg;
+  }
+  75% {
+    rotate: 0deg;
+  }
+  83% {
+    rotate: -0.11deg;
+  }
+  92% {
+    rotate: -0.08deg;
+  }
+  100% {
+    rotate: 0deg;
+  }
+}
+/* 跳ねる: 字は見えたまま、少し下・少し小さい所から弾んで止まる */
+@keyframes v-pop {
+  from {
+    translate: 0 var(--from-y, 0.25em);
+    scale: var(--from-scale, 0.88);
+  }
+  to {
+    translate: 0 0;
+    scale: 1;
+  }
+}
+/* 変わった数字が止まるときの跳ね（v-bump-2 は同じ中身の別名。名前を替えると続けて再生できる） */
+@keyframes v-bump {
+  0% {
+    scale: 1;
+  }
+  35% {
+    scale: 1.12;
+  }
+  100% {
+    scale: 1;
+  }
+}
+@keyframes v-bump-2 {
+  0% {
+    scale: 1;
+  }
+  35% {
+    scale: 1.12;
+  }
+  100% {
+    scale: 1;
+  }
+}
+/* 描く（pathLength="1" の線）。破線は「1 描く・1.5 すき間」にして、描き始めに丸い線端の点が残らないようにする */
+@keyframes v-draw {
+  from {
+    stroke-dashoffset: 1.001;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+/* 直線の下線を clip-path で描く版（SVG でない物） */
+@keyframes v-draw-clip {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+/* 灯る: 芯の点がつき、光の層が広がる */
+@keyframes v-ignite-core {
+  from {
+    scale: 0;
+  }
+  to {
+    scale: 1;
+  }
+}
+@keyframes v-ignite-glow {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+  to {
+    opacity: var(--glow-to, 1);
+    scale: 1;
+  }
+}
+/* 呼吸（2周で止める） */
+@keyframes v-breath {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+/* 灯りの子のまばたき（1回） */
+@keyframes v-blink {
+  0%,
+  100% {
+    scale: 1 1;
+  }
+  50% {
+    scale: 1 0.1;
+  }
+}
+/* 一覧の最初の表示の「貼る」（下から 10px） */
+@keyframes v-rise {
+  from {
+    translate: 0 10px;
+  }
+}
+
+/* 動詞のクラス（初回表示の演出と Reveal の両方で使う。遅れは --d）。字や操作部品には .keep-visible を付け、透明から始めない */
+@layer components {
+  .verb-stick {
+    animation:
+      v-stick var(--dur-settle) var(--spring-settle) var(--d, 0ms) both,
+      var(--verb-fade, v-fade-in) 120ms var(--ease-out-soft) var(--d, 0ms) both;
+  }
+  .verb-stamp {
+    animation:
+      v-stamp var(--dur-stamp) var(--spring-stamp) var(--d, 0ms) both,
+      var(--verb-fade, v-fade-in) 80ms var(--ease-out-soft) var(--d, 0ms) both;
+  }
+  /* 判子のインクの輪。判子の部品は position: relative を持つ */
+  .verb-stamp::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 2px solid currentColor;
+    opacity: 0;
+    animation: v-ink 420ms var(--ease-out-soft) calc(var(--d, 0ms) + 120ms) 1 both;
+    pointer-events: none;
+  }
+  .verb-tuck {
+    animation:
+      v-tuck var(--dur-tuck) var(--spring-tuck) var(--d, 0ms) both,
+      v-sway 900ms linear calc(var(--d, 0ms) + 500ms) 1 both;
+    transform-origin: top center;
+  }
+  .verb-pop {
+    animation: v-pop var(--dur-pop) var(--spring-pop) var(--d, 0ms) both;
+  }
+  .verb-draw,
+  [data-reveal="play"][data-verb="draw"] path {
+    stroke-dasharray: 1 1.5;
+    animation: v-draw var(--dur-draw) var(--ease-draw) var(--d, 0ms) both;
+  }
+  .verb-ignite {
+    animation: v-ignite-core 240ms var(--ease-out-soft) var(--d, 0ms) both;
+  }
+  .verb-ignite-glow {
+    animation: v-ignite-glow 480ms var(--ease-out-soft) var(--d, 0ms) both;
+  }
+  svg .verb-ignite,
+  svg .verb-ignite-glow {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .keep-visible {
+    --verb-fade: none;
+  }
+  .verb-peel {
+    animation: v-peel var(--dur-peel) var(--ease-peel) both;
+  }
+
+  /* Reveal（SPEC motion §4.3）: 画面の外で待つ最初の状態。JS が "wait" にした物だけ（既定の "done" は最終状態） */
+  [data-reveal="wait"][data-verb="stick"] {
+    opacity: 0;
+    translate: 0 -14px;
+    rotate: calc(var(--tilt, 0deg) - 3deg);
+  }
+  [data-reveal="wait"][data-verb="stamp"] {
+    opacity: 0;
+    scale: 1.6;
+  }
+  /* 字なので透明にしない */
+  [data-reveal="wait"][data-verb="pop"] {
+    translate: 0 0.25em;
+    scale: 0.88;
+  }
+  [data-reveal="wait"][data-verb="ignite"] {
+    opacity: 0;
+    scale: 0;
+  }
+  [data-reveal="wait"][data-verb="draw"] path {
+    stroke-dasharray: 1 1.5;
+    stroke-dashoffset: 1.001;
+  }
+  [data-reveal="wait"][data-verb="tuck"] {
+    translate: 0 -100%;
+  }
+}
+
+/* ページの灯りのモーフ（SPEC motion §4.1.2）: 前のページの灯りから新しいページの灯りへ渡る */
+::view-transition-group(.lamp-morph) {
+  animation-duration: 520ms;
+  animation-timing-function: var(--ease-draw);
+  z-index: 90;
+}
+::view-transition-image-pair(.lamp-morph) {
+  animation-name: vt-lamp-blur;
+}
+@keyframes vt-lamp-blur {
+  40% {
+    filter: blur(2px);
+  }
+}
+
+/* 一覧の最初の表示（SPEC motion §3.5）: 下から 10px の所から --spring-settle で置かれ、不透明度は 120ms で戻る。
+   ずらし 45ms・8行（--stagger-index: 7）で打ち止め。クラスは初回表示のときだけ付く（useIntroStagger）。 */
+.motion-stagger-item {
+  animation:
+    v-rise var(--dur-settle) var(--spring-settle) calc(var(--stagger-index, 0) * var(--stagger)) both,
+    v-fade-in 120ms var(--ease-out-soft) calc(var(--stagger-index, 0) * var(--stagger)) both;
+}
+
+/* 動きを減らす設定（SPEC motion §3.6）: 動きを止めても、全部の機能・全部の情報が同じように使える。
+   JS が動く前（SSR の HTML だけ）でもここで止まる。 */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-enter: 0ms;
+    --dur-stamp: 0ms;
+    --dur-settle: 0ms;
+    --dur-stage: 0ms;
+    --dur-draw: 0ms;
+    --dur-tuck: 0ms;
+    --dur-pop: 0ms;
+    --dur-ignite: 0ms;
+  }
+  .verb-stick,
+  .verb-stamp,
+  .verb-tuck,
+  .verb-pop,
+  .verb-draw,
+  .verb-ignite,
+  .verb-ignite-glow,
+  .verb-peel,
+  .verb-stamp::after,
+  .motion-ambient,
+  .motion-stagger-item,
+  [data-reveal="play"][data-verb="draw"] path,
+  .lamp-dot-ignite,
+  .lantern-child-eye,
+  .hokkaido-lamp-core,
+  .hokkaido-lamp-halo,
+  .hokkaido-lamp-ring,
+  .logo-mark-glow,
+  .bounce-number,
+  .field-count {
+    animation: none !important;
+  }
+  .verb-draw,
+  [data-reveal] path {
+    stroke-dashoffset: 0;
+  }
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
+/* 部品の reduce（部品は components 層に置く決まりなので、こちらも層の中に置く） */
+@layer components {
+  @media (prefers-reduced-motion: reduce) {
+    /* 押したときの沈みは残す（位置が動かず小さいため）。戻りのスプリングは即時 */
+    .btn,
+    .btn-arrow,
+    .chip,
+    .chip-fill,
+    .chip-check path,
+    .seg-circle path,
+    .input-ink-line,
+    .input-ink-line path,
+    .hokkaido-lamp,
+    .lantern-glow,
+    dialog[open] > .dialog,
+    dialog[open]::backdrop {
+      transition: none !important;
+    }
+    /* 灯る・呼吸・明滅は、灯った状態で止める（光の層 0.8） */
+    .lantern[data-lit="true"] .lantern-glow {
+      opacity: 0.8;
+    }
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   モーション（https://motion-reference.takayustudio.jp/ の5つの動き。2026-09-26）
+   1 のスケルトンと 5 のナビの丸は P2（ナビ・ロード中）で「地図帳の下書き」と「丸の判子」に置き換える。
+   `prefers-reduced-motion: reduce` では末尾の @media ですべて止め、最終状態を即座に表示する。
+   ══════════════════════════════════════════════════════════════════════ */
 
 /* 1. スケルトンシマー（1200ms・linear・4周＝4.8秒で静止）: 骨格は固定、光の帯だけが左→右へ横切る。
    帯は --color-bg の半透明（背景色を透かすマスク扱い。新しい表示色は作らない）。
@@ -760,23 +1989,6 @@ figcaption {
   }
   to {
     transform: translateX(100%);
-  }
-}
-
-/* 2. リスト順次表示（全体760ms）: 下から8px・透明度0 → 定位置。1行340ms・行ごとに60ms遅らせ、
-   8行目（--stagger-index: 7）で打ち止め。クラスは初回表示のときだけ付く（useIntroStagger）。 */
-.motion-stagger-item {
-  animation: motion-stagger-rise 340ms cubic-bezier(0.33, 1, 0.68, 1) both;
-  animation-delay: calc(var(--stagger-index, 0) * 60ms);
-}
-@keyframes motion-stagger-rise {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
   }
 }
 

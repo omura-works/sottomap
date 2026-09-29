@@ -5,14 +5,14 @@ import type { CSSProperties } from "react";
 import { usePrefersReducedMotion } from "./motion-prefs";
 
 /**
- * モーションリファレンス「リスト順次表示」（760ms）。
- * 各行が下から 8px・透明度0 から定位置へ。1行 340ms の ease-out、行ごとに 60ms ずつ遅らせ、
- * 8行目（index 7）で遅延を打ち止めにする（340 + 7×60 = 760ms。長い一覧で待たせない）。
- * 実際の動きは globals.css の `.motion-stagger-item`。
+ * 一覧の最初の表示の「貼る」（SPEC motion §3.5。旧「リスト順次表示」760ms を置き換えた）。
+ * 各行が下から 10px の所から `--spring-settle`（600ms）で置かれ、透明度は 120ms で戻る。行ごとに 45ms ずつ遅らせ、
+ * 8行目（index 7）で遅延を打ち止めにする（600 + 7×45 = 915ms。長い一覧で待たせない）。
+ * 実際の動きは globals.css の `.motion-stagger-item`（値は `--dur-settle`・`--stagger` と同じ）。
  */
-export const STAGGER_STEP_MS = 60;
+export const STAGGER_STEP_MS = 45;
 export const STAGGER_MAX_INDEX = 7;
-export const STAGGER_ROW_MS = 340;
+export const STAGGER_ROW_MS = 600;
 const STAGGER_TOTAL_MS = STAGGER_ROW_MS + STAGGER_STEP_MS * STAGGER_MAX_INDEX;
 
 export interface StaggerRowProps {

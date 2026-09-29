@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { LoadingScreen } from "./LoadingScreen";
-import { STAGGER_MAX_INDEX, useIntroStagger } from "./useIntroStagger";
+import { STAGGER_MAX_INDEX, STAGGER_ROW_MS, STAGGER_STEP_MS, useIntroStagger } from "./useIntroStagger";
 
 /** vitest.setup.ts の既定（常に reduce）を、このテストでだけ任意の値に差し替える。 */
 function mockReducedMotion(matches: boolean) {
@@ -72,8 +72,9 @@ describe("リスト順次表示（useIntroStagger）", () => {
     // 初回表示の直後に増えた行（初回の並びに無い行）には付けない。
     rerender(<Rows ids={["a", "b", "c"]} />);
     expect(screen.getByTestId("c")).not.toHaveClass("motion-stagger-item");
+    // 全体の再生（600 + 7×45 = 915ms、SPEC motion §3.5）が終わった後
     act(() => {
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(STAGGER_ROW_MS + STAGGER_STEP_MS * STAGGER_MAX_INDEX + 200);
     });
     expect(screen.getByTestId("a")).not.toHaveClass("motion-stagger-item");
     rerender(<Rows ids={["b", "a"]} />);
