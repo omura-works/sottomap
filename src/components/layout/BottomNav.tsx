@@ -2,12 +2,14 @@
 
 import { LayoutGroup } from "motion/react";
 import { usePathname } from "next/navigation";
-import { NavTab, useHasNavigated } from "./NavTab";
+import { NavTab } from "./NavTab";
 import { cityContextFromPathname, getNavItems } from "./nav-items";
 
 export interface BottomNavProps {
   /** 利用者の居住街slug（未ログイン・未設定なら null）。SPEC §9.14-3。 */
   homeCitySlug?: string | null;
+  /** ページが一度でも変わったか（AppShell が1か所で持つ。灯りが渡るときだけ弧を描く）。 */
+  moved?: boolean;
 }
 
 /**
@@ -16,9 +18,8 @@ export interface BottomNavProps {
  * 高さは上の細線込みで 64px（= 4rem。地図画面の `h-[calc(100dvh-4rem)]` と AppShell の pb-16 がこの高さを
  * 前提にしている）で、各タブのタップ領域は幅1/4 × 64px。ページの切り替えの間も動かさない錨（site-tabs）。
  */
-export function BottomNav({ homeCitySlug = null }: BottomNavProps) {
+export function BottomNav({ homeCitySlug = null, moved = false }: BottomNavProps) {
   const pathname = usePathname();
-  const moved = useHasNavigated(pathname);
   const citySlug = cityContextFromPathname(pathname, homeCitySlug);
   const navItems = getNavItems(citySlug);
 

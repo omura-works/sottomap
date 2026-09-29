@@ -105,7 +105,7 @@ describe("リスト順次表示（useIntroStagger）", () => {
 describe("地図帳の下書き（LoadingScreen）", () => {
   it("aria-busy と「読み込んでいます」の読み上げは今のまま、骨格は aria-hidden", () => {
     const { container } = render(<LoadingScreen />);
-    expect(container.firstElementChild).toHaveAttribute("aria-busy", "true");
+    expect(container.querySelector("[data-page-root] > [aria-busy]")).toHaveAttribute("aria-busy", "true");
     expect(screen.getByRole("status")).toHaveTextContent("読み込んでいます");
     const skeleton = screen.getByTestId("loading-skeleton");
     expect(skeleton).toHaveAttribute("aria-hidden", "true");

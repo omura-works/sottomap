@@ -79,7 +79,7 @@ export function NavTab({ item, pathname, variant, moved }: NavTabProps) {
               className="nav-lamp-core"
               initial={arc ? { y: 0 } : false}
               animate={arc ? { y: [0, -6, 0] } : { y: 0 }}
-              transition={{ duration: 0.6, ease: EASE.draw }}
+              transition={{ duration: 0.6, ease: EASE.outSoft }}
             />
           </motion.span>
         ) : null}

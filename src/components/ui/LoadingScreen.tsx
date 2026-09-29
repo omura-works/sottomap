@@ -1,4 +1,5 @@
 import { PageLamp } from "@/components/motion/PageLamp";
+import { PageTransition } from "@/components/motion/PageTransition";
 
 /**
  * SPEC §9.14-7: 動的ルートのSuspenseフォールバック（loading.tsx）で使う共通の待機表示。
@@ -10,29 +11,35 @@ import { PageLamp } from "@/components/motion/PageLamp";
  * - 灯りは 400ms 待ってから呼吸する（1200ms・最大4周＝5秒以内に静まる）。
  * - `prefers-reduced-motion: reduce` では呼吸もフェードもせず、止まった下書きを出す。
  * 読み上げは sr-only の `role="status"` だけに持たせ、骨格そのものは `aria-hidden`。
+ *
+ * 型付きの遷移の「新しい画面」はまずこの画面になるので、中身を `PageTransition` で包む（入る側のスライドをここで起こす。
+ * ロード中→本物のページは型なしなので動かない。§4.2.2）。
+ * 画面の高さいっぱいを取り、フッターを画面の外へ出す（読み込みの間にフッターが上に跳ねて見えないように）。
  */
 export function LoadingScreen({ label = "読み込んでいます" }: { label?: string }) {
   return (
-    <div className="loading-draft mx-auto max-w-xl px-4 py-10" aria-busy="true">
-      <p role="status" className="sr-only">
-        {label}
-      </p>
-      <div aria-hidden="true" data-testid="loading-skeleton" className="loading-draft-body">
-        <div className="loading-draft-head">
-          <PageLamp />
-          <span className="loading-draft-line loading-draft-title" />
-          <span className="loading-draft-note">灯りをつけています…</span>
-        </div>
-        {[0, 1, 2].map((row) => (
-          <div key={row} className="loading-draft-row">
-            <span className="loading-draft-thumb" />
-            <span className="loading-draft-text">
-              <span className="loading-draft-line" style={{ width: "62%" }} />
-              <span className="loading-draft-line" style={{ width: "38%" }} />
-            </span>
+    <PageTransition>
+      <div className="loading-draft loading-screen mx-auto max-w-xl px-4 py-10" aria-busy="true">
+        <p role="status" className="sr-only">
+          {label}
+        </p>
+        <div aria-hidden="true" data-testid="loading-skeleton" className="loading-draft-body">
+          <div className="loading-draft-head">
+            <PageLamp />
+            <span className="loading-draft-line loading-draft-title" />
+            <span className="loading-draft-note">灯りをつけています…</span>
           </div>
-        ))}
+          {[0, 1, 2].map((row) => (
+            <div key={row} className="loading-draft-row">
+              <span className="loading-draft-thumb" />
+              <span className="loading-draft-text">
+                <span className="loading-draft-line" style={{ width: "62%" }} />
+                <span className="loading-draft-line" style={{ width: "38%" }} />
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    </PageTransition>
   );
 }

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { BottomNav } from "./BottomNav";
 import { SideRail } from "./SideRail";
 import { SiteFooter } from "./SiteFooter";
+import { useHasNavigated } from "./NavTab";
 import { isChromeHidden, isFooterHidden } from "./nav-items";
 
 /**
@@ -21,6 +22,8 @@ export interface AppShellProps {
 
 export function AppShell({ children, homeCitySlug = null, demoMode = false }: AppShellProps) {
   const pathname = usePathname();
+  // ページが一度でも変わったか（ナビの灯りが渡るときだけ弧を描く。左ナビと下部タブで共有する）
+  const moved = useHasNavigated(pathname);
   const hideChrome = isChromeHidden(pathname);
   const showFooter = !isFooterHidden(pathname);
 
@@ -35,12 +38,12 @@ export function AppShell({ children, homeCitySlug = null, demoMode = false }: Ap
 
   return (
     <div className="flex min-h-screen">
-      <SideRail homeCitySlug={homeCitySlug} />
+      <SideRail homeCitySlug={homeCitySlug} moved={moved} />
       <div className="flex-1 flex flex-col min-w-0 pb-16 lg:pb-0">
         <main className="flex-1">{children}</main>
         {showFooter ? <SiteFooter demoMode={demoMode} /> : null}
       </div>
-      <BottomNav homeCitySlug={homeCitySlug} />
+      <BottomNav homeCitySlug={homeCitySlug} moved={moved} />
     </div>
   );
 }

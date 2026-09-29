@@ -3,12 +3,14 @@
 import { LayoutGroup } from "motion/react";
 import { usePathname } from "next/navigation";
 import { LogoMark } from "@/components/brand/LogoMark";
-import { NavTab, useHasNavigated } from "./NavTab";
+import { NavTab } from "./NavTab";
 import { cityContextFromPathname, getNavItems } from "./nav-items";
 
 export interface SideRailProps {
   /** 利用者の居住街slug（未ログイン・未設定なら null）。SPEC §9.14-3。 */
   homeCitySlug?: string | null;
+  /** ページが一度でも変わったか（AppShell が1か所で持つ。灯りが渡るときだけ弧を描く）。 */
+  moved?: boolean;
 }
 
 /**
@@ -20,9 +22,8 @@ export interface SideRailProps {
  * 選択中の丸は判子のように押され、右上の灯りがタブからタブへ渡る（SPEC motion §4.1.1。NavTab）。
  * ページの切り替えの間も動かさない錨（view-transition-name: site-rail）。
  */
-export function SideRail({ homeCitySlug = null }: SideRailProps) {
+export function SideRail({ homeCitySlug = null, moved = false }: SideRailProps) {
   const pathname = usePathname();
-  const moved = useHasNavigated(pathname);
   const citySlug = cityContextFromPathname(pathname, homeCitySlug);
   const navItems = getNavItems(citySlug);
 

@@ -2048,9 +2048,12 @@ figcaption {
 }
 ::view-transition-new(site-rail),
 ::view-transition-new(site-tabs),
-::view-transition-new(site-footer),
 ::view-transition-new(lamp-layer) {
   animation: none;
+}
+/* フッターは新しいページの下で、100ms 待ってから 200ms で現れる（古いページの上に一瞬かぶらない） */
+::view-transition-new(site-footer) {
+  animation: vt-in-fade 200ms var(--ease-out-soft) 100ms both;
 }
 @keyframes vt-out {
   to {
@@ -2137,10 +2140,21 @@ figcaption {
       padding: 32px 40px 48px;
     }
   }
+  /* 灯りの点は字に重ならない余白だけに置く（スマホはワードマークの上の帯、PC は右の空いた所） */
   .site-footer-lamps {
     position: absolute;
-    inset: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 22px;
     pointer-events: none;
+  }
+  @media (min-width: 1024px) {
+    .site-footer-lamps {
+      left: max(62%, 820px);
+      height: auto;
+      bottom: 0;
+    }
   }
   /* 灯りの点は包みごとではなく、1つずつ 45ms ずらしでともる */
   .site-footer-lamps[data-reveal][data-verb="ignite"] {
@@ -2194,6 +2208,15 @@ figcaption {
    ロード中「地図帳の下書き」と紙の地図（SPEC motion §4.5）
    ══════════════════════════════════════════════════════════════════════ */
 @layer components {
+  /* ロード中は画面の高さいっぱいを取り、フッターを画面の外へ出す（スマホは下部タブの 4rem を引く） */
+  .loading-screen {
+    min-height: calc(100dvh - 4rem);
+  }
+  @media (min-width: 1024px) {
+    .loading-screen {
+      min-height: 100dvh;
+    }
+  }
   .loading-draft-body {
     display: flex;
     flex-direction: column;
@@ -2269,9 +2292,18 @@ figcaption {
     width: calc(100% - 72px);
     height: 96px;
     padding: 12px 16px;
-    border: 2px dotted var(--color-neutral-400);
     border-radius: var(--radius-md);
     background: var(--color-bg);
+  }
+  /* 札の点線の枠も 400ms 待ってから現れる（灯りは最初から見えている） */
+  .city-loading-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 2px dotted var(--color-neutral-400);
+    border-radius: inherit;
+    pointer-events: none;
+    animation: v-fade-in 240ms var(--ease-out-soft) 400ms both;
   }
   .city-loading-rows {
     display: none;
@@ -2288,6 +2320,9 @@ figcaption {
       border: 0;
       border-right: 1px solid var(--color-divider);
       border-radius: 0;
+    }
+    .city-loading-card::before {
+      display: none;
     }
     .city-loading-rows {
       display: flex;
@@ -2350,17 +2385,21 @@ figcaption {
   .field-count,
   .nav-icon-frame::before,
   .nav-icon-frame > svg,
-  .nav-pending,
   .nav-pending::after,
   .loading-draft-head .page-lamp,
   .loading-draft-line,
   .loading-draft-row,
   .loading-draft-note,
+  .city-loading-card::before,
   .site-footer-lamps .lamp-dot {
     animation: none !important;
   }
   .site-footer-lamps .lamp-dot {
     scale: none !important;
+  }
+  /* 待ちの輪: 呼吸はしないが、すぐ終わる移動では出さない（400ms 待つ）のは同じ */
+  .nav-pending[data-pending="true"] {
+    animation: v-fade-in 1ms linear 400ms both !important;
   }
   .verb-draw,
   [data-verb="draw"] path {

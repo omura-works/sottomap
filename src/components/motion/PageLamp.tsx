@@ -5,7 +5,7 @@ export interface PageLampProps {
   /** 置く面。夜の面（neutral-900）の上なら "night"。 */
   tone?: "paper" | "night";
   /**
-   * ページをまたいでモーフするか（既定 true）。スマホ用と PC 用の見出しが両方 DOM にある画面（地図）では、
+   * **地図の画面専用**（ほかの画面では付けない）。ページをまたいでモーフするか（既定 true）。スマホ用と PC 用の見出しが両方 DOM にある画面（地図）では、
    * 見えている方だけを true にする（同じ名前の ViewTransition が2つ同時にあると React がエラーにするため）。
    */
   morph?: boolean;
