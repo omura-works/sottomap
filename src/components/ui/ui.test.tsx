@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { Button } from "./Button";
 import { Tag } from "./Tag";
 import { Field } from "./Field";
+import { Segment } from "./Segment";
+import { Chip } from "./Chip";
 
 describe("Button", () => {
   it("variant に応じたクラスを付与する", () => {
@@ -39,7 +41,26 @@ describe("Field", () => {
         onChange={() => {}}
       />,
     );
-    expect(screen.getByText("21/60")).toBeInTheDocument();
+    const counter = document.querySelector(".field-counter");
+    expect(counter).toHaveTextContent("21/60");
+    expect(counter?.querySelector(".field-count")).toHaveTextContent("21");
+    // 残り 39 字: まだ「あと N 字」は出さない
+    expect(counter).toHaveAttribute("data-near", "false");
+    expect(counter).toHaveAttribute("data-full", "false");
+    expect(counter).not.toHaveTextContent("あと");
+  });
+
+  it("SPEC motion §5.8.1: 残り 10 字で data-near と「あと N 字」、0 字で data-full", () => {
+    const { rerender } = render(<Field label="理由" maxLength={60} value={"あ".repeat(50)} onChange={() => {}} />);
+    const counter = () => document.querySelector(".field-counter");
+    expect(counter()).toHaveAttribute("data-near", "true");
+    expect(counter()).toHaveAttribute("data-full", "false");
+    expect(counter()).toHaveTextContent("50/60 あと10字");
+    rerender(<Field label="理由" maxLength={60} value={"あ".repeat(49)} onChange={() => {}} />);
+    expect(counter()).toHaveAttribute("data-near", "false");
+    rerender(<Field label="理由" maxLength={60} value={"あ".repeat(60)} onChange={() => {}} />);
+    expect(counter()).toHaveAttribute("data-full", "true");
+    expect(counter()).toHaveTextContent("60/60 あと0字");
   });
 
   it("maxLength 未指定ならカウンタを表示しない", () => {
@@ -63,5 +84,53 @@ describe("Field", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByText("正直な理由を一言で。")).toBeInTheDocument();
     expect(input.getAttribute("aria-describedby")).toBe(screen.getByText("正直な理由を一言で。").id);
+  });
+});
+
+describe("Segment", () => {
+  const options = [
+    { value: "weekly", label: "週1で行く" },
+    { value: "monthly", label: "月1" },
+    { value: "yearly", label: "年に数回" },
+  ];
+
+  it("既定（fill）は今のラジオのまま", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<Segment aria-label="行く頻度" options={options} value="weekly" onChange={onChange} />);
+    const group = screen.getByRole("radiogroup", { name: "行く頻度" });
+    expect(group).toHaveAttribute("data-variant", "fill");
+    expect(screen.getByRole("radio", { name: "週1で行く" })).toBeChecked();
+    await user.click(screen.getByRole("radio", { name: "月1" }));
+    expect(onChange).toHaveBeenCalledWith("monthly");
+    expect(group.querySelector(".seg-circle")).toBeNull();
+  });
+
+  it("SPEC motion §2.9: variant=circle は選んだ字を手描きの丸（飾り）で囲み、選択を属性でも持つ", () => {
+    render(<Segment aria-label="行く頻度" variant="circle" options={options} value="monthly" onChange={() => {}} />);
+    const group = screen.getByRole("radiogroup", { name: "行く頻度" });
+    expect(group).toHaveAttribute("data-variant", "circle");
+    const selected = screen.getByRole("radio", { name: "月1" }).closest("label");
+    expect(selected).toHaveAttribute("data-on", "true");
+    const circle = selected?.querySelector("svg.seg-circle");
+    expect(circle).not.toBeNull();
+    expect(circle).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByRole("radio", { name: "週1で行く" }).closest("label")).toHaveAttribute("data-on", "false");
+    // 丸は字の名前に混ざらない
+    expect(screen.getByRole("radio", { name: "月1" })).toBeChecked();
+  });
+});
+
+describe("Chip", () => {
+  it("塗りの層は読み上げず、選択を data-on で持つ", () => {
+    render(
+      <button type="button" className="chip-hit" aria-pressed="true">
+        <Chip on>札幌</Chip>
+      </button>,
+    );
+    const button = screen.getByRole("button", { name: "札幌" });
+    const chip = button.querySelector(".chip");
+    expect(chip).toHaveAttribute("data-on", "true");
+    expect(chip?.querySelector(".chip-fill")).toHaveAttribute("aria-hidden", "true");
   });
 });
