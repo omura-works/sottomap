@@ -58,7 +58,9 @@ describe("トークンのコントラスト", () => {
       /\.night-card,\s*\.night-band,\s*\.login-night,\s*\.sticky\[data-tone="night"\],\s*\.lantern-badge \{\s*--ring: var\(--color-accent-300\);/,
     );
     expect(css).toMatch(/:focus-visible \{\s*outline: 2px solid var\(--ring, var\(--color-accent-600\)\);/);
-    expect(startCss).toMatch(/\.start-city-chip:focus-visible > span \{\s*outline: 2px solid var\(--color-accent-300\)/);
+    // /start の街チップは紙の札の上に移ったので accent-600（bg に 4.57:1）、夜の上の「動きを止める」は accent-300（SPEC motion §5.1）
+    expect(startCss).toMatch(/\.start-city-chip:focus-visible > \.chip \{\s*outline: 2px solid var\(--color-accent-600\)/);
+    expect(startCss).toMatch(/\.start-motion-toggle:focus-visible \{\s*outline: 2px solid var\(--color-accent-300\)/);
     expect(contrast(token("accent-300"), token("neutral-900"))).toBeGreaterThanOrEqual(3);
   });
 });

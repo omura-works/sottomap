@@ -1,4 +1,96 @@
-/* S1 トップ画面（SPEC §9.15 案B。暗い角丸カードのヒーロー）専用のスタイル */
+/* S1 トップ /start（SPEC motion §5.1「灯りの地図帳」）専用のスタイル。部品そのものの見た目は globals.css。 */
+
+.start-screen {
+  min-height: 100dvh;
+  background: var(--color-bg);
+  /* SPEC §9.12-2: /start は下部タブを持たないが、端末のホームインジケータに末尾の注記が隠れないよう余白を取る。 */
+  padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+}
+.start-wrap {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+@media (min-width: 1024px) {
+  .start-wrap {
+    padding: 0 40px;
+  }
+}
+
+/* ── ヘッダー（ロゴの印＋ワードマーク。下の hairline はやめる） ── */
+.start-header {
+  display: flex;
+  align-items: center;
+  height: 64px;
+}
+.start-header .start-wrap {
+  width: 100%;
+}
+.start-header .wordmark {
+  font-size: 22px;
+}
+@media (min-width: 1024px) {
+  .start-header {
+    height: 84px;
+  }
+  .start-header .wordmark {
+    font-size: 24px;
+  }
+}
+
+/* ── 夜の舞台 ── */
+.start-hero {
+  margin-top: 8px;
+  border-radius: var(--radius-hero);
+  background: var(--night-horizon);
+  box-shadow: var(--shadow-lg);
+  padding: 64px 20px 28px;
+}
+@media (min-width: 1024px) {
+  .start-hero {
+    padding: 72px 64px 64px;
+  }
+}
+.start-hero-deco {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.start-par-road,
+.start-par-glow {
+  position: absolute;
+  inset: 0;
+}
+.start-glow-a {
+  width: 560px;
+  height: 560px;
+  right: -140px;
+  top: -200px;
+}
+.start-glow-b {
+  width: 460px;
+  height: 460px;
+  left: -160px;
+  bottom: -220px;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--color-accent-300) 22%, transparent), transparent);
+}
+.start-par-ridge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 64px;
+}
+.start-par-ridge .night-ridge {
+  height: 100%;
+}
+@media (min-width: 1024px) {
+  .start-par-ridge {
+    height: 120px;
+  }
+}
+
+/* 夜の灯りの点: 北から南へ順に灯り、灯り終わった点から明滅に移る（明滅は「動きを止める」で止まる。§5.1・§3.4-9） */
 @keyframes start-light-glow {
   0%,
   100% {
@@ -10,89 +102,652 @@
     transform: scale(1);
   }
 }
-
-.start-screen .start-light {
-  animation: start-light-glow 4.2s ease-in-out infinite;
+.start-screen .start-light.lamp-dot-ignite {
+  animation:
+    v-ignite-core 480ms var(--ease-out-soft) var(--d, 0ms) both,
+    start-light-glow 4.2s ease-in-out calc(var(--d, 0ms) + 480ms) infinite;
 }
-
-/* Codex R10 重要3: SSR・利用者が未選択の間（data-motion="auto"）は既定で動く。
-   ただしOSの prefers-reduced-motion: reduce はここでも効かせる（JS無効でも初期描画に反映されるよう、
-   `[data-motion="auto"]` に一致させる。以前は `:not([data-motion])` を使っていたため、
-   SSRが常に "playing" を出力する実装と噛み合わず、JS実行前は動き続けていた）。 */
+/* Codex R10 重要3: SSR・利用者が未選択の間（data-motion="auto"）もOSの reduce を効かせる（JS無効でも初回表示から止まる） */
 @media (prefers-reduced-motion: reduce) {
-  .start-screen[data-motion="auto"] .start-light {
+  .start-screen[data-motion="auto"] .start-light.lamp-dot-ignite {
     animation: none;
     opacity: 0.8;
   }
 }
-
-/* Codex R9 重要4・R10 重要3: 実効状態（userChoiceがあればそれ、無ければOS設定）は data-motion
-   属性で表す。「動きを止める」ボタンで停止・再開のどちらでも、OS設定の reduce に関係なく反映する。 */
-.start-screen[data-motion="paused"] .start-light {
+/* Codex R9 重要4・R10 重要3: 実効状態は data-motion。「動きを止める」「再開する」はOSの reduce に関係なく反映する */
+.start-screen[data-motion="paused"] .start-light.lamp-dot-ignite {
   animation: none;
   opacity: 0.8;
 }
-
-.start-screen[data-motion="playing"] .start-light {
-  animation: start-light-glow 4.2s ease-in-out infinite;
+.start-screen[data-motion="playing"] .start-light.lamp-dot-ignite {
+  animation:
+    v-ignite-core 480ms var(--ease-out-soft) var(--d, 0ms) both,
+    start-light-glow 4.2s ease-in-out calc(var(--d, 0ms) + 480ms) infinite;
 }
 
-/* 見た目は控えめ（細線の枠の小さな文字）だが、当たり判定は44px以上（SPEC §9.14-14）。 */
-.start-screen .start-motion-toggle {
+/* 「動きを止める」（控えめな見た目、当たり判定は44px以上。SPEC §9.14-14） */
+.start-motion-toggle {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   min-width: 44px;
   min-height: 44px;
   padding: 0 14px;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-pill);
   border: 1px solid color-mix(in srgb, var(--color-neutral-100) 22%, transparent);
   background: color-mix(in srgb, var(--color-neutral-900) 60%, transparent);
   color: var(--color-neutral-300);
-  font-size: 0.75rem;
-  font-weight: 500;
-  letter-spacing: 0.04em;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.06em;
   cursor: pointer;
 }
-
-.start-screen .start-motion-toggle:focus-visible {
+.start-motion-toggle svg {
+  width: 12px;
+  height: 12px;
+}
+.start-motion-toggle:focus-visible {
   outline: 2px solid var(--color-accent-300);
   outline-offset: 2px;
 }
-
-/* ヒーローの「ぼんやりした暖色の光のにじみ」（2つ。動かさない装飾）。形と色は共通の .night-glow（globals.css）、
-   ここは大きさと位置だけ。 */
-.start-screen .start-glow-a {
-  width: 560px;
-  height: 560px;
-  right: -140px;
-  top: -200px;
-}
-.start-screen .start-glow-b {
-  width: 460px;
-  height: 460px;
-  left: -160px;
-  bottom: -220px;
-  background: radial-gradient(
-    closest-side,
-    color-mix(in srgb, var(--color-accent-300) 22%, transparent),
-    transparent
-  );
+@media (min-width: 1024px) {
+  .start-motion-toggle {
+    top: 18px;
+    right: 20px;
+  }
 }
 
-/* SPEC §9.14-14: 当たり判定は透明なボタン全体（44px 以上）。見た目のチップは中の span */
-.start-screen .start-city-chip {
+.start-hero-grid {
+  position: relative;
+  display: grid;
+  gap: 32px;
+}
+@media (min-width: 1024px) {
+  .start-hero-grid {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 400px);
+    gap: 56px;
+    align-items: center;
+  }
+}
+/* 2行目（まだ静かな店を）を1行に収めるため、左の列の幅を物差しにする */
+.start-hero-left {
+  container-type: inline-size;
+}
+.start-kicker-row {
+  display: flex;
+  align-items: center;
+}
+
+/* h1: 3段の大きさ（見た目の行）。読み上げは sr-only の一文 */
+.start-h1 {
+  margin: 20px 0 0;
+  font-size: inherit;
+  line-height: 1;
+}
+.start-h1-vis {
+  display: block;
+}
+.start-h1-vis > span {
+  display: block;
+}
+.start-h1-vis > span + span {
+  margin-top: 4px;
+}
+.start-h1-r1 {
+  font-size: clamp(1.75rem, 1.4rem + 1.5vw, 2.75rem);
+  line-height: 1.25;
+  color: var(--color-neutral-100);
+}
+.start-h1-r2 {
+  font-size: min(var(--fs-display), 13.4cqi);
+  line-height: 1.25;
+  white-space: nowrap;
+  color: var(--color-neutral-100);
+}
+.start-h1-r3 {
+  font-size: var(--fs-peak);
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  color: var(--color-accent-300);
+}
+.start-ch {
+  display: inline-block;
+}
+.start-quiet {
+  position: relative;
+  display: inline-block;
+  color: var(--color-accent-300);
+}
+.start-quiet-line {
+  position: absolute;
+  left: -2%;
+  bottom: calc(-0.12em - 6px);
+  width: 104%;
+  height: 18px;
+}
+.start-lead {
+  margin: 24px 0 0;
+  max-width: 32em;
+  font-size: var(--fs-lead);
+  font-weight: 500;
+  line-height: 1.9;
+  color: var(--color-neutral-300);
+}
+
+/* ── 紙の札（街を選ぶ）。傾けない。夜の面の中の紙なので輪は accent-600 ── */
+.start-chooser {
+  position: relative;
+  --ring: var(--color-accent-600);
+  background: var(--color-bg);
+  color: var(--color-text);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-lg);
+}
+@media (min-width: 1024px) {
+  .start-chooser {
+    padding: 28px;
+  }
+}
+.start-chooser-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.start-chooser-head h2 {
+  margin: 0;
+  padding-top: 6px;
+  font-size: 22px;
+  line-height: 1.35;
+}
+.start-chooser .hokkaido-map {
+  margin: -6px -6px 0 0;
+}
+.start-chips {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 8px;
+  margin-top: 12px;
+}
+/* SPEC §9.14-14: 当たり判定は透明なボタン全体（44px 以上）。見た目のチップは中の .chip */
+.start-city-chip {
+  display: inline-flex;
+  align-items: center;
   min-width: 44px;
   min-height: 44px;
   padding: 0;
   border: 0;
   background: transparent;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
-
-.start-screen .start-city-chip:focus-visible {
+.start-city-chip:focus-visible {
   outline: none;
 }
-
-/* 暗いヒーローの上なので明るい輪（accent-300: neutral-900 に 9.32:1。accent-600 では 2.96:1 だった。Codex R26 軽微1） */
-.start-screen .start-city-chip:focus-visible > span {
-  outline: 2px solid var(--color-accent-300);
+/* 紙の札の上なので accent-600 の輪（bg に 4.57:1。§5.1） */
+.start-city-chip:focus-visible > .chip {
+  outline: 2px solid var(--color-accent-600);
   outline-offset: 2px;
+}
+.start-dashed {
+  margin: 16px 0;
+  border-top: 1px dashed var(--color-neutral-400);
+}
+.start-count-p {
+  margin: 0;
+}
+.start-count {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+/* 数字の帯（1em ほど）だけを見せる: 桁が回るとき、枠の外へ抜けていく数字を見せない（AnimatedCounter の1桁は 1.5em の高さ）。
+   上下の空きも詰めて、札の中の縦の間を見本どおりにする */
+.start-count-num {
+  position: relative;
+  display: inline-block;
+  margin-block: -0.22em;
+  clip-path: inset(0.1em -0.3em 0.1em -0.3em);
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-synthesis: none;
+  font-size: var(--fs-num);
+  line-height: 1;
+  color: var(--color-accent-600);
+}
+.start-count-unit {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-synthesis: none;
+  font-size: 22px;
+  line-height: 1;
+}
+.start-count-note {
+  display: block;
+  margin-top: 6px;
+  font-size: var(--fs-small);
+  font-weight: 500;
+  line-height: 1.7;
+  color: var(--color-text-muted);
+}
+.start-weekly-h {
+  margin: 20px 0 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+.start-weekly {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.start-weekly-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 10px;
+  line-height: 1.5;
+}
+.start-weekly-dot {
+  flex: none;
+  align-self: center;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-accent-400);
+  box-shadow: var(--glow-sm);
+}
+.start-weekly-name {
+  font-size: 15px;
+  font-weight: 700;
+}
+.start-weekly-meta {
+  flex-basis: 100%;
+  padding-left: 18px;
+  font-size: var(--fs-small);
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+.start-weekly-empty {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+.start-walk {
+  width: 100%;
+  margin-top: 20px;
+}
+/* 1000ms: 主ボタンの → が右へ 4px 出て戻る（1回） */
+@keyframes v-nudge {
+  40% {
+    translate: 4px 0;
+  }
+}
+.start-nudge {
+  animation: v-nudge 600ms var(--ease-out-soft) 1000ms both;
+}
+.btn:hover .start-nudge {
+  animation: none;
+}
+.start-free {
+  margin: 8px 0 0;
+  text-align: center;
+  text-wrap: balance;
+  word-break: auto-phrase;
+  font-size: var(--fs-small);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted);
+}
+.start-error {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--color-accent-700);
+}
+
+/* ── やくそく・凡例 ── */
+.start-trail {
+  position: relative;
+}
+.start-trail-col,
+.start-trail-lamp {
+  display: none;
+}
+@media (min-width: 1024px) {
+  /* 縦の散歩道（PC だけ）: 見出しの左 −28px に点の列 */
+  .start-trail-col {
+    display: block;
+    position: absolute;
+    left: -28px;
+    top: calc(var(--space-section) + 10px);
+    bottom: 40px;
+    width: 4px;
+    background-image: radial-gradient(circle, var(--color-neutral-400) 2px, transparent 2.5px);
+    background-size: 4px 18px;
+    background-repeat: repeat-y;
+    pointer-events: none;
+  }
+  .start-trail-lamp {
+    display: block;
+    position: absolute;
+    left: -30px;
+    top: 0.45em;
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--color-accent-400);
+    box-shadow: var(--glow-sm);
+  }
+}
+.start-sec-title {
+  position: relative;
+}
+.start-promise {
+  margin-top: var(--space-section);
+}
+.start-sec-head {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+@media (min-width: 1024px) {
+  .start-sec-head {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+}
+.start-sec-kicker {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.5;
+  color: var(--color-accent-700);
+}
+.start-sec-title h2 {
+  margin: 8px 0 0;
+}
+.start-sec-lead {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--color-text-muted);
+}
+@media (min-width: 1024px) {
+  .start-sec-lead {
+    width: 360px;
+  }
+}
+.start-pcards {
+  display: grid;
+  gap: 16px;
+  margin: 36px 0 0;
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 1024px) {
+  .start-pcards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+}
+.start-pcard {
+  border-radius: var(--radius-lg);
+  padding: 28px;
+}
+@media (min-width: 1024px) {
+  .start-pcard {
+    padding: 32px;
+    min-height: 260px;
+  }
+}
+.start-pcard:nth-child(1) {
+  background: var(--color-accent-200);
+}
+.start-pcard:nth-child(2) {
+  background: var(--color-accent-2-200);
+}
+.start-pcard:nth-child(3) {
+  background: var(--color-neutral-900);
+  --ring: var(--color-accent-300);
+}
+.start-pcard-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.start-pnum {
+  display: inline-block;
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-synthesis: none;
+  font-size: clamp(3.5rem, 3.062rem + 1.798vw, 4.5rem);
+  line-height: 1;
+}
+.start-pcard:nth-child(1) .start-pnum {
+  color: var(--color-accent-600);
+}
+.start-pcard:nth-child(2) .start-pnum {
+  color: var(--color-accent-2-700);
+}
+.start-pcard:nth-child(3) .start-pnum {
+  color: var(--color-accent-400);
+}
+.start-pcard h3 {
+  margin: 16px 0 0;
+  font-size: var(--fs-h3);
+}
+.start-pcard:nth-child(3) h3 {
+  color: var(--color-neutral-100);
+}
+.start-pcard p {
+  margin: 8px 0 0;
+  font-size: 15px;
+  line-height: 1.8;
+}
+.start-pcard:nth-child(1) p {
+  color: var(--color-accent-800);
+}
+.start-pcard:nth-child(2) p {
+  color: var(--color-accent-2-800);
+}
+.start-pcard:nth-child(3) p {
+  color: var(--color-neutral-400);
+}
+/* カードが貼られた後: 番号が跳ね（200ms 後）、挿絵が動く（360ms 後） */
+@keyframes v-nod {
+  0% {
+    rotate: 0deg;
+  }
+  13% {
+    rotate: 4.93deg;
+  }
+  25% {
+    rotate: 3.89deg;
+  }
+  38% {
+    rotate: 0.44deg;
+  }
+  50% {
+    rotate: -1.73deg;
+  }
+  63% {
+    rotate: -1.61deg;
+  }
+  75% {
+    rotate: -0.34deg;
+  }
+  88% {
+    rotate: 0.59deg;
+  }
+  100% {
+    rotate: 0deg;
+  }
+}
+.start-pcard[data-reveal="wait"] .start-pnum {
+  translate: 0 0.25em;
+  scale: 0.88;
+}
+.start-pcard[data-reveal="play"] .start-pnum {
+  animation: v-pop var(--dur-pop) var(--spring-pop) calc(var(--d, 0ms) + 200ms) both;
+}
+.start-pcard[data-reveal="play"] .promise-art-pin {
+  --stamp-from: 1.35;
+  animation: v-stamp var(--dur-stamp) var(--spring-stamp) calc(var(--d, 0ms) + 360ms) both;
+}
+.start-pcard[data-reveal="play"] .promise-art-faces {
+  animation: v-nod 500ms linear calc(var(--d, 0ms) + 360ms) both;
+}
+.start-pcard[data-reveal="play"] .promise-art-dot {
+  --stamp-from: 2;
+  animation: v-stamp var(--dur-stamp) var(--spring-stamp) calc(var(--d, 0ms) + 360ms) both;
+}
+
+.start-legend {
+  margin-top: var(--space-section);
+}
+.start-legend h2 {
+  margin: 0;
+}
+.start-legend-items {
+  display: grid;
+  gap: 12px;
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 1024px) {
+  .start-legend-items {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+}
+.start-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  border-radius: 20px;
+  background: var(--color-neutral-100);
+}
+.start-legend-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.start-legend-note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+.start-legend-foot {
+  margin: 16px 0 0;
+  font-size: var(--fs-small);
+  color: var(--color-text-muted);
+}
+
+/* ── 街が0件の空状態（§4.6） ── */
+.start-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+  text-align: center;
+}
+.start-empty-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.start-empty-title {
+  margin: 0 0 8px;
+  font-size: var(--fs-small);
+  letter-spacing: 0.3em;
+  color: var(--color-neutral-700);
+  font-family: var(--font-body);
+  font-weight: 700;
+}
+.start-empty-big {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-synthesis: none;
+  font-size: 22px;
+  line-height: 1.45;
+}
+.start-empty-small {
+  margin: 0;
+  font-size: var(--fs-body);
+  color: var(--color-text-muted);
+}
+
+/* ── スクロール連動（§4.4）: 対応するブラウザで、動きを減らさないときだけ。書かない状態が最終状態 ── */
+@keyframes start-par-road {
+  to {
+    translate: 0 -12px;
+  }
+}
+@keyframes start-par-glow {
+  to {
+    translate: 0 -24px;
+  }
+}
+@keyframes start-par-ridge {
+  to {
+    translate: 0 -18px;
+  }
+}
+@keyframes start-trail-draw {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0);
+  }
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .start-par-road {
+      animation: start-par-road linear both;
+      animation-timeline: view();
+      animation-range: exit 0% exit 100%;
+    }
+    .start-par-glow {
+      animation: start-par-glow linear both;
+      animation-timeline: view();
+      animation-range: exit 0% exit 100%;
+    }
+    .start-par-ridge {
+      animation: start-par-ridge linear both;
+      animation-timeline: view();
+      animation-range: exit 0% exit 100%;
+    }
+    .start-trail-col {
+      animation: start-trail-draw linear both;
+      animation-timeline: view();
+      animation-range: entry 0% exit 30%;
+    }
+  }
+}
+
+/* 動きを減らす: 入場・ずらし・→ の揺れを止め、最終状態で出す（北海道の灯りも即座に移る。§5.1 reduce） */
+@media (prefers-reduced-motion: reduce) {
+  .start-nudge,
+  .start-pcard[data-reveal] .start-pnum,
+  .start-pcard[data-reveal] .promise-art-pin,
+  .start-pcard[data-reveal] .promise-art-faces,
+  .start-pcard[data-reveal] .promise-art-dot {
+    animation: none !important;
+  }
 }

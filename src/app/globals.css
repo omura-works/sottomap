@@ -2102,7 +2102,7 @@ figcaption {
     clip-path: circle(0 at var(--iris-x, 50%) var(--iris-y, 50%));
   }
   to {
-    clip-path: circle(150vmax at var(--iris-x, 50%) var(--iris-y, 50%));
+    clip-path: circle(var(--iris-r, 150vmax) at var(--iris-x, 50%) var(--iris-y, 50%));
   }
 }
 ::view-transition-old(.page-out-iris) {
@@ -2340,6 +2340,18 @@ figcaption {
   }
 }
 
+/* 画面の中の失敗の文（SPEC motion §4.7）: 揺らさない。少し傾いて上から置かれる */
+@keyframes v-alert-in {
+  from {
+    opacity: 0;
+    rotate: -2deg;
+    translate: 0 -4px;
+  }
+}
+.alert-in {
+  animation: v-alert-in 200ms var(--ease-out-soft) both;
+}
+
 /* 一覧の最初の表示（SPEC motion §3.5）: 下から 10px の所から --spring-settle で置かれ、不透明度は 120ms で戻る。
    ずらし 45ms・8行（--stagger-index: 7）で打ち止め。クラスは初回表示のときだけ付く（useIntroStagger）。 */
 .motion-stagger-item {
@@ -2375,7 +2387,8 @@ figcaption {
   .motion-ambient,
   .motion-stagger-item,
   [data-reveal="play"][data-verb="draw"] path,
-  .lamp-dot-ignite,
+  /* /start の夜の灯りは「動きを再開する」で OS の reduce より優先して動かせる（start.css の data-motion） */
+  .lamp-dot-ignite:not(.start-light),
   .lantern-child-eye,
   .hokkaido-lamp-core,
   .hokkaido-lamp-halo,
@@ -2391,7 +2404,8 @@ figcaption {
   .loading-draft-row,
   .loading-draft-note,
   .city-loading-card::before,
-  .site-footer-lamps .lamp-dot {
+  .site-footer-lamps .lamp-dot,
+  .alert-in {
     animation: none !important;
   }
   .site-footer-lamps .lamp-dot {

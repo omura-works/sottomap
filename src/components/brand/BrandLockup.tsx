@@ -4,8 +4,8 @@ import { Wordmark } from "./Wordmark";
 
 export interface BrandLockupProps {
   tone?: "paper" | "night";
-  /** ワードマークの字の大きさ（px）。ヘッダー 22・フッター 24。 */
-  size?: number;
+  /** ワードマークの字の大きさ（px）。ヘッダー 22・フッター 24。null なら CSS に任せる。 */
+  size?: number | null;
   /** /start のヘッダーの初回表示: ロゴの灯りが灯り、「っ」が落ちて止まる。 */
   intro?: boolean;
   className?: string;
@@ -21,7 +21,7 @@ export function BrandLockup({ tone = "paper", size = 22, intro = false, classNam
       <span className="brand-lockup-mark">
         <LogoMark size={22} strokeColor="var(--color-accent-500)" dotColor="var(--color-accent-400)" ignite={intro} />
       </span>
-      <Wordmark tone={tone} size={size} intro={intro} />
+      <Wordmark tone={tone} size={size ?? undefined} intro={intro} />
     </span>
   );
 }

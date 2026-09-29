@@ -21,7 +21,7 @@ test.describe("デモモードの主要導線", () => {
 
     await page.goto("/start");
     await page.getByRole("button", { name: "札幌", exact: true }).click();
-    await page.getByRole("button", { name: "歩きはじめる" }).click();
+    await page.getByRole("button", { name: "札幌を歩いてみる" }).click();
     await expect(page).toHaveURL(/\/sapporo(?:\?.*)?$/);
 
     // 店リンクは D1（lg:以上）のサイドバーにしかないため、モバイル幅でも安定させるため
