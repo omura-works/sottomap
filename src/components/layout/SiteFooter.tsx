@@ -31,7 +31,8 @@ const FORWARD = ["page-forward"];
  */
 export function SiteFooter({ demoMode = false }: { demoMode?: boolean }) {
   return (
-    <footer className="site-footer">
+    // ページの切り替えの間は動かさない錨（view-transition-name: site-footer）。前のページの画像がフッターに重ならないように
+    <footer className="site-footer" style={{ viewTransitionName: "site-footer" }}>
       <NightRidge className="site-footer-ridge" />
       <div className="night-band">
         <Reveal verb="ignite" className="site-footer-lamps">

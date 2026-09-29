@@ -43,4 +43,9 @@ describe("SiteFooter", () => {
     expect(lamps).toHaveAttribute("aria-hidden", "true");
     expect(lamps?.querySelectorAll(".lamp-dot")).toHaveLength(6);
   });
+
+  it("ページの切り替えの間は動かさない錨（view-transition-name: site-footer）", () => {
+    const { container } = render(<SiteFooter />);
+    expect((container.querySelector("footer") as HTMLElement).style.viewTransitionName).toBe("site-footer");
+  });
 });

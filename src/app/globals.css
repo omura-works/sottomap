@@ -2032,20 +2032,23 @@ figcaption {
 ::view-transition-new(root) {
   animation-duration: 180ms;
 }
-/* ナビと灯りの層は動かさない（錨）。/start→地図のように片方にしか無いときは、新しい方をそのまま出す */
+/* ナビ・フッター・灯りの層は動かさない（錨。フッターは前のページの画像が重ならないように上に描く）。/start→地図のように片方にしか無いときは、新しい方をそのまま出す */
 ::view-transition-group(site-rail),
 ::view-transition-group(site-tabs),
+::view-transition-group(site-footer),
 ::view-transition-group(lamp-layer) {
   animation: none;
   z-index: 100;
 }
 ::view-transition-old(site-rail),
 ::view-transition-old(site-tabs),
+::view-transition-old(site-footer),
 ::view-transition-old(lamp-layer) {
   display: none;
 }
 ::view-transition-new(site-rail),
 ::view-transition-new(site-tabs),
+::view-transition-new(site-footer),
 ::view-transition-new(lamp-layer) {
   animation: none;
 }
