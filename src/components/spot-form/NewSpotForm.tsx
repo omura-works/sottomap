@@ -8,6 +8,7 @@ import { createSpotAction, type NewSpotActionState } from "@/app/actions/spot-cr
 import { MapCanvas } from "@/components/map";
 import type { MapPin } from "@/components/map";
 import { REASON_MAX_LENGTH, VISIT_FREQUENCY_OPTIONS } from "./schema";
+import { PageLamp } from "@/components/motion/PageLamp";
 
 export interface NewSpotFormProps {
   city: City;
@@ -64,7 +65,10 @@ export function NewSpotForm({ city }: NewSpotFormProps) {
     <form action={formAction} className="space-y-6">
       <div className="space-y-1">
         <p className="text-muted text-sm">地元の人だけ / ピンを立てる</p>
-        <h1 style={{ fontSize: 30 }}>まだ知られていない店を、一軒</h1>
+        <h1 style={{ fontSize: 30 }}>
+          <PageLamp />
+          まだ知られていない店を、一軒
+        </h1>
       </div>
 
       <Card kicker="位置を選ぶ" title="地図をタップしてピンを置く">

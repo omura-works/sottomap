@@ -6,6 +6,8 @@ import { answerEligibility, daysSince } from "@/lib/domain/lifecycle";
 import { formatTokyoMonthDay } from "@/lib/format/date-time";
 import { VerifyForm } from "@/components/spot-form/VerifyForm";
 import { Card } from "@/components/ui";
+import { PageTransition } from "@/components/motion/PageTransition";
+import { PageLamp } from "@/components/motion/PageLamp";
 
 interface VerifyPageProps {
   params: Promise<{ requestId: string }>;
@@ -41,35 +43,42 @@ export default async function VerifyPage({ params }: VerifyPageProps) {
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
     return (
-      <div className="mx-auto max-w-xl px-4 py-8 lg:py-12">
-        <VerifyForm
-          requestId={request.id}
-          spotName={spot.name}
-          daysSinceLast={daysSinceLast}
-          history={history}
-          wasDormant={spot.status === "dormant"}
-        />
-      </div>
+      <PageTransition>
+        <div className="mx-auto max-w-xl px-4 py-8 lg:py-12">
+          <VerifyForm
+            requestId={request.id}
+            spotName={spot.name}
+            daysSinceLast={daysSinceLast}
+            history={history}
+            wasDormant={spot.status === "dormant"}
+          />
+        </div>
+      </PageTransition>
     );
   }
 
   return (
-    <div className="mx-auto max-w-xl px-4 py-8 lg:py-12 space-y-6">
-      <div className="space-y-1">
-        <p className="text-muted text-sm">地元の人へ / 90日ごとの確認</p>
-        <h1 style={{ fontSize: 30 }}>この店は、まだ隠れていますか</h1>
+    <PageTransition>
+      <div className="mx-auto max-w-xl px-4 py-8 lg:py-12 space-y-6">
+        <div className="space-y-1">
+          <p className="text-muted text-sm">地元の人へ / 90日ごとの確認</p>
+          <h1 style={{ fontSize: 30 }}>
+            <PageLamp />
+            この店は、まだ隠れていますか
+          </h1>
+        </div>
+        {eligibility === "not-due" ? (
+          <Card title={spot.name} meta={`前回の確認から${daysSinceLast}日`}>
+            <p className="m-0">次の確認は{formatTokyoMonthDay(request.dueAt)}に届きます。</p>
+          </Card>
+        ) : (
+          <Card
+            kicker={request.status === "answered" ? "回答済み" : undefined}
+            title={spot.name}
+            meta={`前回の確認から${daysSinceLast}日`}
+          />
+        )}
       </div>
-      {eligibility === "not-due" ? (
-        <Card title={spot.name} meta={`前回の確認から${daysSinceLast}日`}>
-          <p className="m-0">次の確認は{formatTokyoMonthDay(request.dueAt)}に届きます。</p>
-        </Card>
-      ) : (
-        <Card
-          kicker={request.status === "answered" ? "回答済み" : undefined}
-          title={spot.name}
-          meta={`前回の確認から${daysSinceLast}日`}
-        />
-      )}
-    </div>
+    </PageTransition>
   );
 }

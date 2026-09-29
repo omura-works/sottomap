@@ -6,6 +6,7 @@ import { LogoMark } from "@/components/brand/LogoMark";
 import { AnimatedCounter } from "@/components/ui";
 import { saveHomeCityAction } from "@/app/actions/start";
 import "./start.css";
+import { PageLamp } from "@/components/motion/PageLamp";
 
 export interface StartCityOption {
   slug: string;
@@ -81,6 +82,7 @@ export function StartScreen({
       >
         <div>
           <h1 className="tracking-[0.3em]" style={{ margin: 0, fontSize: "0.75rem", fontWeight: 500, color: "var(--color-neutral-700)" }}>
+            <PageLamp />
             そっとマップ
           </h1>
           <p style={{ margin: "16px 0 0", color: "var(--color-neutral-800)" }}>
@@ -196,6 +198,7 @@ export function StartScreen({
                   color: "var(--color-neutral-100)",
                 }}
               >
+                <PageLamp tone="night" />
                 {/* 行の切れ目を「北海道の、／まだ静かな店を歩く」にそろえる（読み上げは一続きのまま） */}
                 <span className="inline-block">北海道の、</span>
                 <span className="inline-block">まだ静かな店を歩く</span>

@@ -9,6 +9,8 @@ import { Card, Tag } from "@/components/ui";
 import type { TagKind } from "@/components/ui";
 import { getCurrentUserId } from "@/lib/auth";
 import { BookmarkButton } from "./BookmarkButton";
+import { PageTransition } from "@/components/motion/PageTransition";
+import { PageLamp } from "@/components/motion/PageLamp";
 
 /**
  * S4「まだ静かです」系の見出し・確認文言。
@@ -60,61 +62,66 @@ export default async function SpotDetailPage({
   const directionsHref = `https://www.google.com/maps/dir/?api=1&destination=${spot.lat},${spot.lng}`;
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6 lg:py-10 space-y-6">
-      {spot.photoUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element -- 外部URLの店舗写真をそのまま表示する
-        <img
-          src={spot.photoUrl}
-          alt={spot.name}
-          className="w-full aspect-[4/3] object-cover"
-          style={{ borderRadius: "var(--radius-md)" }}
-        />
-      ) : (
-        <div
-          className="w-full aspect-[4/3] flex items-center justify-center text-muted text-sm"
+    <PageTransition>
+      <div className="mx-auto max-w-2xl px-4 py-6 lg:py-10 space-y-6">
+        {spot.photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- 外部URLの店舗写真をそのまま表示する
+          <img
+            src={spot.photoUrl}
+            alt={spot.name}
+            className="w-full aspect-[4/3] object-cover"
+            style={{ borderRadius: "var(--radius-md)" }}
+          />
+        ) : (
+          <div
+            className="w-full aspect-[4/3] flex items-center justify-center text-muted text-sm"
+            style={{ borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}
+          >
+            店の写真をドロップ
+          </div>
+        )}
+
+        <header className="space-y-2">
+          <p className="text-muted text-xs tracking-wide uppercase">{kicker}</p>
+          <h1 style={{ fontSize: 30 }}>
+            <PageLamp />
+            {spot.name}
+          </h1>
+          <div className="flex flex-wrap gap-2">
+            {spot.tags.map((tag) => (
+              <Tag key={tag.id} kind={tag.kind}>
+                {tag.label}
+              </Tag>
+            ))}
+          </div>
+        </header>
+
+        <blockquote
+          className="space-y-2 px-4 py-3"
           style={{ borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}
         >
-          店の写真をドロップ
+          <p className="m-0">「{spot.reason}」</p>
+          <p className="m-0 text-muted text-sm">— {spot.authorLabel}</p>
+        </blockquote>
+
+        <Card elevation="sm">
+          <Tag kind={STATUS_TAG_KIND[spot.quietness]}>{quietnessLabel(spot.quietness)}</Tag>
+          <h3>{STATUS_TITLE[spot.quietness]}</h3>
+          <p className="m-0">{statusBody}</p>
+        </Card>
+
+        <div className="flex flex-wrap items-start gap-3">
+          <BookmarkButton spotId={spot.id} initiallyBookmarked={alreadyBookmarked} />
+          <Link href={directionsHref} target="_blank" rel="noopener noreferrer" className="btn btn-secondary">
+            道順
+          </Link>
         </div>
-      )}
 
-      <header className="space-y-2">
-        <p className="text-muted text-xs tracking-wide uppercase">{kicker}</p>
-        <h1 style={{ fontSize: 30 }}>{spot.name}</h1>
-        <div className="flex flex-wrap gap-2">
-          {spot.tags.map((tag) => (
-            <Tag key={tag.id} kind={tag.kind}>
-              {tag.label}
-            </Tag>
-          ))}
-        </div>
-      </header>
-
-      <blockquote
-        className="space-y-2 px-4 py-3"
-        style={{ borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}
-      >
-        <p className="m-0">「{spot.reason}」</p>
-        <p className="m-0 text-muted text-sm">— {spot.authorLabel}</p>
-      </blockquote>
-
-      <Card elevation="sm">
-        <Tag kind={STATUS_TAG_KIND[spot.quietness]}>{quietnessLabel(spot.quietness)}</Tag>
-        <h3>{STATUS_TITLE[spot.quietness]}</h3>
-        <p className="m-0">{statusBody}</p>
-      </Card>
-
-      <div className="flex flex-wrap items-start gap-3">
-        <BookmarkButton spotId={spot.id} initiallyBookmarked={alreadyBookmarked} />
-        <Link href={directionsHref} target="_blank" rel="noopener noreferrer" className="btn btn-secondary">
-          道順
-        </Link>
+        {/* 指示書 pages-c-brief.md §3: 店主向けの導線。目立たせすぎない小さなリンク。 */}
+        <p className="m-0 text-muted text-xs">
+          <Link href={`/contact?spot=${spot.id}`}>この店の情報について</Link>
+        </p>
       </div>
-
-      {/* 指示書 pages-c-brief.md §3: 店主向けの導線。目立たせすぎない小さなリンク。 */}
-      <p className="m-0 text-muted text-xs">
-        <Link href={`/contact?spot=${spot.id}`}>この店の情報について</Link>
-      </p>
-    </div>
+    </PageTransition>
   );
 }

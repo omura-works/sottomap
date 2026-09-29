@@ -3,6 +3,8 @@ import { connection } from "next/server";
 import { getCurrentUserId } from "@/lib/auth";
 import { getSpot } from "@/lib/db/spots";
 import { ContactForm } from "./ContactForm";
+import { PageTransition } from "@/components/motion/PageTransition";
+import { PageLamp } from "@/components/motion/PageLamp";
 
 export const metadata: Metadata = {
   title: "お問い合わせ",
@@ -42,26 +44,31 @@ export default async function ContactPage(props: PageProps<"/contact">) {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6 lg:py-10 space-y-6">
-      <header className="space-y-2">
-        <p className="text-muted text-xs tracking-wide uppercase">窓口</p>
-        <h1 style={{ fontSize: 30 }}>お問い合わせ</h1>
-        <p className="text-muted">
-          掲載を止めてほしい、内容が違う、そのほかのご連絡はこちらへ。いただいた内容は公開しません。
-        </p>
-      </header>
+    <PageTransition>
+      <div className="mx-auto max-w-2xl px-4 py-6 lg:py-10 space-y-6">
+        <header className="space-y-2">
+          <p className="text-muted text-xs tracking-wide uppercase">窓口</p>
+          <h1 style={{ fontSize: 30 }}>
+            <PageLamp />
+            お問い合わせ
+          </h1>
+          <p className="text-muted">
+            掲載を止めてほしい、内容が違う、そのほかのご連絡はこちらへ。いただいた内容は公開しません。
+          </p>
+        </header>
 
-      <div className="space-y-2">
-        <p className="text-sm m-0">
-          返信をお約束するものではありません。ただし、ご自身の個人情報についての請求には、本人確認のうえ回答します。
-        </p>
-        <p className="text-sm m-0">掲載停止のご連絡は、内容を確認でき次第、対応します。</p>
-        <p className="text-sm text-muted m-0">
-          本文には、お名前・電話番号などの個人情報は書かないでください。
-        </p>
+        <div className="space-y-2">
+          <p className="text-sm m-0">
+            返信をお約束するものではありません。ただし、ご自身の個人情報についての請求には、本人確認のうえ回答します。
+          </p>
+          <p className="text-sm m-0">掲載停止のご連絡は、内容を確認でき次第、対応します。</p>
+          <p className="text-sm text-muted m-0">
+            本文には、お名前・電話番号などの個人情報は書かないでください。
+          </p>
+        </div>
+
+        <ContactForm spot={spot} isLoggedIn={isLoggedIn} />
       </div>
-
-      <ContactForm spot={spot} isLoggedIn={isLoggedIn} />
-    </div>
+    </PageTransition>
   );
 }

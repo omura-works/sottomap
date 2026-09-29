@@ -5,6 +5,8 @@ import { connection } from "next/server";
 import { BookmarkList } from "./BookmarkList";
 import type { BookmarkListItem } from "./BookmarkList";
 import { formatPlannedAtInTokyo } from "@/lib/format/date-time";
+import { PageTransition } from "@/components/motion/PageTransition";
+import { PageLamp } from "@/components/motion/PageLamp";
 
 /** S8「栞」`/bookmarks`。 */
 export default async function BookmarksPage() {
@@ -30,27 +32,30 @@ export default async function BookmarksPage() {
   });
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6 lg:py-10">
-      <BookmarkList
-        initialItems={items}
-        header={
-          // 2026-09-26 案B: 見出しと「地図にまとめる」を夜のカード（BookmarkList 側）の中に置く。
-          <header className="flex flex-col gap-2.5">
-            <p style={{ margin: 0, fontSize: 12, fontWeight: 500, letterSpacing: "0.3em", color: "var(--color-accent-400)" }}>栞</p>
-            {/* Codex R8 重要3: 栞を外した行の前後どちらも無いときのフォーカス先（BookmarkList側から参照）。 */}
-            <h1
-              id="bookmarks-heading"
-              tabIndex={-1}
-              style={{ margin: 0, fontSize: "clamp(30px, 4vw, 40px)", color: "var(--color-bg)" }}
-            >
-              挟んだ店
-            </h1>
-            <p style={{ margin: 0, fontSize: 14, color: "var(--color-neutral-400)" }}>
-              {items.length}軒。旅のあいだ、地図の上でも光ります。
-            </p>
-          </header>
-        }
-      />
-    </div>
+    <PageTransition>
+      <div className="mx-auto max-w-2xl px-4 py-6 lg:py-10">
+        <BookmarkList
+          initialItems={items}
+          header={
+            // 2026-09-26 案B: 見出しと「地図にまとめる」を夜のカード（BookmarkList 側）の中に置く。
+            <header className="flex flex-col gap-2.5">
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 500, letterSpacing: "0.3em", color: "var(--color-accent-400)" }}>栞</p>
+              {/* Codex R8 重要3: 栞を外した行の前後どちらも無いときのフォーカス先（BookmarkList側から参照）。 */}
+              <h1
+                id="bookmarks-heading"
+                tabIndex={-1}
+                style={{ margin: 0, fontSize: "clamp(30px, 4vw, 40px)", color: "var(--color-bg)" }}
+              >
+                <PageLamp tone="night" />
+                挟んだ店
+              </h1>
+              <p style={{ margin: 0, fontSize: 14, color: "var(--color-neutral-400)" }}>
+                {items.length}軒。旅のあいだ、地図の上でも光ります。
+              </p>
+            </header>
+          }
+        />
+      </div>
+    </PageTransition>
   );
 }

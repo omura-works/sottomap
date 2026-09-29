@@ -9,6 +9,7 @@ import { formatTokyoYearMonth } from "@/lib/format/date-time";
 import { submitVerification } from "@/app/actions/spot-verify";
 import { useShowRewardsSetting } from "./reward-settings";
 import { VERIFY_ANSWER_OPTIONS } from "./verify-schema";
+import { PageLamp } from "@/components/motion/PageLamp";
 
 export interface VerifyFormProps {
   requestId: string;
@@ -72,7 +73,10 @@ export function VerifyForm({ requestId, spotName, daysSinceLast, history, wasDor
     <div className="space-y-6">
       <div className="space-y-1">
         <p className="text-muted text-sm">地元の人へ / 90日ごとの確認</p>
-        <h1 style={{ fontSize: 30 }}>この店は、まだ隠れていますか</h1>
+        <h1 style={{ fontSize: 30 }}>
+          <PageLamp />
+          この店は、まだ隠れていますか
+        </h1>
       </div>
 
       <Card title={spotName} meta={`前回の確認から${daysSinceLast}日`} />

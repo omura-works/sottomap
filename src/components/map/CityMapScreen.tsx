@@ -12,6 +12,8 @@ import { sortSpots, splitByQuietness } from "@/lib/domain/ordering";
 import { MapCanvas } from "./index";
 import type { MapPin, MapPoint } from "./index";
 import { buildDistanceMap, parseUrlOrigin, useResolvedOrigin, walkingLabel, WITHIN_10MIN_METERS } from "./geo";
+import { PageLamp } from "@/components/motion/PageLamp";
+import { DESKTOP_QUERY, useMediaQuery } from "@/components/motion/useMediaQuery";
 
 export interface CityMapScreenProps {
   city: City;
@@ -43,6 +45,8 @@ export function CityMapScreen({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  // ページの灯りは、見えている方の見出し（PC なら左の列、スマホなら地図の上の札）だけがページをまたいで渡る
+  const isDesktop = useMediaQuery(DESKTOP_QUERY);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hover, setHover] = useState<{ id: string; point: MapPoint } | null>(null);
@@ -131,6 +135,7 @@ export function CityMapScreen({
               モバイル側見出し（下記）とはCSSの hidden/lg:hidden で排他表示のため、
               アクセシビリティツリー上のh1は常に1つ。 */}
           <h1 className="mb-1" style={{ fontSize: 30 }}>
+            <PageLamp morph={isDesktop} />
             {cityHeading}
           </h1>
           <p className="text-muted text-sm">
@@ -212,6 +217,7 @@ export function CityMapScreen({
           >
             {/* SPEC §9.14-11: モバイル側の意味上のh1（デスクトップ側のh1とはCSSで排他表示）。 */}
             <h1 className="m-0" style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 15, letterSpacing: "0.06em" }}>
+              <PageLamp morph={!isDesktop} />
               {cityHeading}
             </h1>
             <div className="text-xs text-muted">

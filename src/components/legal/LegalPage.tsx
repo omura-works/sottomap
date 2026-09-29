@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { PageLamp } from "@/components/motion/PageLamp";
 
 /**
  * /terms・/privacy 共通の見た目（利用規約・プライバシーポリシー）。
@@ -18,6 +19,7 @@ export function LegalPage({ title, effectiveDate, lead, children }: LegalPagePro
     <div className="mx-auto max-w-3xl px-4 py-8 lg:py-12 space-y-8">
       <header className="space-y-2">
         <h1 className="m-0" style={{ fontSize: 30 }}>
+          <PageLamp />
           {title}
         </h1>
         {effectiveDate ? <p className="text-muted m-0">{effectiveDate}</p> : null}

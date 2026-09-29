@@ -4,6 +4,7 @@ import { getCity, listSpots, countQuietSpots, listBookmarks } from "@/lib/db/spo
 import { CityMapScreen } from "@/components/map/CityMapScreen";
 import { firstParam, parseFiltersParam, parseFocusedSpotIds, parseOrigin } from "@/components/spot-list";
 import { getCurrentUserId } from "@/lib/auth";
+import { PageTransition } from "@/components/motion/PageTransition";
 
 /**
  * S2「地図」/ D1「PC版トップ」`/[city]`。
@@ -42,13 +43,15 @@ export default async function CityMapPage(props: PageProps<"/[city]">) {
   const bookmarkedSpotIds = bookmarks.map((bookmark) => bookmark.spotId);
 
   return (
-    <CityMapScreen
-      city={city}
-      spots={spots}
-      quietCount={quietCount}
-      activeFilters={filters}
-      focusedSpotIds={focusedSpotIds}
-      bookmarkedSpotIds={bookmarkedSpotIds}
-    />
+    <PageTransition>
+      <CityMapScreen
+        city={city}
+        spots={spots}
+        quietCount={quietCount}
+        activeFilters={filters}
+        focusedSpotIds={focusedSpotIds}
+        bookmarkedSpotIds={bookmarkedSpotIds}
+      />
+    </PageTransition>
   );
 }

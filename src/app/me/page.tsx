@@ -11,6 +11,8 @@ import { HomeCitySetting } from "@/components/profile/HomeCitySetting";
 import { DisplayNameSetting } from "./DisplayNameSetting";
 import { LanternBadge } from "./LanternBadge";
 import { canChangeHomeCity, formatHomeCityChangeDate, nextHomeCityChangeAt } from "@/lib/domain/home-city";
+import { PageTransition } from "@/components/motion/PageTransition";
+import { PageLamp } from "@/components/motion/PageLamp";
 
 /**
  * SPEC §9.8: S7「あなたが書いた店」のステータス表記は `quietnessLabel()` の
@@ -68,6 +70,7 @@ export default async function ProfilePage() {
         <Avatar avatarUrl={profile?.avatarUrl ?? null} displayName={displayName} />
         <div>
           <h1 className="m-0" style={{ fontSize: 30 }}>
+            <PageLamp />
             {displayName}
           </h1>
           <p className="text-muted m-0">
@@ -179,12 +182,14 @@ function Avatar({ avatarUrl, displayName }: { avatarUrl: string | null; displayN
   }
 
   return (
-    <div
-      className="w-16 h-16 rounded-full flex items-center justify-center text-xl"
-      style={{ background: "var(--color-accent-200)", color: "var(--color-accent-800)" }}
-      aria-hidden
-    >
-      {displayName.slice(0, 1)}
-    </div>
+    <PageTransition>
+      <div
+        className="w-16 h-16 rounded-full flex items-center justify-center text-xl"
+        style={{ background: "var(--color-accent-200)", color: "var(--color-accent-800)" }}
+        aria-hidden
+      >
+        {displayName.slice(0, 1)}
+      </div>
+    </PageTransition>
   );
 }

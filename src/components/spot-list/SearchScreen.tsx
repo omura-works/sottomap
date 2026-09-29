@@ -11,6 +11,7 @@ import { FilterChips } from "./FilterChips";
 import { parseFiltersParam } from "./filters";
 import { SpotListItem } from "./SpotListItem";
 import { SortNote } from "./SortNote";
+import { PageLamp } from "@/components/motion/PageLamp";
 
 export interface SearchScreenProps {
   city: City;
@@ -277,6 +278,7 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
       {/* SPEC §9.14-9: 検索画面の見出しはDOMの先頭にh1を置き、下位見出しはh2に整理する（見た目は現状維持）。
           Codex R9 重要2: tabIndex=-1 にして、結果差し替えでフォーカスが消えたときの移動先にする。 */}
       <h1 ref={headingRef} tabIndex={-1} style={{ fontSize: 22, fontWeight: 500, lineHeight: 1.5 }}>
+        <PageLamp />
         {originPending ? "現在地を確認しています…" : `近い順に${visibleSpots.length}軒`}
       </h1>
 

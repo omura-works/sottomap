@@ -2,6 +2,7 @@ import { connection } from "next/server";
 import { listCities, countPublishedSpots, listRecentlyVerified } from "@/lib/db/spots";
 import { StartScreen } from "./StartScreen";
 import type { StartCityData } from "./StartScreen";
+import { PageTransition } from "@/components/motion/PageTransition";
 
 const DEFAULT_CITY_SLUG = "sapporo";
 const RECENTLY_VERIFIED_LIMIT = 3;
@@ -45,10 +46,12 @@ export default async function StartPage() {
     : (cities[0]?.slug ?? DEFAULT_CITY_SLUG);
 
   return (
-    <StartScreen
-      cities={cities.map((city) => ({ slug: city.slug, name: city.name }))}
-      dataBySlug={dataBySlug}
-      defaultCitySlug={defaultCitySlug}
-    />
+    <PageTransition>
+      <StartScreen
+        cities={cities.map((city) => ({ slug: city.slug, name: city.name }))}
+        dataBySlug={dataBySlug}
+        defaultCitySlug={defaultCitySlug}
+      />
+    </PageTransition>
   );
 }

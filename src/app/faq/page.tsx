@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PageTransition } from "@/components/motion/PageTransition";
+import { PageLamp } from "@/components/motion/PageLamp";
 
 export const metadata: Metadata = {
   title: "よくある質問",
@@ -188,26 +190,29 @@ const FAQ_ITEMS: FaqItem[] = [
  */
 export default function FaqPage() {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 lg:py-12 space-y-6">
-      <header className="space-y-2">
-        <h1 className="m-0" style={{ fontSize: 30 }}>
-          よくある質問
-        </h1>
-        <p className="text-muted m-0">
-          ここに無い質問は<Link href="/contact">お問い合わせフォーム</Link>からお願いします。
-        </p>
-      </header>
+    <PageTransition>
+      <div className="mx-auto max-w-3xl px-4 py-8 lg:py-12 space-y-6">
+        <header className="space-y-2">
+          <h1 className="m-0" style={{ fontSize: 30 }}>
+            <PageLamp />
+            よくある質問
+          </h1>
+          <p className="text-muted m-0">
+            ここに無い質問は<Link href="/contact">お問い合わせフォーム</Link>からお願いします。
+          </p>
+        </header>
 
-      <div className="space-y-3">
-        {FAQ_ITEMS.map((item) => (
-          <details key={item.question} className="card motion-accordion">
-            <summary className="cursor-pointer" style={{ fontWeight: 500 }}>
-              {item.question}
-            </summary>
-            <div className="pt-2">{item.answer}</div>
-          </details>
-        ))}
+        <div className="space-y-3">
+          {FAQ_ITEMS.map((item) => (
+            <details key={item.question} className="card motion-accordion">
+              <summary className="cursor-pointer" style={{ fontWeight: 500 }}>
+                {item.question}
+              </summary>
+              <div className="pt-2">{item.answer}</div>
+            </details>
+          ))}
+        </div>
       </div>
-    </div>
+    </PageTransition>
   );
 }

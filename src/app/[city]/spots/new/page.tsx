@@ -4,6 +4,7 @@ import { getCurrentUserId } from "@/lib/auth";
 import { getCity, listPendingSpots } from "@/lib/db/spots";
 import { NewSpotForm } from "@/components/spot-form/NewSpotForm";
 import { PendingSpotList } from "@/components/spot-form/PendingSpotList";
+import { PageTransition } from "@/components/motion/PageTransition";
 
 interface NewSpotPageProps {
   params: Promise<{ city: string }>;
@@ -24,19 +25,21 @@ export default async function NewSpotPage({ params, searchParams }: NewSpotPageP
   const pendingSpots = await listPendingSpots(citySlug, userId);
 
   return (
-    <div className="mx-auto max-w-xl px-4 py-8 lg:py-12 space-y-10">
-      {created ? (
-        <p className="rounded-full bg-[var(--color-accent-100)] px-4 py-2 text-sm">
-          ピンを立てました。同じ街の2人が「行ったことがある」と答えると地図に出ます。
-        </p>
-      ) : null}
+    <PageTransition>
+      <div className="mx-auto max-w-xl px-4 py-8 lg:py-12 space-y-10">
+        {created ? (
+          <p className="rounded-full bg-[var(--color-accent-100)] px-4 py-2 text-sm">
+            ピンを立てました。同じ街の2人が「行ったことがある」と答えると地図に出ます。
+          </p>
+        ) : null}
 
-      <NewSpotForm city={city} />
+        <NewSpotForm city={city} />
 
-      {/* SPEC §9.12-6: S2 地図画面と /me からもここへ直接リンクできるようアンカーを用意する。 */}
-      <div id="pending-spots" style={{ scrollMarginTop: "1rem" }}>
-        <PendingSpotList spots={pendingSpots} citySlug={citySlug} viewerId={userId} />
+        {/* SPEC §9.12-6: S2 地図画面と /me からもここへ直接リンクできるようアンカーを用意する。 */}
+        <div id="pending-spots" style={{ scrollMarginTop: "1rem" }}>
+          <PendingSpotList spots={pendingSpots} citySlug={citySlug} viewerId={userId} />
+        </div>
       </div>
-    </div>
+    </PageTransition>
   );
 }

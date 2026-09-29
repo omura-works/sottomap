@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getCity, listSpots } from "@/lib/db/spots";
 import { SearchScreen } from "@/components/spot-list";
 import { firstParam, parseFiltersParam, parseOrigin } from "@/components/spot-list";
+import { PageTransition } from "@/components/motion/PageTransition";
 
 /**
  * S3「検索」`/[city]/search`。
@@ -34,5 +35,9 @@ export default async function CitySearchPage(props: PageProps<"/[city]/search">)
     origin,
   });
 
-  return <SearchScreen city={city} spots={spots} activeFilters={filters} query={q} />;
+  return (
+    <PageTransition>
+      <SearchScreen city={city} spots={spots} activeFilters={filters} query={q} />
+    </PageTransition>
+  );
 }
