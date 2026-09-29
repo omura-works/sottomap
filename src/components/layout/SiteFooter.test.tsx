@@ -30,8 +30,17 @@ describe("SiteFooter", () => {
     expect(screen.getByText(/架空のデータ/)).toBeInTheDocument();
   });
 
-  it("サイト名を先頭に出す", () => {
+  it("サイト名を先頭に出す（ワードマークは「そっとマップ」と1回だけ読まれる）", () => {
     render(<SiteFooter />);
-    expect(screen.getByText("そっとマップ")).toBeInTheDocument();
+    expect(screen.getAllByText("そっとマップ")).toHaveLength(1);
+  });
+
+  it("SPEC motion §5.0: 夜の帯（night-band）で、但し書きは夜の色、灯りの点は飾り", () => {
+    const { container } = render(<SiteFooter />);
+    expect(container.querySelector(".night-band")).not.toBeNull();
+    expect(screen.getByText(/国土地理院/)).toHaveAttribute("data-tone", "night");
+    const lamps = container.querySelector(".lamp-dots");
+    expect(lamps).toHaveAttribute("aria-hidden", "true");
+    expect(lamps?.querySelectorAll(".lamp-dot")).toHaveLength(6);
   });
 });

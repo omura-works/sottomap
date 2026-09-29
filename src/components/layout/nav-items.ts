@@ -67,6 +67,24 @@ export function isNavItemActive(item: NavItem, pathname: string): boolean {
   }
 }
 
+/** タブの順番（左から右へ）。ページの切り替えの向きを決める（SPEC motion §4.2.1）。 */
+const NAV_ORDER: Readonly<Record<NavItem["key"], number>> = { map: 0, search: 1, bookmarks: 2, me: 3 };
+
+export type PageTransitionType = "page-forward" | "page-back";
+
+/**
+ * 今いるページからタブ（toKey）へ移るときのページの切り替えの型（SPEC motion §4.2.1）。
+ * - 右のタブへ進む（地図→さがす→栞→自分）は "page-forward"、左へ戻るのは "page-back"。
+ * - 今いるページがタブに当たらない（/faq など）ときは "page-forward"。
+ * - 今と同じタブなら null（型を付けない）。
+ */
+export function navDirection(fromPathname: string, toKey: NavItem["key"]): PageTransitionType | null {
+  const current = getNavItems("sapporo").find((item) => isNavItemActive(item, fromPathname));
+  if (!current) return "page-forward";
+  if (current.key === toKey) return null;
+  return NAV_ORDER[toKey] > NAV_ORDER[current.key] ? "page-forward" : "page-back";
+}
+
 /**
  * アプリ全体のチロム（下部タブ／サイドレール）を隠すルート prefix。
  * /start はオンボーディング前の単独導線、/verify/[requestId] はメールリンク等からの

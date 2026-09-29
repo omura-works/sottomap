@@ -1,29 +1,35 @@
+import { PageLamp } from "@/components/motion/PageLamp";
+
 /**
  * SPEC §9.14-7: 動的ルートのSuspenseフォールバック（loading.tsx）で使う共通の待機表示。
  * サーバーコンポーネントとして使えるよう "use client" は付けない。
  *
- * モーションリファレンス「スケルトンシマー」（1200ms・linear・4周＝4.8秒で静止。Codex R20 重要7:
- * WCAG 2.2.2 に適合させるため無限ループにしない）:
- * 一覧に近い形の骨格（見出し1本・サムネ付きの行3本）を固定したまま、その上を低コントラストの
- * 光の帯が左から右へ横切り、4周したら静止する（globals.css の `.motion-skeleton`）。
- * `prefers-reduced-motion: reduce` では帯を出さず、骨格だけを静止表示する。
+ * SPEC motion §4.5「地図帳の下書き」: 見出し1本・サムネ付きの行3本の骨格を、灰色の塗りではなく点線の枠で描く。
+ * - 見出しの骨格の左にページの灯り（`PageLamp`。最初から見えていて、前のページの灯りがここへ渡ってくる）。
+ * - 点線の骨格と「灯りをつけています…」は 400ms 待ってから 240ms で現れる（すぐ終わる読み込みでは灯りだけが見える）。
+ * - 灯りは 400ms 待ってから呼吸する（1200ms・最大4周＝5秒以内に静まる）。
+ * - `prefers-reduced-motion: reduce` では呼吸もフェードもせず、止まった下書きを出す。
  * 読み上げは sr-only の `role="status"` だけに持たせ、骨格そのものは `aria-hidden`。
  */
 export function LoadingScreen({ label = "読み込んでいます" }: { label?: string }) {
   return (
-    <div className="mx-auto max-w-xl px-4 py-10" aria-busy="true">
+    <div className="loading-draft mx-auto max-w-xl px-4 py-10" aria-busy="true">
       <p role="status" className="sr-only">
         {label}
       </p>
-      <div aria-hidden="true" data-testid="loading-skeleton" className="space-y-4">
-        <div className="motion-skeleton" style={{ height: 28, width: "45%", borderRadius: "var(--radius-sm)" }} />
+      <div aria-hidden="true" data-testid="loading-skeleton" className="loading-draft-body">
+        <div className="loading-draft-head">
+          <PageLamp />
+          <span className="loading-draft-line loading-draft-title" />
+          <span className="loading-draft-note">灯りをつけています…</span>
+        </div>
         {[0, 1, 2].map((row) => (
-          <div key={row} className="flex items-center gap-3">
-            <div className="motion-skeleton flex-none" style={{ width: 48, height: 48, borderRadius: "var(--radius-md)" }} />
-            <div className="flex-1 space-y-2">
-              <div className="motion-skeleton" style={{ height: 14, width: "60%", borderRadius: "var(--radius-sm)" }} />
-              <div className="motion-skeleton" style={{ height: 12, width: "40%", borderRadius: "var(--radius-sm)" }} />
-            </div>
+          <div key={row} className="loading-draft-row">
+            <span className="loading-draft-thumb" />
+            <span className="loading-draft-text">
+              <span className="loading-draft-line" style={{ width: "62%" }} />
+              <span className="loading-draft-line" style={{ width: "38%" }} />
+            </span>
           </div>
         ))}
       </div>

@@ -28,6 +28,13 @@ describe("ViewTransition の包み", () => {
     expect(lamps[0]).toHaveAttribute("data-tone", "night");
   });
 
+  it("PageLamp morph={false} は遷移に加わらない灯り（同じ見た目）を描く", () => {
+    const { container } = render(<PageLamp morph={false} />);
+    const lamps = container.querySelectorAll(".page-lamp");
+    expect(lamps).toHaveLength(1);
+    expect(lamps[0]).toHaveAttribute("aria-hidden", "true");
+  });
+
   it("PageTransition は中身を [data-page-root] の div で包む", () => {
     const { container } = render(
       <PageTransition>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cityContextFromPathname, getNavItems, isFooterHidden, isNavItemActive } from "./nav-items";
+import { cityContextFromPathname, getNavItems, isFooterHidden, isNavItemActive, navDirection } from "./nav-items";
 
 describe("cityContextFromPathname（SPEC §9.14-3）", () => {
   it("街のページにいるときはその街を使う", () => {
@@ -75,5 +75,29 @@ describe("isFooterHidden（指示書 pages-c-brief.md §2）", () => {
     expect(isFooterHidden("/me")).toBe(false);
     expect(isFooterHidden("/shops")).toBe(false);
     expect(isFooterHidden("/contact")).toBe(false);
+  });
+});
+
+describe("navDirection（SPEC motion §4.2.1）", () => {
+  it("右のタブへ進むと forward、左へ戻ると back", () => {
+    expect(navDirection("/sapporo", "search")).toBe("page-forward");
+    expect(navDirection("/sapporo/search", "bookmarks")).toBe("page-forward");
+    expect(navDirection("/bookmarks", "me")).toBe("page-forward");
+    expect(navDirection("/me", "map")).toBe("page-back");
+    expect(navDirection("/sapporo/search", "map")).toBe("page-back");
+  });
+
+  it("街の中の店の詳細は地図タブとして数える", () => {
+    expect(navDirection("/otaru/spots/abc", "search")).toBe("page-forward");
+  });
+
+  it("今と同じタブなら型を付けない（null）", () => {
+    expect(navDirection("/sapporo", "map")).toBeNull();
+    expect(navDirection("/bookmarks", "bookmarks")).toBeNull();
+  });
+
+  it("タブに当たらないページ（/faq など）からは forward", () => {
+    expect(navDirection("/faq", "map")).toBe("page-forward");
+    expect(navDirection("/terms", "me")).toBe("page-forward");
   });
 });

@@ -10,6 +10,7 @@ export interface NavIconProps {
 /**
  * ナビ（サイドレール・下部タブ）の線のアイコン: 地図・さがす（虫眼鏡）・栞（しおり）・自分（人）。
  * 形は 2026-09-26 の採用案（案D）の見本どおり。装飾なので読み上げない（隣にラベルの文字がある）。
+ * `data-icon` で、選ばれた瞬間の1回の動き（地図は開く・虫眼鏡は傾いて戻る・栞は落ちる・人はうなずく）を CSS で分ける。
  */
 export function NavIcon({ name, active, size = 20 }: NavIconProps) {
   return (
@@ -24,6 +25,7 @@ export function NavIcon({ name, active, size = 20 }: NavIconProps) {
       strokeLinecap="round"
       aria-hidden="true"
       focusable="false"
+      data-icon={name}
     >
       {name === "map" ? <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14" /> : null}
       {name === "search" ? (

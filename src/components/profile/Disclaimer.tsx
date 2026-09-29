@@ -8,18 +8,21 @@
  *
  * `isDemoMode()` はサーバーの環境変数を読むため、ここでは判定せず、呼び出し側（layout → AppShell →
  * SiteFooter）から渡してもらう。
+ * `tone="night"` は夜の帯（フッター）の上に置くとき（字を neutral-400 に）。文は変えない。
  */
-export function Disclaimer({ demoMode = false }: { demoMode?: boolean }) {
+export function Disclaimer({ demoMode = false, tone = "paper" }: { demoMode?: boolean; tone?: "paper" | "night" }) {
+  // 夜の帯（フッター）の上では neutral-400（夜の補助 7.04:1。SPEC motion §5.0）
+  const className = tone === "night" ? "disclaimer text-xs leading-relaxed" : "disclaimer text-muted text-xs leading-relaxed";
   if (demoMode) {
     return (
-      <p className="text-muted text-xs leading-relaxed">
+      <p className={className} data-tone={tone}>
         掲載している店名・住所は、公開情報にもとづく実在の情報です。確認人数・灯りポイント・バッジや「◯件」といった数値は、動作確認用にUI上で示す架空のデータです。地図データ:
         国土地理院。
       </p>
     );
   }
   return (
-    <p className="text-muted text-xs leading-relaxed">
+    <p className={className} data-tone={tone}>
       掲載している店の情報は、その街に住む投稿者が確認して投稿したものです。地図データ: 国土地理院。
     </p>
   );
