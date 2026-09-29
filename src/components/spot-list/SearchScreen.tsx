@@ -277,7 +277,7 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
     <div className="mx-auto max-w-xl lg:max-w-2xl px-4 py-4 lg:py-8 space-y-4">
       {/* SPEC §9.14-9: 検索画面の見出しはDOMの先頭にh1を置き、下位見出しはh2に整理する（見た目は現状維持）。
           Codex R9 重要2: tabIndex=-1 にして、結果差し替えでフォーカスが消えたときの移動先にする。 */}
-      <h1 ref={headingRef} tabIndex={-1} style={{ fontSize: 22, fontWeight: 500, lineHeight: 1.5 }}>
+      <h1 ref={headingRef} tabIndex={-1} style={{ fontSize: 22, fontWeight: 400, lineHeight: 1.5 }}>
         <PageLamp />
         {originPending ? "現在地を確認しています…" : `近い順に${visibleSpots.length}軒`}
       </h1>
@@ -296,7 +296,7 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
       />
 
       <div className="space-y-2">
-        <h2 className="text-muted" style={{ fontFamily: "var(--font-body)", fontWeight: 500, fontSize: "0.875rem", lineHeight: 1.5 }}>
+        <h2 className="text-muted" style={{ fontFamily: "var(--font-body)", fontWeight: 400, fontSize: "0.875rem", lineHeight: 1.5 }}>
           絞る
         </h2>
         <FilterChips active={activeFilters} onToggle={toggleFilter} />
@@ -317,7 +317,7 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
 
             {bottomList.length > 0 ? (
               <div className="space-y-2 mt-2">
-                <h2 className="text-muted m-0" style={{ fontFamily: "var(--font-body)", fontWeight: 500, fontSize: "0.875rem", lineHeight: 1.5 }}>
+                <h2 className="text-muted m-0" style={{ fontFamily: "var(--font-body)", fontWeight: 400, fontSize: "0.875rem", lineHeight: 1.5 }}>
                   混みはじめた店
                 </h2>
                 <ul className="flex flex-col gap-1 list-none m-0 p-0">

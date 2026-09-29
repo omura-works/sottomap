@@ -53,7 +53,7 @@ const TYPE_SCALE: ReadonlyArray<{ token: string; px: string; sample: string; cla
   { token: "--fs-lead", px: "17 / 19", sample: "リード。話しかけるような一文をここに。", className: "fs-lead", style: {} },
   { token: "--fs-body", px: "16", sample: "本文。Zen Maru Gothic 400、行間 1.9。北海道の、まだ静かな店を歩く。", style: { fontSize: "var(--fs-body)" } },
   { token: "--fs-label", px: "15", sample: "ボタン・チップ（700）", style: { fontSize: "var(--fs-label)", fontWeight: 700 } },
-  { token: "--fs-small", px: "13", sample: "補助・メタ・添え字（500）", className: "fs-small", style: { color: "var(--color-text-muted)" } },
+  { token: "--fs-small", px: "13", sample: "補助・メタ・添え字（400）", className: "fs-small", style: { color: "var(--color-text-muted)" } },
   { token: "--fs-micro", px: "12", sample: "ナビのラベル・出典・キッカー（これより小さくしない）", className: "fs-micro", style: { color: "var(--color-text-muted)" } },
 ];
 

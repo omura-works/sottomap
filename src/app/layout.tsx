@@ -25,12 +25,12 @@ function resolveSiteOrigin(): string | undefined {
 const siteOrigin = resolveSiteOrigin();
 
 // サイトの書体は2つ（SPEC motion §2.1「灯りの地図帳」。docs/SPEC.md §9.9 に優先する）。
-// - 本文・ボタン・h3 以下: Zen Maru Gothic（400/500/700。300 は使わなくなった）。
+// - 本文・ボタン・h3 以下: Zen Maru Gothic（400 と 700 の2つだけ。最初の表示で字ごとに探す書体を減らし、LCP を守るため）。
 // - 見出し h1・h2・大きな数字・判子の字・ワードマーク: Mochiy Pop One（400 のみ）。
 //   preload しない・swap: 読み込まれるまでは Zen Maru Gothic で描かれ、最初の表示（LCP）を待たせない。
 // globals.css の --font-heading / --font-body がこの2つの variable を指す。
 const zenMaruGothic = Zen_Maru_Gothic({
-  weight: ["400", "500", "700"],
+  weight: ["400", "700"],
   subsets: ["latin"],
   display: "swap",
   variable: "--font-zen-maru-gothic",

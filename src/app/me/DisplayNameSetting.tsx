@@ -82,7 +82,7 @@ export function DisplayNameSetting({ currentName }: DisplayNameSettingProps) {
     <section className="space-y-3" aria-labelledby={`${inputId}-heading`}>
       <h3 id={`${inputId}-heading`}>表示名</h3>
       <div className="flex flex-wrap items-center gap-3">
-        <p className="m-0 text-lg" style={{ fontFamily: "var(--font-heading)", fontWeight: 500 }}>
+        <p className="m-0 text-lg" style={{ fontFamily: "var(--font-body)", fontWeight: 700 }}>
           {name}
         </p>
         {!editing ? (

@@ -39,7 +39,7 @@ export default async function BookmarksPage() {
           header={
             // 2026-09-26 案B: 見出しと「地図にまとめる」を夜のカード（BookmarkList 側）の中に置く。
             <header className="flex flex-col gap-2.5">
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 500, letterSpacing: "0.3em", color: "var(--color-accent-400)" }}>栞</p>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 400, letterSpacing: "0.3em", color: "var(--color-accent-400)" }}>栞</p>
               {/* Codex R8 重要3: 栞を外した行の前後どちらも無いときのフォーカス先（BookmarkList側から参照）。 */}
               <h1
                 id="bookmarks-heading"

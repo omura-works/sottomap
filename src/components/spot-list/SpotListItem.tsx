@@ -56,7 +56,7 @@ export function SpotListItem({ spot, distanceMeters, selected = false, onSelect,
           ) : null}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate" style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 14 }}>
+          <span className="block truncate" style={{ fontFamily: "var(--font-body)", fontWeight: 700, fontSize: 14 }}>
             {spot.name}
           </span>
           <span className="block truncate text-xs text-muted">{metaParts.join(" / ")}</span>

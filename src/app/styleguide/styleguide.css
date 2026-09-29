@@ -100,7 +100,7 @@
   display: flex;
   gap: 10px;
   font-size: var(--fs-micro);
-  font-weight: 500;
+  font-weight: 400;
   color: var(--color-text-muted);
 }
 @media (min-width: 768px) {
@@ -155,7 +155,7 @@
 }
 .sg-pair-ratio {
   font-size: var(--fs-micro);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 /* 砂の上（/start の紙の札の中と同じ地） */
@@ -373,6 +373,6 @@
   bottom: 0;
   padding: 12px 16px;
   font-size: var(--fs-small);
-  font-weight: 500;
+  font-weight: 400;
   color: var(--color-neutral-300);
 }
