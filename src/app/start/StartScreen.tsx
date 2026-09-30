@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import type { CSSProperties, MouseEvent } from "react";
 import { unstable_rethrow, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
@@ -91,7 +91,6 @@ export function StartScreen({
   // （WCAG 2.2.2）。既定は prefers-reduced-motion に従い、利用者が明示的に選んだ状態（userChoice）はOS設定の変化で
   // 上書きしない。SSR・マウント直後は "auto"（OS設定は CSS の media query 側で効く）を返し、ハイドレーション不一致を避ける。
   const { motionState, toggleMotion } = useMotionState();
-  const trailRef = useDeferredUntilPainted<HTMLDivElement>();
   const motionPaused = motionState === "paused";
 
   // R13レビュー重要4: 参照データ（街）の投入前・投入失敗時に選択都市が undefined になるのを防ぐ。
@@ -298,8 +297,8 @@ export function StartScreen({
           </div>
         </section>
 
-        {/* 画面の外の節（やくそく・凡例・散歩道）は、最初の描画の後に描く（data-deferred。LCP を守るため） */}
-        <div className="start-trail" ref={trailRef} data-deferred="wait">
+        {/* 画面の外の節（やくそく・凡例・散歩道）は content-visibility: auto（画面に近づくまでレイアウトしない。LCP を守るため） */}
+        <div className="start-trail">
           {/* やくそく: スクロールで1枚ずつ貼られる */}
           <section className="start-promise" aria-labelledby="start-promise-h">
             {/* 縦の散歩道（PC）: やくそくの灯りから凡例の灯りまで */}
@@ -399,56 +398,6 @@ function WeeklyList({ items, animate }: { items: StartRecentlyVerifiedItem[]; an
   );
 }
 
-/**
- * 画面の外の節を、最初の描画（FCP）の後に描く（SPEC motion §7.1 の /start の予算の記録）。
- * Web フォントが届く前の最初のレイアウトは、日本語の字ごとに書体を探すので重い。画面の外の節まで最初のレイアウトに入れると
- * 最初の表示（LCP）が約 500ms 遅れるため、CSS（`@media (scripting: enabled)` の中）で最初は `content-visibility: hidden` にし、
- * 最初の描画を見届けてから（アイドルの時間に）`data-deferred="done"` にして描く。
- * - JS が無い環境では CSS が効かないので最初から見える。SSR の HTML には中身があるので、読み上げ・検索でも読める。
- * - スクロール・フォーカスが先に来たら、その場で描く。念のため 3 秒でも描く。
- */
-function useDeferredUntilPainted<T extends HTMLElement>() {
-  const ref = useRef<T | null>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    let observer: PerformanceObserver | undefined;
-    let idle: number | undefined;
-    const show = () => {
-      if (el.dataset.deferred === "done") return;
-      el.dataset.deferred = "done";
-      cleanup();
-    };
-    const afterPaint = () => {
-      if (typeof window.requestIdleCallback === "function") idle = window.requestIdleCallback(show, { timeout: 600 });
-      else window.setTimeout(show, 50);
-    };
-    const safety = window.setTimeout(show, 3000);
-    const onScroll = () => show();
-    window.addEventListener("scroll", onScroll, { passive: true, once: true });
-    el.addEventListener("focusin", show, { once: true });
-    function cleanup() {
-      observer?.disconnect();
-      if (idle !== undefined && typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(idle);
-      window.clearTimeout(safety);
-      window.removeEventListener("scroll", onScroll);
-      el?.removeEventListener("focusin", show);
-    }
-    const painted = typeof performance.getEntriesByName === "function" && performance.getEntriesByName("first-contentful-paint").length > 0;
-    if (painted) afterPaint();
-    else if (typeof PerformanceObserver !== "undefined" && PerformanceObserver.supportedEntryTypes?.includes("paint")) {
-      observer = new PerformanceObserver(() => {
-        observer?.disconnect();
-        afterPaint();
-      });
-      observer.observe({ type: "paint", buffered: true });
-    } else {
-      show();
-    }
-    return cleanup;
-  }, []);
-  return ref;
-}
 
 /**
  * 「動きを止める」トグルの実効状態（夜の灯りの明滅にだけ効く。§5.1）。

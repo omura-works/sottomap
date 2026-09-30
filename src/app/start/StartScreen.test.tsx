@@ -218,13 +218,12 @@ describe("StartScreen（SPEC motion §5.1）", () => {
     }
   });
 
-  it("画面の外の節（やくそく・凡例）は SSR の HTML に中身があり、描画の後に data-deferred=done になる", () => {
+  it("画面の外の節（やくそく・凡例）は最初から DOM に中身があり、JS で隠さない（content-visibility: auto は CSS だけ）", () => {
     const { container } = renderStart();
     const trail = container.querySelector(".start-trail") as HTMLElement;
     // 中身は最初から DOM にある（読み上げ・検索・JS 無しでも読める）
     expect(trail).toHaveTextContent("静かな店を、静かなままに");
-    // jsdom には描画の計測が無いので、すぐ描く側に倒れる
-    expect(trail.dataset.deferred).toBe("done");
+    expect(trail).not.toHaveAttribute("data-deferred");
   });
 
   it("手順の自動巡回はしない（時間がたっても、やくそくのカードの見た目は変わらない）", () => {
