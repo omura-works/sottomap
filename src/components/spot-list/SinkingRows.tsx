@@ -45,7 +45,7 @@ interface SinkRowProps {
 function SinkRow({ id, custom, rowMotion, children }: SinkRowProps) {
   // 消えていく行はフォーカスの候補から外す（SPEC motion §6.3）
   const isPresent = useIsPresent();
-  // もう一方の一覧へ移っただけの行は、はがれる間も見せない（移った先の行が元の位置から滑ってくるので、二重に見えないように）
+  // もう一方の一覧へ移っただけの行は、はがれる間も見せず流れからも外す（移った先の行が元の位置から滑ってくるので、二重に見えないように）
   const exitData = usePresenceData() as RowCustom | undefined;
   const movedOut = !isPresent && (exitData?.present.has(id) ?? false);
   return (
@@ -58,11 +58,61 @@ function SinkRow({ id, custom, rowMotion, children }: SinkRowProps) {
       exit="gone"
       inert={!isPresent}
       className={rowMotion?.className}
-      style={{ ...(rowMotion?.style as CSSProperties | undefined), visibility: movedOut ? "hidden" : undefined }}
+      style={{ ...(rowMotion?.style as CSSProperties | undefined), display: movedOut ? "none" : undefined }}
     >
       {children}
     </motion.li>
   );
+}
+
+/** 包みの中の各行（と区切り）の上端。transform（入場・滑っている途中）を含まない offsetTop で測る。退場中の行は除く。 */
+export function measureRows(wrap: HTMLElement): { positions: Map<string, number>; elements: Map<string, HTMLElement> } {
+  const positions = new Map<string, number>();
+  const elements = new Map<string, HTMLElement>();
+  wrap.querySelectorAll<HTMLElement>("[data-row-id]").forEach((el) => {
+    const id = el.dataset.rowId;
+    if (!id || el.hasAttribute("inert")) return;
+    let top = 0;
+    let node: HTMLElement | null = el;
+    while (node && node !== wrap) {
+      top += node.offsetTop;
+      node = node.offsetParent as HTMLElement | null;
+    }
+    positions.set(id, top);
+    elements.set(id, el);
+  });
+  return { positions, elements };
+}
+
+/** 滑っている途中の行の、いまの translate（y）。 */
+function currentOffsets(flights: ReadonlyMap<string, Animation>): Map<string, number> {
+  const offsets = new Map<string, number>();
+  flights.forEach((flight, id) => {
+    const target = flight.effect instanceof KeyframeEffect ? flight.effect.target : null;
+    if (!(target instanceof HTMLElement)) return;
+    const ty = Number.parseFloat(getComputedStyle(target).translate.split(" ")[1] ?? "0");
+    if (Number.isFinite(ty)) offsets.set(id, ty);
+  });
+  return offsets;
+}
+
+/**
+ * どの行をどれだけ上（負）・下（正）から滑らせるか。前の位置（＋滑っている途中ならその分）と新しい位置の差。
+ * 前の描画に無かった行・1px 未満しか動かない行は動かさない。
+ */
+export function planSink(
+  before: ReadonlyMap<string, number>,
+  after: ReadonlyMap<string, number>,
+  inFlight: ReadonlyMap<string, number> = new Map(),
+): Map<string, number> {
+  const moves = new Map<string, number>();
+  for (const [id, top] of after) {
+    const old = before.get(id);
+    if (old === undefined) continue;
+    const from = old + (inFlight.get(id) ?? 0) - top;
+    if (Math.abs(from) >= 1) moves.set(id, from);
+  }
+  return moves;
 }
 
 export interface SinkingRowsProps {
@@ -100,50 +150,50 @@ export function SinkingRows({ top, bottom, renderRow, rowMotion, dividerHeading 
   const customFor = (id: string): RowCustom => ({ present, moved: previous.has(id), reduced });
   const exitCustom: RowCustom = { present, moved: false, reduced };
 
-  // FLIP: 描画のたびに各行と区切りの位置を覚え、次の描画で動いた物を元の位置から滑らせる
+  // FLIP: 並びが変わったときだけ、各行と区切りの位置（包みからの上端。transform を含まない offsetTop）を測り、
+  // 動いた物を元の位置から滑らせる。ホバーなどの描画のたびに全行を測らないよう、並び・動きの有無・退場中の行の数が
+  // 変わったときだけ測る（AnimatePresence は出ていく行を次の描画で流れの外へ出すので、その描画でも測り直す）。
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const positionsRef = useRef<Map<string, number>>(new Map());
   const flightsRef = useRef<Map<string, Animation>>(new Map());
+  const signatureRef = useRef<string | null>(null);
   useLayoutEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap) return;
+    const exiting = wrap.querySelectorAll("[data-row-id][inert]").length;
+    const popped = wrap.querySelectorAll("[data-motion-pop-id]").length;
+    const signature = `${key}|${layoutOn}|${exiting}|${popped}`;
+    if (signature === signatureRef.current) return;
+    const firstMeasure = signatureRef.current === null;
+    signatureRef.current = signature;
+    const flights = flightsRef.current;
     const before = positionsRef.current;
-    // 動いている途中の物は、いま見えている位置（前の位置＋今の translate）を覚えてから止める。
-    // AnimatePresence は出ていく行を次の描画で流れの外へ出すので、1回の操作で2回続けて描画されることがある。
-    const visibleBefore = new Map(before);
-    flightsRef.current.forEach((flight, id) => {
-      const target = flight.effect instanceof KeyframeEffect ? flight.effect.target : null;
-      const old = before.get(id);
-      if (target instanceof HTMLElement && old !== undefined) {
-        const ty = Number.parseFloat(getComputedStyle(target).translate.split(" ")[1] ?? "0");
-        if (Number.isFinite(ty)) visibleBefore.set(id, old + ty);
-      }
-      flight.cancel();
-    });
-    flightsRef.current.clear();
-    const base = wrap.getBoundingClientRect().top;
-    const next = new Map<string, number>();
-    const elements = new Map<string, HTMLElement>();
-    wrap.querySelectorAll<HTMLElement>("[data-row-id]").forEach((el) => {
-      const id = el.dataset.rowId;
-      if (!id || el.hasAttribute("inert")) return;
-      next.set(id, el.getBoundingClientRect().top - base);
-      elements.set(id, el);
-    });
-    positionsRef.current = next;
+    const { positions, elements } = measureRows(wrap);
+    positionsRef.current = positions;
+    if (firstMeasure) return;
+    const moves = planSink(before, positions, currentOffsets(flights));
+    flights.forEach((flight) => flight.cancel());
+    flights.clear();
     if (!layoutOn || typeof Element.prototype.animate !== "function") return;
-    for (const [id, top] of next) {
-      const old = visibleBefore.get(id);
-      if (old === undefined || Math.abs(old - top) < 1) continue;
+    for (const [id, from] of moves) {
       const el = elements.get(id);
       if (!el) continue;
-      const flight = el.animate([{ translate: `0 ${old - top}px` }, { translate: "0 0" }], {
-        duration: SINK_MS,
-        easing: cubicBezier(EASE.sink),
-      });
-      flightsRef.current.set(id, flight);
+      flights.set(
+        id,
+        el.animate([{ translate: `0 ${from}px` }, { translate: "0 0" }], { duration: SINK_MS, easing: cubicBezier(EASE.sink) }),
+      );
     }
   });
+  // 幅が変わると行の高さ（折り返し）が変わるので、動かさずに位置だけ測り直す
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      positionsRef.current = measureRows(wrap).positions;
+    });
+    observer.observe(wrap);
+    return () => observer.disconnect();
+  }, []);
 
   const DividerHeading = dividerHeading;
   const instant = { duration: 0 } as const;

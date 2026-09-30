@@ -11,7 +11,7 @@ import { PageTransition } from "@/components/motion/PageTransition";
 export default function Loading() {
   return (
     <PageTransition>
-      <div className="city-loading relative h-[calc(100dvh-4rem)] lg:h-screen lg:flex" aria-busy="true">
+      <div className="city-loading city-map-screen relative lg:flex" aria-busy="true">
         <p role="status" className="sr-only">
           読み込んでいます
         </p>

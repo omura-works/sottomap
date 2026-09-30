@@ -59,6 +59,8 @@ export function createPinElement(init: PinElementInit): { outer: HTMLDivElement;
   outer.dataset.id = init.id;
   outer.dataset.selected = "false";
   outer.dataset.bookmarked = "false";
+  // 重なったときに静かな店のピンが上に来るように（.map-pin-hit-area[data-q="quiet"] の z-index）
+  outer.dataset.q = init.quietness;
 
   const stamp = document.createElement("span");
   stamp.className = PIN_STAMP_CLASS;
@@ -106,7 +108,19 @@ export function setMarkerGlyph(markerEl: HTMLElement, glyph: string): void {
   }
 }
 
+/**
+ * 判子を待っている間（透明）のピンは、押せず・Tab でも入れず・読み上げにも出さない（inert）。押し始めたら戻す。
+ */
+export function setPinWaiting(markerEl: HTMLElement, waiting: boolean): void {
+  markerEl.inert = waiting;
+  const stamp = pinStampOf(markerEl);
+  if (waiting) stamp.classList.add("is-waiting");
+}
+
 export type PinEntrance = "stamp" | "fade";
+
+/** 判子ごとの、動いている入場の後片付け。 */
+const entranceCleanups = new WeakMap<HTMLElement, () => void>();
 
 /**
  * 判子を1回押す（"stamp"）か、フェードで出す（"fade"）。終わったらクラスを外す
@@ -114,7 +128,9 @@ export type PinEntrance = "stamp" | "fade";
  * @param ink インクの輪を付けるか（最初の3つの「静」だけ）
  */
 export function playPinEntrance(stamp: HTMLElement, entrance: PinEntrance, delayMs: number, ink = false): void {
-  stamp.classList.remove("is-waiting", "is-stamping", "is-fading", "is-leaving");
+  // 前の入場の後片付け（タイマー・リスナー）を先に外す（続けて押し直したときに、前の終わりで今のクラスを外さないように）
+  entranceCleanups.get(stamp)?.();
+  stamp.classList.remove("is-waiting", "is-stamping", "is-fading", "is-leaving", "has-ink");
   // 同じクラスを付け直しても再生し直すように、1回スタイルを確定させる
   void stamp.offsetWidth;
   stamp.style.setProperty("--d", `${Math.round(delayMs)}ms`);
@@ -122,12 +138,26 @@ export function playPinEntrance(stamp: HTMLElement, entrance: PinEntrance, delay
   stamp.classList.add(entrance === "stamp" ? "is-stamping" : "is-fading");
   if (entrance === "stamp" && ink) stamp.classList.add("has-ink");
 
+  let inkTimer: number | undefined;
+  const detach = () => {
+    window.clearTimeout(timer);
+    window.clearTimeout(inkTimer);
+    stamp.removeEventListener("animationend", onEnd);
+    entranceCleanups.delete(stamp);
+  };
   const clear = () => {
-    stamp.classList.remove("is-stamping", "is-fading");
     window.clearTimeout(timer);
     stamp.removeEventListener("animationend", onEnd);
+    stamp.classList.remove("is-stamping", "is-fading");
     // インクの輪は判子より 60ms 遅く終わる（押して 120ms 後から 420ms）ので、少し待ってから外す
-    if (stamp.classList.contains("has-ink")) window.setTimeout(() => stamp.classList.remove("has-ink"), INK_TAIL_MS);
+    if (stamp.classList.contains("has-ink")) {
+      inkTimer = window.setTimeout(() => {
+        stamp.classList.remove("has-ink");
+        entranceCleanups.delete(stamp);
+      }, INK_TAIL_MS);
+    } else {
+      entranceCleanups.delete(stamp);
+    }
   };
   const onEnd = (event: AnimationEvent) => {
     if (event.target !== stamp || event.pseudoElement) return;
@@ -135,6 +165,7 @@ export function playPinEntrance(stamp: HTMLElement, entrance: PinEntrance, delay
   };
   const timer = window.setTimeout(clear, delayMs + PIN_ANIM_CLEANUP_MS);
   stamp.addEventListener("animationend", onEnd);
+  entranceCleanups.set(stamp, detach);
 }
 
 /**
@@ -188,6 +219,7 @@ export function leavePin(markerEl: HTMLElement, reduced: boolean, onDone: () => 
     return () => {};
   }
   const stamp = pinStampOf(markerEl);
+  entranceCleanups.get(stamp)?.();
   stamp.classList.remove("is-waiting", "is-stamping", "is-fading", "has-ink");
   stamp.classList.add("is-leaving");
   const timer = window.setTimeout(onDone, 180);

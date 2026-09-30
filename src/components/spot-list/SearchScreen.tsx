@@ -326,12 +326,15 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
       </div>
 
       <div className="search-results" aria-busy={isPending} ref={resultsContainerRef}>
-        {isPending ? (
-          <p className="search-pending">
-            <span className="search-pending-lamp" aria-hidden="true" />
-            さがしています…
-          </p>
-        ) : null}
+        {/* 待ちの行は高さを常に取っておく（出たり消えたりで一覧が上下に跳ねないように） */}
+        <p className="search-pending" data-on={isPending ? "true" : "false"}>
+          {isPending ? (
+            <>
+              <span className="search-pending-lamp" aria-hidden="true" />
+              さがしています…
+            </>
+          ) : null}
+        </p>
 
         {originPending ? (
           <p className="text-muted text-sm m-0">いまいる場所をたしかめています…</p>

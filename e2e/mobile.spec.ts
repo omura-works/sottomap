@@ -27,8 +27,9 @@ test.describe("モバイル導線", () => {
     page,
   }) => {
     await page.goto("/sapporo");
-    // SPEC motion §5.2: 見出しの札が大きくなり、北24条のピンは札の下に隠れるため、地図の中ほどのピンを押す。
-    const pin = page.getByRole("button", { name: /札幌らーめん輝風 すすきの店/ });
+    // SPEC motion §5.2: 見出しの札が大きくなり、北24条のピンは札の下に隠れるため、地図の中ほどのピンを押す
+    // （重なったときは静かな店のピンが上に来る）。
+    const pin = page.getByRole("button", { name: /札幌ザンギ本舗/ });
     await expect(pin).toBeVisible();
     await pin.tap();
 
@@ -36,13 +37,13 @@ test.describe("モバイル導線", () => {
     const readLink = page.getByRole("link", { name: "この店を読む" });
     await expect(readLink).toBeVisible();
     const bottomCard = readLink.locator("xpath=ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' card ')]");
-    await expect(bottomCard.getByText("札幌らーめん輝風 すすきの店", { exact: true })).toBeVisible();
-    await expect(bottomCard.getByText("味噌。夜のすすきので、地元が最後に寄る一杯。", { exact: true })).toBeVisible();
+    await expect(bottomCard.getByText("札幌ザンギ本舗", { exact: true })).toBeVisible();
+    await expect(bottomCard.getByText("ザンギは唐揚げではない、と地元は言う。持ち帰りもできる。", { exact: true })).toBeVisible();
   });
 
   test("ピン選択中も、ズームボタン・栞ボタン・下部カードがほかの要素に覆われずにタップできる", async ({ page }) => {
     await page.goto("/sapporo");
-    const pin = page.getByRole("button", { name: /札幌らーめん輝風 すすきの店/ });
+    const pin = page.getByRole("button", { name: /札幌ザンギ本舗/ });
     await expect(pin).toBeVisible();
     await pin.tap();
     await expect(page.getByRole("link", { name: "この店を読む" })).toBeVisible();

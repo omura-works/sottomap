@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mockReducedMotion } from "@/components/motion/test-utils";
 import type { Spot } from "@/lib/db/types";
-import { SINK_LAYOUT_MAX_ROWS, SinkingRows } from "./SinkingRows";
+import { planSink, SINK_LAYOUT_MAX_ROWS, SinkingRows } from "./SinkingRows";
 
 function spot(id: string): Spot {
   return {
@@ -70,5 +70,46 @@ describe("SinkingRows（静かに下がる。SPEC motion §5.3）", () => {
     rerender(<SinkingRows top={[spot("a")]} bottom={[spot("b")]} renderRow={row} dividerHeading="h4" />);
     expect(screen.getByRole("heading", { level: 4, name: "混みはじめた店" })).toBeInTheDocument();
     expect(screen.getByText("ここから下は、少しにぎやかになってきた店です。")).toBeInTheDocument();
+  });
+
+  it("滑る量: 前の位置（＋滑っている途中の分）と新しい位置の差。新しく出た行と動かない行は滑らせない", () => {
+    const before = new Map([
+      ["a", 0],
+      ["b", 80],
+      ["c", 160],
+    ]);
+    const after = new Map([
+      ["a", 0],
+      ["b", 260],
+      ["d", 340],
+    ]);
+    expect(planSink(before, after)).toEqual(new Map([["b", -180]]));
+    // b が 30px 下へずれた途中（translate 30px）から、さらに並び替わった
+    expect(planSink(before, after, new Map([["b", 30]]))).toEqual(new Map([["b", -150]]));
+  });
+
+  it("もう一方の一覧へ移った行は二重に見えない（出ていく側は流れから外し、見せない）", () => {
+    mockReducedMotion(false);
+    const a = spot("a");
+    const b = spot("b");
+    const { container, rerender } = render(<SinkingRows top={[a, b]} bottom={[]} renderRow={row} dividerHeading="h2" />);
+    rerender(<SinkingRows top={[a]} bottom={[b]} renderRow={row} dividerHeading="h2" />);
+    const rowsB = Array.from(container.querySelectorAll<HTMLElement>('[data-row-id="b"]'));
+    const shown = rowsB.filter((el) => el.style.display !== "none");
+    expect(shown).toHaveLength(1);
+    expect(shown[0].closest("ul")).toHaveClass("spot-rows-sunk");
+    // 出ていく側は inert（フォーカスの候補から外れる）
+    for (const el of rowsB.filter((el) => el.style.display === "none")) expect(el).toHaveAttribute("inert");
+  });
+
+  it("絞り込みで消える行は、消えるまで inert", () => {
+    mockReducedMotion(false);
+    const a = spot("a");
+    const b = spot("b");
+    const { container, rerender } = render(<SinkingRows top={[a, b]} bottom={[]} renderRow={row} dividerHeading="h2" />);
+    rerender(<SinkingRows top={[a]} bottom={[]} renderRow={row} dividerHeading="h2" />);
+    const leaving = container.querySelector('[data-row-id="b"]');
+    if (leaving) expect(leaving).toHaveAttribute("inert");
+    expect(container.querySelector('[data-row-id="a"]')).not.toHaveAttribute("inert");
   });
 });

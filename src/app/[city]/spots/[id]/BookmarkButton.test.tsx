@@ -31,10 +31,9 @@ describe("BookmarkButton", () => {
 
     await waitFor(() => {
       expect(screen.queryByText("栞に挟みました。")).not.toBeInTheDocument();
-      expect(
-        screen.getByText("ごめんなさい、栞に挟めませんでした。もう一度押してみてください。"),
-      ).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "栞に挟む" })).toBeEnabled();
+      // 失敗は role="alert"（SPEC motion §4.7）
+      expect(screen.getByRole("alert")).toHaveTextContent("ごめんなさい、栞に挟めませんでした。もう一度押してみてください。");
+      expect(screen.getByRole("button", { name: "栞に挟む" })).not.toHaveAttribute("aria-disabled");
     });
   });
 
@@ -69,6 +68,18 @@ describe("BookmarkButton", () => {
     }
   });
 
+  it("挟んだ後もボタンにフォーカスが残り、もう一度押しても何もしない。確認の文は status で読み上げる", async () => {
+    vi.mocked(addBookmarkAction).mockImplementation(() => new Promise<void>(() => {}));
+    const user = userEvent.setup();
+    render(<BookmarkButton spotId="spot-1" initiallyBookmarked={false} />);
+    const button = screen.getByRole("button", { name: "栞に挟む" });
+    await user.click(button);
+    expect(document.activeElement).toBe(button);
+    await user.click(button);
+    expect(addBookmarkAction).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("status")).toHaveTextContent("栞に挟みました。");
+  });
+
   it("Server Actionが成功したら確定表示を維持する", async () => {
     let resolveAction: () => void = () => {};
     vi.mocked(addBookmarkAction).mockImplementation(
@@ -87,7 +98,10 @@ describe("BookmarkButton", () => {
 
     await waitFor(() => {
       expect(screen.getByText("栞に挟みました。")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "栞に挟む" })).toBeDisabled();
+      // disabled にはせず（フォーカスを失わない）、aria-disabled で押せないことを伝える
+      const button = screen.getByRole("button", { name: "栞に挟む" });
+      expect(button).toBeEnabled();
+      expect(button).toHaveAttribute("aria-disabled", "true");
     });
   });
 });

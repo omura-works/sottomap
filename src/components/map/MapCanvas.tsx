@@ -28,6 +28,7 @@ import {
   playPinEntrance,
   setMarkerGlyph,
   setPinRibbon,
+  setPinWaiting,
   spawnPinHalo,
 } from "./pin-halo";
 
@@ -182,6 +183,7 @@ export function MapCanvas({
       const secondVisit = hasStamped(introKeyRef.current);
       let inks = 0;
       order.forEach((rec, i) => {
+        setPinWaiting(rec.outer, false);
         const bookmarked = rec.outer.dataset.bookmarked === "true";
         if (secondVisit) {
           playPinEntrance(rec.stamp, "fade", 0);
@@ -332,6 +334,7 @@ export function MapCanvas({
           existing.outer.dataset.selected = selected ? "true" : "false";
           if (previous.quietness !== pin.quietness || previous.label !== pin.label) {
             existing.stamp.dataset.q = pin.quietness;
+            existing.outer.dataset.q = pin.quietness;
             setMarkerGlyph(existing.outer, PIN_GLYPH[pin.quietness]);
             existing.outer.setAttribute("aria-label", pinAriaLabel(pin));
             existing.outer.title = pinTitle(pin);
@@ -356,7 +359,7 @@ export function MapCanvas({
         outer.dataset.selected = selected ? "true" : "false";
         let entranceDelay = 0;
         if (!introDone) {
-          stamp.classList.add("is-waiting");
+          setPinWaiting(outer, true);
         } else if (!reduced) {
           entranceDelay = Math.min(newIndex, NEW_PIN_MAX_INDEX) * NEW_PIN_STEP_MS;
           playPinEntrance(stamp, "stamp", entranceDelay);

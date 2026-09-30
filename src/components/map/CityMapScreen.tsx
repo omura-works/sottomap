@@ -1,12 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import type { City, Spot } from "@/lib/db/types";
-import { daysSince } from "@/lib/domain/lifecycle";
 import { AnimatedCounter } from "@/components/ui";
 import { usePrefersReducedMotion } from "@/components/ui/motion-prefs";
 import { AddBookmarkButton, BOOKMARK_FAILED_EVENT, BOOKMARKED_EVENT } from "@/components/bookmark/AddBookmarkButton";
@@ -16,12 +15,15 @@ import { SinkingRows } from "@/components/spot-list/SinkingRows";
 import { sortSpots, splitByQuietness } from "@/lib/domain/ordering";
 import { MapCanvas } from "./index";
 import type { MapPin, MapPoint } from "./index";
+type DistanceMap = Readonly<Record<string, number>>;
 import { buildDistanceMap, parseUrlOrigin, useResolvedOrigin, walkingLabel, WITHIN_10MIN_METERS } from "./geo";
 import { PIN_GLYPH } from "./pin-halo";
 import { PageLamp } from "@/components/motion/PageLamp";
 import { Stamp } from "@/components/motion/Stamp";
 import { tiltFromId } from "@/components/motion/tilt";
 import { EASE, SPRING } from "@/components/motion/tokens";
+import { MapHoverCard } from "./MapHoverCard";
+import type { MapHoverCardHandle } from "./MapHoverCard";
 import { LanternChild } from "@/components/illustrations/LanternChild";
 import { DESKTOP_QUERY, useMediaQuery } from "@/components/motion/useMediaQuery";
 
@@ -52,6 +54,34 @@ function PresenceInert({ className, children }: { className?: string; children: 
   );
 }
 
+interface MapSpotListProps {
+  top: readonly Spot[];
+  bottom: readonly Spot[];
+  distances: DistanceMap;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}
+
+/** PC の左の列の一覧（同じ行・同じ「静かに下がる」）。地図の操作で描き直さないよう memo。 */
+const MapSpotList = memo(function MapSpotList({ top, bottom, distances, selectedId, onSelect }: MapSpotListProps) {
+  return (
+    <SinkingRows
+      top={top}
+      bottom={bottom}
+      dividerHeading="h4"
+      renderRow={(spot) => (
+        <SpotRowLink
+          spot={spot}
+          distanceMeters={distances[spot.id]}
+          selected={spot.id === selectedId}
+          onSelect={onSelect}
+          description={spot.reason}
+        />
+      )}
+    />
+  );
+});
+
 /**
  * S2「地図」/ D1「PC版トップ」を1つのコンポーネントでレスポンシブに実装する
  * （PLAN Task3: モバイル用とPC用を別コンポーネントに分けない）。
@@ -74,7 +104,11 @@ export function CityMapScreen({
   const reduced = usePrefersReducedMotion();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [hover, setHover] = useState<{ id: string; point: MapPoint } | null>(null);
+  // ホバーカードは小さな部品に分け、位置は部品の中で直接書き換える（地図を動かすたびに画面全体を描き直さない）
+  const hoverCardRef = useRef<MapHoverCardHandle | null>(null);
+  const handleHoverPin = useCallback((id: string | null, point: MapPoint | null) => {
+    hoverCardRef.current?.update(id, point);
+  }, []);
 
   // 栞の状態の見た目のための写し（SPEC motion §5.2 末尾・§10.2-1）。データは変えない。
   // 「栞に挟む」の瞬間（楽観的な表示と同時）に足し、失敗して戻したら引く。
@@ -147,7 +181,6 @@ export function CityMapScreen({
   const hasConditions = hasExcludingFilter || focusedSpotIds !== null;
 
   const selectedSpot = filteredSpots.find((s) => s.id === selectedId) ?? null;
-  const hoveredSpot = hover ? (filteredSpots.find((s) => s.id === hover.id) ?? null) : null;
 
   // ピンの並び＝一覧の並び（静かな店が先・近い順）。判子もこの順に押される。
   const pins: MapPin[] = useMemo(
@@ -187,7 +220,7 @@ export function CityMapScreen({
   const instant = { duration: 0 } as const;
 
   return (
-    <div className="relative h-[calc(100dvh-4rem)] lg:h-screen lg:flex">
+    <div className="city-map-screen relative lg:flex">
       {/* D1: 左の列（街の見出し／件数／絞り込みチップ／店の一覧）。
           ブランド「そっとマップ」表記はグローバル SideRail 側にのみ出す
           （SPEC §9.12-1: ページ内サイドバーからは外す）。 */}
@@ -238,20 +271,7 @@ export function CityMapScreen({
             </div>
           )
         ) : (
-          <SinkingRows
-            top={topSpots}
-            bottom={bottomSpots}
-            dividerHeading="h4"
-            renderRow={(spot) => (
-              <SpotRowLink
-                spot={spot}
-                distanceMeters={distances[spot.id]}
-                selected={spot.id === selectedId}
-                onSelect={setSelectedId}
-                description={spot.reason}
-              />
-            )}
-          />
+          <MapSpotList top={topSpots} bottom={bottomSpots} distances={distances} selectedId={selectedId} onSelect={setSelectedId} />
         )}
       </aside>
 
@@ -321,7 +341,7 @@ export function CityMapScreen({
           pins={pins}
           selectedId={selectedId}
           onSelectPin={setSelectedId}
-          onHoverPin={(id, point) => setHover(id && point ? { id, point } : null)}
+          onHoverPin={handleHoverPin}
           onBackgroundClick={() => setSelectedId(null)}
           fitToPins={Boolean(focusedSpotIds)}
           introKey={city.slug}
@@ -344,28 +364,7 @@ export function CityMapScreen({
         </Link>
 
         {/* D1: 地図の上のホバーカード（付箋）「地元3人が確認・12日前」 */}
-        <AnimatePresence>
-          {hover && hoveredSpot ? (
-            <motion.div
-              key={hoveredSpot.id}
-              className="map-hovercard"
-              style={{ left: hover.point.x + 18, top: hover.point.y - 12, transformOrigin: "left center" }}
-              initial={reduced ? false : { scale: 0.92, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ opacity: 0, transition: reduced ? instant : { duration: 0.12, ease: EASE.outSoft } }}
-              transition={reduced ? instant : { scale: SPRING.stamp, opacity: { duration: 0.12, ease: EASE.outSoft } }}
-            >
-              <span className="tape map-hovercard-tape" aria-hidden="true" />
-              <p className="map-hovercard-kicker">
-                {`地元${hoveredSpot.verifierCount}人が確認・${
-                  hoveredSpot.lastVerifiedAt ? `${daysSince(hoveredSpot.lastVerifiedAt, new Date())}日前` : "未確認"
-                }`}
-              </p>
-              <p className="map-hovercard-name">{hoveredSpot.name}</p>
-              <p className="map-hovercard-desc">{hoveredSpot.hoverDescription ?? hoveredSpot.reason}</p>
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
+        <MapHoverCard ref={hoverCardRef} spots={filteredSpots} />
 
         {/* ピン選択時の下部カード（S2）: 徒歩N分・地元N人が確認／店名／一行説明／この店を読む＋栞に挟む。
             下から貼られ、別のピンでは中身だけ入れ替わり、地図の余白を押すとはがれる。 */}

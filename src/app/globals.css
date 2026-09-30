@@ -421,7 +421,7 @@ figcaption {
       border-color 160ms ease,
       color 160ms ease;
   }
-  .btn:active:not(:disabled) {
+  .btn:active:not(:disabled, [aria-disabled="true"]) {
     transform: scale(0.97, 0.94);
     transition-duration: var(--dur-press), 160ms, 160ms, 160ms;
     transition-timing-function: var(--ease-out-soft);
@@ -429,7 +429,8 @@ figcaption {
   .btn svg {
     display: block;
   }
-  .btn:disabled {
+  .btn:disabled,
+  .btn[aria-disabled="true"] {
     opacity: 0.45;
     cursor: not-allowed;
   }
@@ -1585,6 +1586,10 @@ figcaption {
   inset: -7px;
   border-radius: 999px;
 }
+/* 重なったときは静かな店のピンを上に（押せるように）。選んだピンはさらに上 */
+.map-pin-hit-area[data-q="quiet"] {
+  z-index: 1;
+}
 .map-pin-hit-area[data-selected="true"] {
   z-index: 2;
 }
@@ -2505,6 +2510,18 @@ figcaption {
 }
 
 /* — 地図（§5.2）— */
+/* 地図の画面の高さ: 画面の高さから下部タブ（スマホ 4rem）とデモモードの帯を引く（帯の分だけ下が切れないように） */
+:root:has(body > [data-demo-banner]) {
+  --demo-banner-h: 24px;
+}
+.city-map-screen {
+  height: calc(100dvh - 4rem - var(--demo-banner-h, 0px));
+}
+@media (min-width: 1024px) {
+  .city-map-screen {
+    height: calc(100dvh - var(--demo-banner-h, 0px));
+  }
+}
 .map-head-row {
   position: absolute;
   top: 0;
@@ -2587,6 +2604,9 @@ figcaption {
   color: var(--color-text-muted);
 }
 .map-head-empty-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   margin-left: 4px;
   padding: 0;
   border: 0;
@@ -2755,6 +2775,10 @@ figcaption {
 }
 
 /* — 一覧の行（§5.3。検索と地図の PC の列）— */
+/* 「静かに下がる」の包み（行の位置を offsetTop で測る基準） */
+.sinking-rows {
+  position: relative;
+}
 .spot-rows {
   position: relative;
   display: grid;
@@ -2977,8 +3001,11 @@ figcaption {
   margin: 0 0 8px;
   min-height: 20px;
   font-size: 13px;
+  line-height: 20px;
   color: var(--color-text-muted);
-  /* すぐ終わる待ちでは出さない（400ms 待って出る。§4.5） */
+}
+/* すぐ終わる待ちでは出さない（400ms 待って出る。§4.5） */
+.search-pending[data-on="true"] {
   animation: v-fade-in 1ms linear 400ms both;
 }
 .search-pending-lamp {
@@ -3156,7 +3183,7 @@ figcaption {
 .detail-qmark-close {
   --bx: 40px;
   right: 8px;
-  bottom: -28px;
+  bottom: -16px;
 }
 @media (min-width: 1024px) {
   .detail-quote {
@@ -3218,7 +3245,7 @@ figcaption {
     transition: none !important;
   }
   /* 待ちの表示は呼吸しないが、すぐ終わる待ちでは出さない（400ms 待つ）のは同じ */
-  .search-pending {
+  .search-pending[data-on="true"] {
     animation: v-fade-in 1ms linear 400ms both !important;
   }
 }

@@ -39,7 +39,12 @@ export function AddBookmarkButton({ spotId, initiallyBookmarked, variant }: AddB
   );
   const lamp = useLamp();
 
+  // 押せない間も disabled にはしない（disabled にするとフォーカスが body へ飛び、読み上げにも出なくなる）。
+  // aria-disabled にして、押しても何もしない。
+  const unavailable = isPending || optimisticBookmarked;
+
   function handleClick(event: MouseEvent<HTMLButtonElement>) {
+    if (unavailable) return;
     // SPEC motion §7.2-8: (1) 飛ばす物の位置を測る → (2) 状態の更新・送信をすぐ行う → (3) 飛行は次のフレームから
     const button = event.currentTarget;
     const target = lamp.target("bookmarks", button);
@@ -64,12 +69,15 @@ export function AddBookmarkButton({ spotId, initiallyBookmarked, variant }: AddB
 
   return (
     <div className="flex flex-col items-start gap-1">
-      <Button variant={variant} onClick={handleClick} disabled={isPending || optimisticBookmarked}>
+      <Button variant={variant} onClick={handleClick} aria-disabled={unavailable ? "true" : undefined}>
         栞に挟む
       </Button>
-      {optimisticBookmarked ? <span className="text-muted text-xs">栞に挟みました。</span> : null}
+      {/* 確認の文は常に置いた status の中で差し替える（挟んだことが読み上げられる） */}
+      <span className="text-muted text-xs" role="status">
+        {optimisticBookmarked ? "栞に挟みました。" : null}
+      </span>
       {errorMessage ? (
-        <span className="inline-alert alert-in text-xs" role="status">
+        <span className="inline-alert alert-in text-xs" role="alert">
           <Lantern size={16} tone="paper" />
           {errorMessage}
         </span>
