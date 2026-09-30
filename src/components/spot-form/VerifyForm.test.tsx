@@ -7,11 +7,20 @@ vi.mock("@/app/actions/spot-verify", () => ({
   submitVerification: vi.fn(),
 }));
 
+// 判子の飛行（灯りの層）を見張る
+const lamp = vi.hoisted(() => ({
+  fly: vi.fn((_from: unknown, _to: unknown, opts?: { onArrive?: () => void }) => opts?.onArrive?.()),
+  target: vi.fn(() => document.querySelector("[data-lamp-target='verify-slot']")),
+  bump: vi.fn(),
+}));
+vi.mock("@/components/motion/LampLayer", () => ({ useLamp: () => lamp }));
+
 const mockedSubmit = submitVerification as unknown as ReturnType<typeof vi.fn>;
 
 describe("VerifyForm", () => {
   beforeEach(() => {
     mockedSubmit.mockReset();
+    lamp.fly.mockClear();
     window.localStorage.clear();
   });
 
@@ -31,7 +40,62 @@ describe("VerifyForm", () => {
     });
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("確認の記録に失敗しました");
+    expect(alert).toHaveTextContent("ごめんなさい、うまく記録できませんでした。もう一度押してみてください。");
+    // 受け付けられる前・エラーでは判子を飛ばさない
+    expect(lamp.fly).not.toHaveBeenCalled();
+  });
+
+  it("サーバーが返した理由の文はそのまま出し、判子は飛ばさない", async () => {
+    mockedSubmit.mockResolvedValueOnce({ ok: false, error: "この確認はもう受け付けていません。" });
+    render(<VerifyForm requestId="req-x" spotName="シハチ鮮魚店 北24条店" daysSinceLast={90} history={[]} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "静かなまま" }));
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent("この確認はもう受け付けていません。");
+    expect(lamp.fly).not.toHaveBeenCalled();
+  });
+
+  it("受け付けられたら「ありがとう！」と +N、判子が店のカードの置き場へ飛んで押される", async () => {
+    mockedSubmit.mockResolvedValueOnce({ ok: true, accepted: true, pointsAwarded: 5, totalPoints: 5, badges: [], status: "published" });
+    const { container } = render(<VerifyForm requestId="req-y" spotName="シハチ鮮魚店 北24条店" daysSinceLast={90} history={[]} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "並びはじめた" }));
+    });
+    expect(await screen.findByText("ありがとう！")).toBeInTheDocument();
+    expect(screen.getByText("灯りがひとつ、ともりました。")).toBeInTheDocument();
+    expect(screen.getByText("+5", { exact: true })).toBeInTheDocument();
+    expect(lamp.fly).toHaveBeenCalledTimes(1);
+    expect(lamp.fly.mock.calls[0][2]).toMatchObject({ kind: "stamp", glyph: "並", tone: "crowding" });
+    expect(container.querySelector(".verify-slot .stamp")).toHaveTextContent("並");
+    expect(container.querySelector(".verify-hanamaru")).not.toBeNull();
+  });
+
+  it("演出 OFF: 紙のカードに「ありがとう！」と答えだけ。+N・番人の棒・花丸は出さない", async () => {
+    window.localStorage.setItem("urasupo:showRewards", "false");
+    mockedSubmit.mockResolvedValueOnce({
+      ok: true,
+      accepted: true,
+      pointsAwarded: 5,
+      totalPoints: 5,
+      badges: [{ id: "keeper", slug: "keeper", glyph: "灯", label: "灯りの番人", earned: false, remaining: 3 }],
+      status: "published",
+    });
+    const { container } = render(<VerifyForm requestId="req-z" spotName="シハチ鮮魚店 北24条店" daysSinceLast={90} history={[]} />);
+    const checkbox = screen.getByRole("checkbox", { name: "回答後の灯り演出（+5 など）を表示する" });
+    if ((checkbox as HTMLInputElement).checked) fireEvent.click(checkbox);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "静かなまま" }));
+    });
+    expect(await screen.findByText("ありがとう！")).toBeInTheDocument();
+    expect(screen.queryByText("+5", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(container.querySelector(".verify-hanamaru")).toBeNull();
+  });
+
+  it("履歴が無ければ「これが最初の確認です。」", () => {
+    render(<VerifyForm requestId="req-h" spotName="シハチ鮮魚店 北24条店" daysSinceLast={90} history={[]} />);
+    expect(screen.getByText("これが最初の確認です。")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "これまでの答え" })).toBeInTheDocument();
   });
 
   it("SPEC §9.14-1: wasDormant=true かつ status=published なら「地図に戻りました。」を表示する", async () => {

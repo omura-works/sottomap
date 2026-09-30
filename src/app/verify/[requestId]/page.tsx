@@ -5,9 +5,8 @@ import { getLatestMissedRequestId, getSpot, getVerificationRequest, listVerifica
 import { answerEligibility, daysSince } from "@/lib/domain/lifecycle";
 import { formatTokyoMonthDay } from "@/lib/format/date-time";
 import { VerifyForm } from "@/components/spot-form/VerifyForm";
-import { Card } from "@/components/ui";
 import { PageTransition } from "@/components/motion/PageTransition";
-import { PageLamp } from "@/components/motion/PageLamp";
+import { VerifyHeading, VerifyShopCard } from "@/components/spot-form/VerifyIntro";
 
 interface VerifyPageProps {
   params: Promise<{ requestId: string }>;
@@ -59,23 +58,18 @@ export default async function VerifyPage({ params }: VerifyPageProps) {
 
   return (
     <PageTransition>
-      <div className="mx-auto max-w-xl px-4 py-8 lg:py-12 space-y-6">
-        <div className="space-y-1">
-          <p className="text-muted text-sm">地元の人へ / 90日ごとの確認</p>
-          <h1 style={{ fontSize: 30 }}>
-            <PageLamp />
-            この店は、まだ隠れていますか
-          </h1>
-        </div>
+      <div className="verify mx-auto max-w-xl px-4 py-8 lg:py-12">
+        <VerifyHeading />
         {eligibility === "not-due" ? (
-          <Card title={spot.name} meta={`前回の確認から${daysSinceLast}日`}>
-            <p className="m-0">次の確認は{formatTokyoMonthDay(request.dueAt)}に届きます。</p>
-          </Card>
+          <VerifyShopCard spotName={spot.name} daysSinceLast={daysSinceLast}>
+            <p className="verify-shop-note">次の確認は{formatTokyoMonthDay(request.dueAt)}に届きます。</p>
+            <p className="verify-shop-note">そのときに、またよろしくお願いします。</p>
+          </VerifyShopCard>
         ) : (
-          <Card
+          <VerifyShopCard
+            spotName={spot.name}
+            daysSinceLast={daysSinceLast}
             kicker={request.status === "answered" ? "回答済み" : undefined}
-            title={spot.name}
-            meta={`前回の確認から${daysSinceLast}日`}
           />
         )}
       </div>
