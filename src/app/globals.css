@@ -1482,18 +1482,7 @@ figcaption {
     border-color: var(--color-neutral-200);
   }
 
-  /* 灯り（/me）の進み具合の細い棒。進んだ分は橙で淡く光る */
-  .lantern-progress {
-    height: 4px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--color-bg) 15%, transparent);
-  }
-  .lantern-progress-fill {
-    height: 100%;
-    border-radius: 999px;
-    background: var(--color-accent-400);
-    box-shadow: 0 0 8px color-mix(in srgb, var(--color-accent-400) 70%, transparent);
-  }
+  /* 灯り（/me・確認）の進み具合の棒は P5 の節（レイヤーの外）にある（幅を動かさず scale で満ちる） */
 
   /* — tags — データのタグ（丸い細線）。絞り込みの切り替えは .chip（上）— */
   .tag {
@@ -3247,6 +3236,834 @@ figcaption {
   /* 待ちの表示は呼吸しないが、すぐ終わる待ちでは出さない（400ms 待つ）のは同じ */
   .search-pending[data-on="true"] {
     animation: v-fade-in 1ms linear 400ms both !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   P5 栞・自分・確認（SPEC motion §5.5・§5.6・§5.7）。要素の既定（h1・p）を上書きするので、この節もレイヤーの外。
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* — 栞（§5.5）— */
+.bm-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.bm-night {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 28px 24px;
+  border-radius: var(--radius-hero);
+  background: var(--night-horizon);
+}
+@media (min-width: 1024px) {
+  .bm-night {
+    padding: 40px;
+  }
+}
+.bm-night-deco {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+/* 上辺から垂れる大きなリボン（上端はカードの縁で切れて見える） */
+.bm-big-ribbon-box {
+  position: absolute;
+  top: 0;
+  right: 56px;
+  z-index: 1;
+  width: 24px;
+  height: 104px;
+  overflow: clip;
+  pointer-events: none;
+}
+.bm-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bm-kicker {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  color: var(--color-accent-400);
+}
+.bm-title {
+  margin: 0;
+  color: var(--color-neutral-100);
+}
+.bm-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 0;
+}
+.bm-count-num {
+  position: relative;
+  display: inline-block;
+  margin-block: -0.22em;
+  clip-path: inset(0.04em -0.3em 0.04em -0.3em);
+  font-family: var(--font-heading);
+  font-size: var(--fs-giant);
+  line-height: 1;
+  color: var(--color-accent-300);
+}
+.bm-count-text {
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--color-neutral-300);
+}
+.bm-list {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bm-row {
+  position: relative;
+  overflow: clip;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 12px 16px 12px 28px;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-100);
+}
+/* 最初の表示の行は透明から始めない（字が最初から読める。§7.2-3。行の字が最初の表示の LCP になるため）。下から置かれるだけ */
+.bm-row.motion-stagger-item {
+  animation: v-rise var(--dur-settle) var(--spring-settle) calc(var(--stagger-index, 0) * var(--stagger)) both;
+}
+.bm-row .spot-row-name,
+.bm-row .spot-row-meta {
+  margin: 0;
+}
+.bm-thumb {
+  width: 48px;
+  height: 48px;
+}
+/* 行の左端の栞のリボン: 最初の表示で行が貼られた 120ms 後に挟まり、外すと上へ抜ける */
+.bm-row-ribbon-box {
+  position: absolute;
+  top: 0;
+  left: 10px;
+  width: 10px;
+  height: 32px;
+  overflow: clip;
+  pointer-events: none;
+}
+.bm-row.motion-stagger-item .bm-row-ribbon {
+  --d: calc(var(--stagger-index, 0) * var(--stagger) + 120ms);
+}
+@keyframes bm-ribbon-out {
+  to {
+    translate: 0 -100%;
+  }
+}
+.bm-row[data-leaving] .bm-row-ribbon {
+  animation: bm-ribbon-out 160ms var(--ease-peel) both;
+}
+
+/* — 自分（§5.6）— */
+.me-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+.me-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.me-avatar {
+  --stamp-from: 1.25;
+  --tilt: -4deg;
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-200);
+  color: var(--color-accent-800);
+  font-family: var(--font-heading);
+  font-size: 32px;
+  line-height: 1;
+  box-shadow:
+    inset 0 0 0 3px color-mix(in srgb, var(--color-accent-200) 55%, white),
+    0 0 0 2px var(--color-neutral-800);
+  rotate: var(--tilt);
+}
+.me-avatar-img {
+  flex: none;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-pill);
+  object-fit: cover;
+  box-shadow:
+    0 0 0 2px var(--color-neutral-800),
+    var(--glow-sm);
+}
+.me-name {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.me-home {
+  margin: 2px 0 0;
+  font-size: 15px;
+  color: var(--color-text-muted);
+}
+.me-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (min-width: 1024px) {
+  .me-stats {
+    gap: 16px;
+  }
+}
+.me-stat {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 120px;
+  padding: 16px 14px;
+}
+.me-stat-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px;
+  margin: 0;
+}
+.me-stat-num {
+  display: inline-block;
+  font-family: var(--font-heading);
+  font-size: var(--fs-num);
+  line-height: 1;
+}
+.me-stat-num[data-digits="3"] {
+  font-size: var(--fs-h1);
+}
+.me-stat-unit {
+  font-size: 15px;
+  font-weight: 700;
+}
+.me-stat-label {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.me-stat[data-tone="orange"] .me-stat-num {
+  color: var(--color-accent-600);
+}
+.me-stat[data-tone="orange"] .me-stat-unit,
+.me-stat[data-tone="orange"] .me-stat-label {
+  color: var(--color-accent-800);
+}
+.me-stat[data-tone="moss"] .me-stat-num {
+  color: var(--color-accent-2-700);
+}
+.me-stat[data-tone="moss"] .me-stat-unit,
+.me-stat[data-tone="moss"] .me-stat-label {
+  color: var(--color-accent-2-800);
+}
+.me-stat[data-tone="night"] .me-stat-num {
+  color: var(--color-accent-300);
+}
+.me-stat[data-tone="night"] .me-stat-unit {
+  color: var(--color-neutral-100);
+}
+.me-stat[data-tone="night"] .me-stat-label {
+  color: var(--color-neutral-300);
+}
+.me-section h2 {
+  margin: 0;
+}
+.me-lead {
+  margin: 6px 0 0;
+  font-size: 15px;
+  color: var(--color-text-muted);
+}
+.me-badges {
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.me-rows {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.me-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-100);
+}
+.me-row-stamp-space {
+  flex: none;
+  width: 26px;
+}
+.me-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.me-row-tags {
+  display: flex;
+  flex: none;
+  gap: 4px;
+}
+.me-pending-link {
+  margin: 8px 0 0;
+}
+.me-pending-link a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-accent-700);
+  text-decoration: none;
+}
+.me-pending-link a:hover {
+  text-decoration: underline;
+}
+.me-wait {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.me-wait-lantern {
+  flex: none;
+  margin-top: 4px;
+}
+.me-wait-title {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--color-accent-800);
+}
+.me-wait-num {
+  padding: 0 2px;
+  font-family: var(--font-heading);
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--color-accent-700);
+}
+.me-wait-body {
+  margin: 4px 0 0;
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--color-accent-800);
+}
+.me-wait-wrap[data-reveal="play"] .me-wait[data-waiting="true"] .lantern-glow {
+  animation:
+    v-ignite-glow 480ms var(--ease-out-soft) calc(var(--d, 0ms) + 400ms) both,
+    v-breath var(--dur-breath) var(--ease-breath) calc(var(--d, 0ms) + 900ms) 2;
+}
+
+/* 灯りのバッジ（夜のカード） */
+.lantern-badge {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 168px;
+  padding: 20px;
+  border-radius: var(--radius-md);
+  box-shadow: none;
+}
+.lantern-badge-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lantern-badge-lantern {
+  flex: none;
+}
+.lantern-badge-kanji-wrap {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+}
+.lantern-badge-kanji {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-heading);
+  font-size: 40px;
+  line-height: 1;
+  color: var(--color-neutral-400);
+}
+.lantern-badge[data-earned="true"] .lantern-badge-kanji {
+  color: var(--color-accent-200);
+}
+.lantern-badge-glow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  border-radius: var(--radius-pill);
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--color-accent-400) 55%, transparent), transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+.lantern-badge[data-earned="true"] .lantern-badge-glow {
+  opacity: 1;
+}
+.lantern-badge-spark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-300);
+  opacity: 0;
+  pointer-events: none;
+}
+@keyframes v-spark {
+  from {
+    transform: rotate(var(--a)) translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: rotate(var(--a)) translateY(-16px);
+    opacity: 0;
+  }
+}
+.lantern-badge-name {
+  margin-top: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--color-neutral-100);
+}
+.lantern-badge .lantern-progress {
+  margin-top: 10px;
+}
+.lantern-badge-state {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--color-neutral-400);
+}
+/* 進み具合の棒: 幅は動かさず scale で満ちる。先に光の粒 */
+.lantern-progress {
+  position: relative;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-bg) 15%, transparent);
+  container-type: inline-size;
+  overflow: visible;
+}
+.lantern-progress-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--color-accent-400);
+  box-shadow: var(--glow-sm);
+  transform-origin: left center;
+  scale: var(--p, 0) 1;
+}
+.lantern-spark {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-pill);
+  background: radial-gradient(circle, var(--color-accent-200) 0 25%, var(--color-accent-400) 45%, transparent 70%);
+  translate: calc(var(--p, 0) * 100cqi - 6px) -50%;
+  pointer-events: none;
+}
+.lantern-progress-sheen {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.lantern-progress-sheen::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-accent-100) 70%, transparent), transparent);
+  translate: -100% 0;
+  opacity: 0;
+}
+@keyframes lantern-sheen {
+  from {
+    translate: -100% 0;
+    opacity: 1;
+  }
+  to {
+    translate: 260% 0;
+    opacity: 1;
+  }
+}
+.lantern-badge:hover .lantern-progress-sheen::after {
+  animation: lantern-sheen 640ms var(--ease-draw) both;
+}
+@keyframes lantern-fill {
+  from {
+    scale: 0 1;
+  }
+}
+@keyframes lantern-spark-run {
+  from {
+    translate: -6px -50%;
+  }
+}
+/* 画面に入ったら（Reveal）: 棒が光で満ち、粒が一緒に走って着いたら1回ふくらむ。取ったバッジは光が灯り、火の粉が出る */
+[data-reveal="wait"] .lantern-badge .lantern-progress-fill {
+  scale: 0 1;
+}
+[data-reveal="wait"] .lantern-badge .lantern-spark {
+  translate: -6px -50%;
+}
+[data-reveal="wait"] .lantern-badge[data-earned="true"] .lantern-badge-glow {
+  opacity: 0;
+}
+[data-reveal="play"] .lantern-badge .lantern-progress-fill {
+  animation: lantern-fill 900ms var(--ease-stage) calc(var(--d, 0ms) + 200ms) both;
+}
+[data-reveal="play"] .lantern-badge .lantern-spark {
+  animation:
+    lantern-spark-run 900ms var(--ease-stage) calc(var(--d, 0ms) + 200ms) both,
+    v-bump 450ms var(--ease-out-soft) calc(var(--d, 0ms) + 1100ms) both;
+}
+[data-reveal="play"] .lantern-badge[data-earned="true"] .lantern-badge-glow {
+  animation: v-ignite-glow var(--dur-pop) var(--spring-pop) calc(var(--d, 0ms) + 200ms) both;
+}
+[data-reveal="play"] .lantern-badge[data-earned="true"] .lantern-badge-spark {
+  animation: v-spark 600ms var(--ease-out-soft) calc(var(--d, 0ms) + 500ms) both;
+}
+[data-reveal="play"] .lantern-badge[data-earned="true"] .lantern-glow {
+  animation: v-ignite-glow 480ms var(--ease-out-soft) calc(var(--d, 0ms) + 200ms) both;
+}
+
+/* — 確認（§5.7）— */
+.verify {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.verify-kickers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.verify-title {
+  margin: 12px 0 0;
+}
+.verify-shop {
+  position: relative;
+  gap: 0;
+}
+.verify-shop-name {
+  margin: 0;
+  padding-right: 72px;
+  font-family: var(--font-heading);
+  font-size: 24px;
+  line-height: 1.35;
+}
+.verify-days {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+  margin: 22px 0 0;
+  font-size: 15px;
+}
+.verify-days b {
+  font-weight: 700;
+}
+.verify-days-num {
+  position: relative;
+  display: inline-block;
+  margin-block: -0.22em;
+  font-family: var(--font-heading);
+  font-size: var(--fs-giant);
+  line-height: 1;
+  color: var(--color-accent-600);
+}
+.verify-shop-note {
+  margin: 8px 0 0;
+  font-size: 15px;
+}
+.verify-shop-note + .verify-shop-note {
+  margin-top: 0;
+}
+/* 判子の置き場（答えが受け付けられたら、ここに押される） */
+.verify-slot {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 2px dotted var(--color-neutral-400);
+  border-radius: var(--radius-pill);
+  pointer-events: none;
+}
+.verify-slot:has(.stamp) {
+  border-color: transparent;
+}
+.verify-answers {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.btn.answer {
+  justify-content: flex-start;
+  gap: 16px;
+  width: 100%;
+  min-height: 72px;
+  padding: 12px 20px;
+  border: 1.5px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-neutral-100);
+}
+.answer-stamp-hold {
+  display: inline-grid;
+  flex: none;
+  transition:
+    rotate 240ms var(--spring-stamp),
+    translate 240ms var(--spring-stamp);
+}
+.btn.answer:hover .answer-stamp-hold,
+.btn.answer:focus-visible .answer-stamp-hold {
+  rotate: -4deg;
+  translate: 0 -2px;
+}
+.answer-label {
+  font-family: var(--font-body);
+  font-size: 18px;
+  font-weight: 700;
+}
+.verify-pending {
+  margin: 4px 0 0;
+}
+/* お礼の夜のカード */
+.verify-thanks {
+  padding: 28px 24px;
+  border-radius: var(--radius-hero);
+  background: var(--night-horizon);
+}
+@media (min-width: 1024px) {
+  .verify-thanks {
+    padding: 32px;
+  }
+}
+.verify-thanks > :not(.verify-thanks-deco, .verify-hanamaru) {
+  position: relative;
+}
+.verify-thanks-deco {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.verify-thanks-title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 28px;
+  line-height: 1.3;
+  color: var(--color-neutral-100);
+}
+.verify-thanks-lead {
+  margin: 6px 0 0;
+  font-size: 15px;
+  color: var(--color-neutral-300);
+}
+.verify-thanks-answer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-neutral-100);
+}
+.verify-points-row {
+  display: inline-grid;
+  place-items: center;
+  margin: 14px 0 0;
+}
+.verify-points {
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+  font-family: var(--font-heading);
+  font-size: var(--fs-giant);
+  line-height: 1;
+  color: var(--color-accent-300);
+}
+.verify-points-glow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 140px;
+  height: 140px;
+  margin: -70px 0 0 -70px;
+  border-radius: var(--radius-pill);
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--color-accent-400) 45%, transparent), transparent);
+  pointer-events: none;
+}
+.verify-reward-note {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: var(--color-neutral-400);
+  animation: v-fade-in 240ms var(--ease-out-soft) 900ms both;
+}
+.verify-keeper {
+  /* 右下の花丸（96px）と重ならない幅 */
+  max-width: min(280px, calc(100% - 112px));
+  margin-top: 18px;
+}
+.verify-keeper-text {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--color-neutral-300);
+}
+.verify-keeper-num {
+  padding: 0 2px;
+  font-family: var(--font-heading);
+  font-size: 24px;
+  line-height: 1;
+  color: var(--color-accent-300);
+}
+/* 番人の棒: +N の灯りが着いたら、今の値から新しい値へ満ちる（受け付けから 2.2 秒で静まるよう 580ms） */
+.verify-keeper-bar .lantern-progress-fill {
+  transition: scale 580ms var(--ease-stage);
+}
+.verify-keeper-bar .lantern-spark {
+  transition: translate 580ms var(--ease-stage);
+}
+.verify-returned {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: var(--color-neutral-300);
+}
+.verify-hanamaru {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  width: 96px;
+  height: 96px;
+  color: var(--color-accent-300);
+}
+.verify-history-title {
+  margin: 0 0 12px;
+}
+/* これまでの答えの年表: 左に縦の点の列（上から描かれる）、各行の左に判子 */
+.verify-timeline-wrap {
+  position: relative;
+}
+.verify-timeline-path {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 11px;
+  width: 4px;
+  background-image: radial-gradient(circle, var(--color-neutral-400) 2px, transparent 2.5px);
+  background-size: 4px 14px;
+  background-repeat: repeat-y;
+  pointer-events: none;
+}
+@keyframes v-draw-clip-y {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0);
+  }
+}
+.verify-timeline-wrap[data-reveal="wait"] .verify-timeline-path {
+  clip-path: inset(0 0 100% 0);
+}
+.verify-timeline-wrap[data-reveal="play"] .verify-timeline-path {
+  animation: v-draw-clip-y 600ms var(--ease-draw) var(--d, 0ms) both;
+}
+.verify-timeline {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.verify-timeline li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding-left: 44px;
+  font-size: 15px;
+}
+.verify-timeline-stamp {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  margin-top: -13px;
+}
+.verify-setting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+/* P5 の reduce: 最終状態で出す（リボンは挟まった状態、棒・光は満ちた状態、火の粉・なでる光・呼吸なし） */
+@media (prefers-reduced-motion: reduce) {
+  .bm-row[data-leaving] .bm-row-ribbon,
+  .lantern-badge-spark,
+  .lantern-progress-sheen::after,
+  [data-reveal] .lantern-badge .lantern-progress-fill,
+  [data-reveal] .lantern-badge .lantern-spark,
+  [data-reveal] .lantern-badge .lantern-badge-glow,
+  [data-reveal] .lantern-badge .lantern-glow,
+  .me-wait-wrap .lantern-glow,
+  .verify-reward-note,
+  .verify-timeline-path {
+    animation: none !important;
+  }
+  .verify-keeper-bar .lantern-progress-fill,
+  .verify-keeper-bar .lantern-spark,
+  .answer-stamp-hold {
+    transition: none !important;
   }
 }
 

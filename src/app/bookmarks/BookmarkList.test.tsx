@@ -140,7 +140,7 @@ describe("BookmarkList", () => {
     fireEvent.click(screen.getByRole("button", { name: "外す" }));
 
     expect(await screen.findByText("シハチ鮮魚店 北24条店")).toBeInTheDocument();
-    expect(await screen.findByRole("alert")).toHaveTextContent("栞から外せませんでした。");
+    expect(await screen.findByRole("alert")).toHaveTextContent("ごめんなさい、栞から外せませんでした。もう一度ためしてみてください。");
   });
 
   // Codex R8 重要3: ConfirmRemoveButton 内蔵の live region ではなく、行が消えても残る
@@ -198,7 +198,7 @@ describe("BookmarkList", () => {
       await waitFor(() =>
         expect(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" })).toHaveFocus(),
       );
-      expect(screen.getByRole("alert")).toHaveTextContent("栞から外せませんでした。");
+      expect(screen.getByRole("alert")).toHaveTextContent("ごめんなさい、栞から外せませんでした。もう一度ためしてみてください。");
     });
 
     it("「やめる」で取り消すとライブリージョンが「そのままにしました。」を知らせる", async () => {
@@ -219,7 +219,7 @@ describe("BookmarkList", () => {
       fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
       fireEvent.click(screen.getByRole("button", { name: "外す" }));
 
-      await waitFor(() => expect(screen.getByText("まだ栞に挟んだ店がありません。")).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByText("まだ、栞に挟んだ店はありません")).toBeInTheDocument());
       await waitFor(() =>
         expect(screen.getByRole("status")).toHaveTextContent("シハチ鮮魚店 北24条店を栞から外しました。"),
       );
@@ -249,7 +249,7 @@ describe("BookmarkList", () => {
       fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
       fireEvent.click(screen.getByRole("button", { name: "外す" }));
 
-      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("栞から外せませんでした。"));
+      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("ごめんなさい、栞から外せませんでした。もう一度ためしてみてください。"));
       expect(screen.getByRole("status")).toHaveTextContent("");
     });
   });
@@ -283,6 +283,33 @@ describe("BookmarkList", () => {
       const restoredButton = await screen.findByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" });
       await waitFor(() => expect(restoredButton).toHaveFocus());
       expect(restoredButton.closest("li")).not.toHaveClass("motion-stagger-item");
+    });
+  });
+
+  describe("SPEC motion §5.5: はがす・0件・地図にまとめる", () => {
+    it("外した行ははがれている間 inert（フォーカスはもう隣へ移っている）", async () => {
+      vi.mocked(removeBookmarkAction).mockReturnValueOnce(new Promise<void>(() => {}));
+      const { container } = render(<BookmarkList initialItems={ITEMS} />);
+      fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
+      fireEvent.click(screen.getByRole("button", { name: "外す" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: "聖徳太子 飛鳥店を栞から外す" })).toHaveFocus());
+      for (const li of Array.from(container.querySelectorAll("li[data-leaving]"))) expect(li).toHaveAttribute("inert");
+    });
+
+    it("0件は灯りの子・ひと言・説明（§4.6）", () => {
+      render(<BookmarkList initialItems={[]} />);
+      expect(screen.getByText("まだ、栞に挟んだ店はありません")).toBeInTheDocument();
+      expect(
+        screen.getByText("気になる店を見つけたら「栞に挟む」を押してみてね。地図の上でも光るようになります。"),
+      ).toBeInTheDocument();
+    });
+
+    it("「地図にまとめる」の1つ目がリボンの行き先（data-lamp-target=map-button）で、各行にリボンがある", () => {
+      const { container } = render(<BookmarkList initialItems={ITEMS} />);
+      const links = screen.getAllByRole("link", { name: /を地図にまとめる$/ });
+      expect(links[0]).toHaveAttribute("data-lamp-target", "map-button");
+      for (const link of links.slice(1)) expect(link).not.toHaveAttribute("data-lamp-target");
+      expect(container.querySelectorAll("li .bm-row-ribbon")).toHaveLength(ITEMS.length);
     });
   });
 });

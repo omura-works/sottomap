@@ -1,14 +1,30 @@
 "use client";
 
-import { useEffect, useOptimistic, useRef, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useOptimistic, useRef, useState, useTransition, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import Link from "next/link";
+import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import { unstable_rethrow } from "next/navigation";
 import { removeBookmarkAction } from "@/app/actions/bookmark-actions";
 import { ConfirmRemoveButton, useIntroStagger } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
+import { usePrefersReducedMotion } from "@/components/ui/motion-prefs";
+import { useLamp } from "@/components/motion/LampLayer";
+import { setIrisOrigin } from "@/components/motion/iris";
+import { EASE, SPRING } from "@/components/motion/tokens";
+import { LampDots } from "@/components/illustrations/LampDots";
+import { LanternChild } from "@/components/illustrations/LanternChild";
+import { Lantern } from "@/components/illustrations/Lantern";
+import { Ribbon } from "@/components/illustrations/Ribbon";
+import { RoadLines } from "@/components/illustrations/RoadLines";
 
 /** ページ側（`/bookmarks`）の見出し。行の前後どちらも無いときのフォーカス先（Codex R8 重要3）。 */
 const BOOKMARKS_HEADING_ID = "bookmarks-heading";
+/** 行が多いときは、外したあとのすき間を詰める動き（layout）を付けない（SPEC motion §7.2-7）。 */
+const LAYOUT_MAX_ROWS = 40;
+/** 「地図にまとめる」でボタンへ吸い込まれるリボンの数・ずらし・時間（SPEC motion §5.5）。 */
+const GATHER_MAX = 6;
+const GATHER_STEP_MS = 30;
+const GATHER_MS = 360;
 
 export interface BookmarkListItem {
   id: string;
@@ -106,7 +122,7 @@ export function BookmarkList({ initialItems, header }: { initialItems: BookmarkL
         // 未ログイン時の Server Action redirect は Next.js に処理させる。
         unstable_rethrow(error);
         dispatch({ type: "restore", item, index });
-        setErrorMessage("栞から外せませんでした。");
+        setErrorMessage("ごめんなさい、栞から外せませんでした。もう一度ためしてみてください。");
         setPendingFocusId(item.id);
       }
     });
@@ -130,38 +146,77 @@ export function BookmarkList({ initialItems, header }: { initialItems: BookmarkL
     itemsByCity.get(item.citySlug)!.push(item);
   }
 
+  const reduced = usePrefersReducedMotion();
+  const layoutOn = !reduced && items.length <= LAYOUT_MAX_ROWS;
+  const lamp = useLamp();
+  // 前の描画に無かった行（外せずに戻った行）だけ、元の位置へ貼り直す動きを付ける
+  // （React の「props が変わったら state を合わせる」形。effect を使わない）
+  const idsKey = items.map((item) => item.id).join(",");
+  const [seen, setSeen] = useState(() => ({ key: idsKey, ids: new Set(initialItems.map((item) => item.id)) as ReadonlySet<string>, previous: new Set(initialItems.map((item) => item.id)) as ReadonlySet<string> }));
+  if (seen.key !== idsKey) {
+    setSeen({ key: idsKey, ids: new Set(items.map((item) => item.id)), previous: seen.ids });
+  }
+
+  // 「地図にまとめる」: 見えている行のリボン（その街の、上から6本まで）がボタンへ吸い込まれ、ボタンが弾む。
+  // 遷移（アイリス）は押した瞬間に始める（吸い込みを待たない）。
+  function gather(event: MouseEvent<HTMLAnchorElement>, citySlug: string | null) {
+    const button = event.currentTarget;
+    const ribbons = Array.from(document.querySelectorAll<HTMLElement>("[data-bm-ribbon]"))
+      .filter((el) => citySlug === null || el.dataset.bmRibbon === citySlug)
+      .filter((el) => {
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight;
+      })
+      .slice(0, GATHER_MAX);
+    ribbons.forEach((ribbon, i) => {
+      lamp.fly(ribbon, button, {
+        kind: "ribbon",
+        duration: GATHER_MS,
+        delay: i * GATHER_STEP_MS,
+        onArrive: i === ribbons.length - 1 ? () => lamp.bump(button) : undefined,
+      });
+    });
+    setIrisOrigin(button);
+  }
+
+  const gatherLink = (href: string, label: string, citySlug: string | null, first: boolean) => (
+    <Link
+      key={href}
+      href={href}
+      transitionTypes={["lamp-iris"]}
+      onClick={(event) => gather(event, citySlug)}
+      className="btn btn-on-night btn-lg"
+      data-lamp-target={first ? "map-button" : undefined}
+    >
+      {label}
+      <NightArrow />
+    </Link>
+  );
+
   return (
-    // 夜のカードの大きな影は下の行まで届くため、行（li）は relative にしてカードより後に描き、影を行の下へ回す。
-    <div className="space-y-9">
+    <div className="bm-screen">
       {header || items.length > 0 ? (
-        <div className="night-card flex flex-col gap-6 px-6 py-7 sm:px-10 sm:py-9">
-          {/* 右上の暖色のにじみと、灯りの点2つ（装飾） */}
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-            <span className="night-glow" style={{ width: 360, height: 360, right: -100, top: -130 }} />
-            <span className="night-light" style={{ width: 5, height: 5, right: 140, top: 40 }} />
-            <span className="night-light night-light-pale" style={{ width: 4, height: 4, right: 60, top: 120 }} />
+        <div className="night-card bm-night">
+          {/* 飾り: 道の線・右上の暖色のにじみ・灯りの点6つ・上辺から垂れる大きなリボン */}
+          <div aria-hidden="true" className="bm-night-deco">
+            <RoadLines />
+            <span className="night-glow" style={{ width: 360, height: 360, right: -120, top: -140 }} />
+            <LampDots count={6} ignite />
           </div>
+          <span className="bm-big-ribbon-box" aria-hidden="true">
+            <Ribbon width={24} height={96} className="bm-big-ribbon verb-tuck" />
+          </span>
           {header ? <div className="relative">{header}</div> : null}
           {items.length > 0 ? (
-            <div className="relative flex flex-wrap gap-3">
-              {cityOrder.length <= 1 ? (
-                <Link href={`/${cityOrder[0]}?spots=${items.map((item) => item.spotId).join(",")}`} className="btn btn-on-night">
-                  {items.length}軒を地図にまとめる
-                  <NightArrow />
-                </Link>
-              ) : (
-                cityOrder.map((citySlug) => {
-                  const cityItems = itemsByCity.get(citySlug)!;
-                  const cityName = cityItems[0].cityName;
-                  const spotIds = cityItems.map((item) => item.spotId).join(",");
-                  return (
-                    <Link key={citySlug} href={`/${citySlug}?spots=${spotIds}`} className="btn btn-on-night">
-                      {cityName}の{cityItems.length}軒を地図にまとめる
-                      <NightArrow />
-                    </Link>
-                  );
-                })
-              )}
+            <div className="bm-gather relative flex flex-wrap gap-3">
+              {cityOrder.length <= 1
+                ? gatherLink(`/${cityOrder[0]}?spots=${items.map((item) => item.spotId).join(",")}`, `${items.length}軒を地図にまとめる`, null, true)
+                : cityOrder.map((citySlug, i) => {
+                    const cityItems = itemsByCity.get(citySlug)!;
+                    const cityName = cityItems[0].cityName;
+                    const spotIds = cityItems.map((item) => item.spotId).join(",");
+                    return gatherLink(`/${citySlug}?spots=${spotIds}`, `${cityName}の${cityItems.length}軒を地図にまとめる`, citySlug, i === 0);
+                  })}
             </div>
           ) : null}
         </div>
@@ -174,33 +229,36 @@ export function BookmarkList({ initialItems, header }: { initialItems: BookmarkL
       </p>
 
       {items.length === 0 ? (
-        <p className="text-muted">まだ栞に挟んだ店がありません。</p>
+        <div className="empty-state">
+          <LanternChild size={48} />
+          <p className="empty-state-big">まだ、栞に挟んだ店はありません</p>
+          <p className="empty-state-small">気になる店を見つけたら「栞に挟む」を押してみてね。地図の上でも光るようになります。</p>
+        </div>
       ) : (
-        <>
-          <ul className="space-y-2">
+        <ul className="bm-list">
+          <AnimatePresence mode="popLayout" initial={false}>
             {items.map((item, index) => {
-              const motion = rowMotion(item.id);
+              const intro = rowMotion(item.id);
               return (
-                <li
+                <BookmarkRow
                   key={item.id}
-                  className={cn("relative flex items-center gap-3 px-3 py-2", motion?.className)}
-                  style={{ borderRadius: "var(--radius-md)", background: "var(--color-neutral-100)", border: "1px solid var(--color-divider)", ...motion?.style }}
+                  className={intro?.className}
+                  style={intro?.style}
+                  layoutOn={layoutOn}
+                  reduced={reduced}
+                  restored={!seen.previous.has(item.id)}
+                  ribbonTuck={Boolean(intro)}
+                  citySlug={item.citySlug}
                 >
-                  {item.photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- 外部URLのサムネイルをそのまま表示する
-                    <img src={item.photoUrl} alt={item.spotName} className="w-12 h-12 rounded-md object-cover flex-none" />
-                  ) : (
-                    <div
-                      className="w-12 h-12 rounded-md flex-none flex items-center justify-center text-muted text-[10px]"
-                      style={{ background: "var(--color-neutral-200)" }}
-                      aria-hidden
-                    >
-                      写真
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="m-0 truncate">{item.spotName}</p>
-                    <p className="m-0 text-muted text-xs">{item.meta}</p>
+                  <span className="spot-thumb bm-thumb" aria-hidden={item.photoUrl ? undefined : true}>
+                    {item.photoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- 外部URLのサムネイルをそのまま表示する
+                      <img src={item.photoUrl} alt={item.spotName} className="spot-thumb-photo" />
+                    ) : null}
+                  </span>
+                  <div className="spot-row-text">
+                    <p className="spot-row-name">{item.spotName}</p>
+                    <p className="spot-row-meta">{item.meta}</p>
                   </div>
                   <ConfirmRemoveButton
                     label={`${item.spotName}を栞から外す`}
@@ -210,20 +268,60 @@ export function BookmarkList({ initialItems, header }: { initialItems: BookmarkL
                       triggerRefs.current.set(item.id, node);
                     }}
                   />
-                </li>
+                </BookmarkRow>
               );
             })}
-          </ul>
-
-          {errorMessage ? (
-            <p role="alert" className="text-sm" style={{ color: "var(--color-accent-700)" }}>
-              {errorMessage}
-            </p>
-          ) : null}
-
-        </>
+          </AnimatePresence>
+        </ul>
       )}
+
+      {errorMessage ? (
+        <p role="alert" className="inline-alert alert-in text-sm">
+          <Lantern size={16} tone="paper" />
+          {errorMessage}
+        </p>
+      ) : null}
     </div>
+  );
+}
+
+interface BookmarkRowProps {
+  className?: string;
+  style?: CSSProperties;
+  layoutOn: boolean;
+  reduced: boolean;
+  /** 外せずに戻った行（元の位置へ貼り直す。透明にはしない）。 */
+  restored: boolean;
+  /** 最初の表示で、行が貼られた 120ms 後にリボンが挟まる。false なら挟まった状態で出す。 */
+  ribbonTuck: boolean;
+  citySlug: string;
+  children: ReactNode;
+}
+
+/**
+ * 栞の1行（SPEC motion §5.5）。左端のリボンは最初の表示で挟まり、外すとリボンが上へ抜けて行がはがれる。
+ * はがれている間は inert（フォーカスはすでに隣へ移っている）。下の行はすき間を詰める。
+ */
+function BookmarkRow({ className, style, layoutOn, reduced, restored, ribbonTuck, citySlug, children }: BookmarkRowProps) {
+  const isPresent = useIsPresent();
+  const instant = { duration: 0 } as const;
+  return (
+    <motion.li
+      layout={layoutOn ? "position" : false}
+      initial={restored && !reduced ? { y: -8 } : false}
+      animate={{ y: 0, opacity: 1, rotate: 0 }}
+      exit={reduced ? { opacity: 0, transition: instant } : { opacity: 0, y: -8, rotate: 2.5, transition: { duration: 0.2, ease: EASE.peel } }}
+      transition={reduced ? instant : { layout: SPRING.settle, y: SPRING.settle }}
+      inert={!isPresent}
+      data-leaving={isPresent ? undefined : "true"}
+      className={cn("bm-row", className)}
+      style={style as CSSProperties | undefined}
+    >
+      <span className="bm-row-ribbon-box" aria-hidden="true" data-bm-ribbon={citySlug}>
+        <Ribbon width={10} height={32} className={cn("bm-row-ribbon", ribbonTuck ? "verb-tuck" : null)} />
+      </span>
+      {children}
+    </motion.li>
   );
 }
 

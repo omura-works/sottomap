@@ -105,7 +105,7 @@ function Circle({
         type="button"
         aria-label={label}
         onClick={onClick}
-        whileTap={reduced ? undefined : { scale: 0.96 }}
+        whileTap={{ scale: 0.96 }}
         transition={PRESS}
         className={cn("relative grid h-11 w-11 place-items-center rounded-full", FOCUS)}
       >
@@ -206,7 +206,8 @@ export function ConfirmRemoveButton({
       data-slot="confirm-remove-button"
       data-state={open ? "open" : "closed"}
       data-status={status}
-      className={cn("relative h-12 rounded-2xl", SURFACE, GLYPH, className)}
+      // SPEC motion §5.5: 紙の行の上で埋もれないよう、細線の枠（--color-line）を内側に引く（見た目のトークンだけ）
+      className={cn("relative h-12 rounded-[var(--radius-md)] shadow-[inset_0_0_0_1.5px_var(--color-line)]", SURFACE, GLYPH, className)}
       animate={{ width: open ? TILE + PANEL : TILE }}
       transition={timing(WIDTH)}
       onKeyDown={(event) => {
@@ -227,10 +228,12 @@ export function ConfirmRemoveButton({
           setStatus("idle");
           setOpen(true);
         }}
-        whileTap={reduced ? undefined : { scale: 0.94 }}
+        // reduce でも whileTap は付けたままにする（付け外しで tabindex が変わり、サーバーの HTML と食い違うため）。
+        // 動き自体は MotionConfig reducedMotion="user" が止める
+        whileTap={{ scale: 0.94 }}
         transition={TAP}
         className={cn(
-          "relative z-10 grid h-12 w-12 place-items-center rounded-2xl",
+          "relative z-10 grid h-12 w-12 place-items-center rounded-[var(--radius-md)]",
           FOCUS,
         )}
       >
@@ -290,7 +293,7 @@ export function ConfirmRemoveButton({
             key="panel"
             style={{ width: PANEL }}
             className={cn(
-              "absolute inset-y-0 right-0 flex items-center justify-center gap-2 rounded-2xl",
+              "absolute inset-y-0 right-0 flex items-center justify-center gap-2 rounded-[var(--radius-md)]",
               RECESS,
             )}
             variants={reduced ? undefined : panelMotion}

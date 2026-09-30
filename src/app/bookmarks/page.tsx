@@ -7,6 +7,8 @@ import type { BookmarkListItem } from "./BookmarkList";
 import { formatPlannedAtInTokyo } from "@/lib/format/date-time";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { PageLamp } from "@/components/motion/PageLamp";
+import { BounceNumber } from "@/components/motion/BounceNumber";
+import type { CSSProperties } from "react";
 
 /** S8「栞」`/bookmarks`。 */
 export default async function BookmarksPage() {
@@ -38,19 +40,20 @@ export default async function BookmarksPage() {
           initialItems={items}
           header={
             // 2026-09-26 案B: 見出しと「地図にまとめる」を夜のカード（BookmarkList 側）の中に置く。
-            <header className="flex flex-col gap-2.5">
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 400, letterSpacing: "0.3em", color: "var(--color-accent-400)" }}>栞</p>
+            <header className="bm-head">
+              <p className="bm-kicker">
+                <PageLamp tone="night" />栞
+              </p>
               {/* Codex R8 重要3: 栞を外した行の前後どちらも無いときのフォーカス先（BookmarkList側から参照）。 */}
-              <h1
-                id="bookmarks-heading"
-                tabIndex={-1}
-                style={{ margin: 0, fontSize: "clamp(30px, 4vw, 40px)", color: "var(--color-bg)" }}
-              >
-                <PageLamp tone="night" />
+              <h1 id="bookmarks-heading" tabIndex={-1} className="bm-title">
                 挟んだ店
               </h1>
-              <p style={{ margin: 0, fontSize: 14, color: "var(--color-neutral-400)" }}>
-                {items.length}軒。旅のあいだ、地図の上でも光ります。
+              {/* SPEC motion §5.5: 件数の数字がこの画面の山。外して描き直されたら桁が回って跳ねる */}
+              <p className="bm-count">
+                <span className="bm-count-num verb-pop" style={{ "--d": "200ms" } as CSSProperties}>
+                  <BounceNumber value={items.length} />
+                </span>
+                <span className="bm-count-text">軒。旅のあいだ、地図の上でも光ります。</span>
               </p>
             </header>
           }
