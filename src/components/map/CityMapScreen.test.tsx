@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { City, Spot } from "@/lib/db/types";
 import { CityMapScreen } from "./CityMapScreen";
@@ -21,20 +21,30 @@ vi.mock("./index", () => ({
   // SPEC §9.14-12: MapCanvas 本体はホバー・フォーカス・タップの3つを同等に
   // onHoverPin へ通知する（src/components/map/MapCanvas.tsx）。ここでは呼び出し側
   // （CityMapScreen）がその通知を正しく受け取れることだけをフォーカス操作でも検証する。
+  // 栞の状態の写し（MapPin.bookmarked）が渡っているかも見えるように、ピンごとに data-bookmarked を出す。
   MapCanvas: ({
     onHoverPin,
+    pins,
+    introKey,
   }: {
     onHoverPin?: (id: string | null, point: { x: number; y: number } | null) => void;
+    pins: { id: string; bookmarked?: boolean }[];
+    introKey?: string;
   }) => (
-    <button
-      type="button"
-      onMouseEnter={() => onHoverPin?.("spot-1", { x: 10, y: 20 })}
-      onMouseLeave={() => onHoverPin?.(null, null)}
-      onFocus={() => onHoverPin?.("spot-1", { x: 10, y: 20 })}
-      onBlur={() => onHoverPin?.(null, null)}
-    >
-      地図のピン
-    </button>
+    <div data-testid="map" data-intro-key={introKey}>
+      {pins.map((pin) => (
+        <span key={pin.id} data-testid={`pin-${pin.id}`} data-bookmarked={pin.bookmarked ? "true" : "false"} />
+      ))}
+      <button
+        type="button"
+        onMouseEnter={() => onHoverPin?.("spot-1", { x: 10, y: 20 })}
+        onMouseLeave={() => onHoverPin?.(null, null)}
+        onFocus={() => onHoverPin?.("spot-1", { x: 10, y: 20 })}
+        onBlur={() => onHoverPin?.(null, null)}
+      >
+        地図のピン
+      </button>
+    </div>
   ),
 }));
 
@@ -98,7 +108,7 @@ describe("CityMapScreen", () => {
     expect(screen.getByText("魚屋の直営。狸小路の方が行きやすいが、こちらの方が安い。")).toBeInTheDocument();
   });
 
-  it("SPEC §9.14-12: フォーカスでもホバーカードと同等の情報が開く", () => {
+  it("SPEC §9.14-12: フォーカスでもホバーカードと同等の情報が開く", async () => {
     render(
       <CityMapScreen
         city={CITY}
@@ -114,9 +124,10 @@ describe("CityMapScreen", () => {
     expect(screen.getByText("魚屋の直営。狸小路の方が行きやすいが、こちらの方が安い。")).toBeInTheDocument();
 
     fireEvent.blur(pin);
-    expect(
-      screen.queryByText("魚屋の直営。狸小路の方が行きやすいが、こちらの方が安い。"),
-    ).not.toBeInTheDocument();
+    // 閉じるときは 120ms で消えてから取り除かれる（SPEC motion §5.2）
+    await waitFor(() =>
+      expect(screen.queryByText("魚屋の直営。狸小路の方が行きやすいが、こちらの方が安い。")).not.toBeInTheDocument(),
+    );
   });
 
   it("SPEC §9.14-8（改訂）: 見出しは街の名前だけで、エリア名を付けない", () => {
@@ -145,23 +156,28 @@ describe("CityMapScreen", () => {
       />,
     );
 
-    expect(screen.getAllByText("条件に合う店が見つかりませんでした。").length).toBeGreaterThan(0);
+    // PC の列は §4.6 の空の状態（ひと言＋説明）、スマホの札は一文
+    expect(screen.getByText("その条件だと、見つかりませんでした")).toBeInTheDocument();
+    expect(screen.getByText("チップを1つはずしてみてください。")).toBeInTheDocument();
+    expect(screen.getByText(/^その条件だと、見つかりませんでした。/)).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "ピンを立てる" }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: "絞り込みを解除する" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "しぼりこみをはずす" }).length).toBe(2);
   });
 
-  it("全チップOFF（filters=none）で0件なら、本当に未登録として「まだ店がありません。」を出す", () => {
+  it("全チップOFF（filters=none）で0件なら、本当に未登録として「この街には、まだピンがありません」を出す", () => {
     render(
       <CityMapScreen city={CITY} spots={[]} quietCount={0} activeFilters={[]} focusedSpotIds={null} />,
     );
 
-    expect(screen.getAllByText("まだ店がありません。").length).toBeGreaterThan(0);
-    expect(screen.queryAllByText("条件に合う店が見つかりませんでした。")).toHaveLength(0);
-    expect(screen.queryAllByRole("button", { name: "絞り込みを解除する" })).toHaveLength(0);
+    expect(screen.getByText("この街には、まだピンがありません")).toBeInTheDocument();
+    expect(screen.getByText("最初の一軒、立ててみませんか？")).toBeInTheDocument();
+    expect(screen.getByText(/^この街には、まだピンがありません。最初の一軒、立ててみませんか？/)).toBeInTheDocument();
+    expect(screen.queryAllByText(/その条件だと/)).toHaveLength(0);
+    expect(screen.queryAllByRole("button", { name: "しぼりこみをはずす" })).toHaveLength(0);
   });
 
   // Codex R9 重要2: 位置解決待ちの間はピンを出さず、その旨を控えめに表示する。
-  it("URL座標が無く位置解決待ちの間は、ピンを出さず「現在地を確認しています…」を表示する", () => {
+  it("URL座標が無く位置解決待ちの間は、ピンを出さず「いまいる場所をたしかめています…」を表示する", () => {
     render(
       <CityMapScreen
         city={CITY}
@@ -172,11 +188,12 @@ describe("CityMapScreen", () => {
       />,
     );
 
-    expect(screen.getAllByText("現在地を確認しています…").length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: "絞り込みを解除する" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("いまいる場所をたしかめています…").length).toBe(2);
+    expect(screen.queryByTestId("pin-spot-1")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "しぼりこみをはずす" })).not.toBeInTheDocument();
   });
 
-  it("SPEC §9.14-16: 絞り込みが既定のまま0件（本当に未登録）なら「まだ店がありません。」を出し、解除導線は出さない", () => {
+  it("SPEC §9.14-16: 絞り込みが既定のまま0件（本当に未登録）なら未登録の文を出し、解除導線は出さない", () => {
     render(
       <CityMapScreen
         city={CITY}
@@ -187,8 +204,53 @@ describe("CityMapScreen", () => {
       />,
     );
 
-    expect(screen.getAllByText("まだ店がありません。").length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: "絞り込みを解除する" })).not.toBeInTheDocument();
+    expect(screen.getByText("この街には、まだピンがありません")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "しぼりこみをはずす" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "ピンを立てる" }).length).toBeGreaterThan(0);
+  });
+
+  it("SPEC motion §5.2: 件数・承認待ちへの導線・＋ ピンを立てる・栞の丸が新しい見た目の文になる", () => {
+    render(<CityMapScreen city={CITY} spots={[SPOT]} quietCount={1} activeFilters={[]} focusedSpotIds={null} />);
+
+    expect(screen.getByText(/地元の人が「まだ静か」とたしかめた店、/)).toBeInTheDocument();
+    expect(screen.getByText(/^静かなまま、/)).toBeInTheDocument();
+    // →（飾り）は読み上げない
+    expect(screen.getAllByRole("link", { name: "承認待ちのピンをのぞく" })).toHaveLength(2);
+    // 「＋」だけの丸をやめ、見える字がそのまま名前になる（aria-label は付けない）
+    const add = screen.getAllByRole("link", { name: "ピンを立てる" })[0];
+    expect(add).not.toHaveAttribute("aria-label");
+    expect(add).toHaveClass("map-add");
+    const bm = screen.getByRole("link", { name: "栞" });
+    expect(bm).toHaveAttribute("data-lamp-target", "bookmarks");
+    expect(screen.getByTestId("map")).toHaveAttribute("data-intro-key", "sapporo");
+  });
+
+  it("SPEC motion §5.2: sotto:bookmarked でそのピンが栞の見た目になり、sotto:bookmark-failed で戻る", () => {
+    render(<CityMapScreen city={CITY} spots={[SPOT]} quietCount={1} activeFilters={[]} focusedSpotIds={null} />);
+    expect(screen.getByTestId("pin-spot-1")).toHaveAttribute("data-bookmarked", "false");
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent("sotto:bookmarked", { detail: { spotId: "spot-1" } }));
+    });
+    expect(screen.getByTestId("pin-spot-1")).toHaveAttribute("data-bookmarked", "true");
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent("sotto:bookmark-failed", { detail: { spotId: "spot-1" } }));
+    });
+    expect(screen.getByTestId("pin-spot-1")).toHaveAttribute("data-bookmarked", "false");
+  });
+
+  it("最初から栞に挟んでいる店のピンは栞の見た目で渡る", () => {
+    render(
+      <CityMapScreen
+        city={CITY}
+        spots={[SPOT]}
+        quietCount={1}
+        activeFilters={[]}
+        focusedSpotIds={null}
+        bookmarkedSpotIds={["spot-1"]}
+      />,
+    );
+    expect(screen.getByTestId("pin-spot-1")).toHaveAttribute("data-bookmarked", "true");
   });
 });
