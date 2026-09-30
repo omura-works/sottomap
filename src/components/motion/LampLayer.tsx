@@ -78,7 +78,11 @@ function canAnimate(): boolean {
 
 function findTarget(name: LampTargetName, from?: LampPoint): Element | null {
   if (typeof document === "undefined") return null;
-  const candidates = Array.from(document.querySelectorAll(`[data-lamp-target="${name}"]`)).filter(isShown);
+  const shown = Array.from(document.querySelectorAll(`[data-lamp-target="${name}"]`)).filter(isShown);
+  // 画面の中に「この画面ではこちらへ」と印（data-lamp-prefer）の付いた候補があれば、それを優先する
+  // （地図のスマホの右上の「栞」の丸。下部タブの栞の丸の方が近くても、こちらへ飛ぶ。SPEC motion §5.2）。
+  const preferred = shown.filter((el) => el.hasAttribute("data-lamp-prefer"));
+  const candidates = preferred.length > 0 ? preferred : shown;
   if (candidates.length <= 1 || !from) return candidates[0] ?? null;
   const origin = centerOf(from);
   let best: Element | null = null;

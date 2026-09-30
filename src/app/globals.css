@@ -1567,15 +1567,145 @@ figcaption {
 }
 
 /* — map — */
-/* SPEC §9.14-14: 地図ピン（見た目30px）のタップ領域を44x44px以上に広げる
-   （src/components/map/MapCanvas.tsx の createMarkerElement が付与）。 */
+/* 地図のピン（SPEC motion §5.2.1）: 2層。外側 .map-pin-hit-area は MapLibre が位置の transform を書く要素なので、
+   大きさと当たり判定だけを持ち、見た目・transform・opacity の演出は付けない（position は MapLibre の absolute のまま。
+   relative にすると、マーカーが通常の流れに並んで N 番目のピンが N×30px 下へずれる）。
+   見た目と動きは内側の .pin-stamp だけ。影は付けない（判子なので）。filter も付けない。 */
+.map-pin-hit-area {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+/* SPEC §9.14-14: 見た目 30px のまま、当たり判定だけ透明な ::after で 44x44px 以上に広げる */
 .map-pin-hit-area::after {
   content: "";
   position: absolute;
   inset: -7px;
+  border-radius: 999px;
+}
+.map-pin-hit-area[data-selected="true"] {
+  z-index: 2;
+}
+/* フォーカスの輪は判子に付ける（判子の持ち上がり・選択の輪と一緒に動く）。輪そのものは動かさない */
+.map-pin-hit-area:focus-visible {
+  outline: none;
+}
+.map-pin-hit-area:focus-visible .pin-stamp {
+  outline: 2px solid var(--color-accent-600);
+  outline-offset: 4px;
+}
+.map-pin-hit-area[data-selected="true"]:focus-visible .pin-stamp {
+  outline-offset: 8px;
+}
+.pin-stamp {
+  --bgc: var(--color-accent-2-400);
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-synthesis: none;
+  font-size: 15px;
+  line-height: 1;
+  background: var(--bgc);
+  color: var(--color-accent-2-900);
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--bgc) 55%, white),
+    0 0 0 2px var(--color-neutral-800);
+  rotate: var(--tilt, 0deg);
+  transition: scale var(--dur-stamp) var(--spring-stamp);
+  user-select: none;
+}
+.pin-stamp[data-q="crowding"] {
+  --bgc: var(--color-accent-400);
+  color: var(--color-accent-900);
+}
+.pin-stamp[data-q="touristy"] {
+  --bgc: var(--color-neutral-700);
+  color: var(--color-neutral-100);
+}
+/* 選択中: 持ち上がり、輪郭を3重に（色だけでなく形でも選択を示す） */
+.map-pin-hit-area[data-selected="true"] .pin-stamp {
+  scale: 1.18;
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--bgc) 55%, white),
+    0 0 0 2px var(--color-neutral-900),
+    0 0 0 4px var(--color-bg),
+    0 0 0 6px var(--color-accent-600);
+}
+/* 栞に挟んだ店: 止まった光（「地図の上でも光ります」） */
+.map-pin-hit-area[data-bookmarked="true"] .pin-stamp {
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--bgc) 55%, white),
+    0 0 0 2px var(--color-neutral-800),
+    var(--glow-sm);
+}
+.map-pin-hit-area[data-selected="true"][data-bookmarked="true"] .pin-stamp {
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--bgc) 55%, white),
+    0 0 0 2px var(--color-neutral-900),
+    0 0 0 4px var(--color-bg),
+    0 0 0 6px var(--color-accent-600),
+    var(--glow-sm);
+}
+/* 判子の入場: 待つ間は透明 → 押す（--d ずらし）／フェード。消えるときは縮んで消える */
+.pin-stamp.is-waiting {
+  opacity: 0;
+}
+.pin-stamp.is-stamping {
+  animation:
+    v-stamp var(--dur-stamp) var(--spring-stamp) var(--d, 0ms) both,
+    v-fade-in 80ms var(--ease-out-soft) var(--d, 0ms) both;
+}
+.pin-stamp.has-ink::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid var(--color-neutral-800);
+  opacity: 0;
+  animation: v-ink 420ms var(--ease-out-soft) calc(var(--d, 0ms) + 120ms) 1 both;
+  pointer-events: none;
+}
+.pin-stamp.is-fading {
+  animation: v-fade-in 200ms var(--ease-out-soft) var(--d, 0ms) both;
+}
+.pin-stamp.is-leaving {
+  animation: pin-leave 180ms var(--ease-peel) both;
+}
+@keyframes pin-leave {
+  to {
+    scale: 0.6;
+    opacity: 0;
+  }
+}
+/* 栞のリボン（8×14px）。判子の右上に挟まる。箱が overflow: clip */
+.pin-rb-box {
+  position: absolute;
+  top: -5px;
+  right: -3px;
+  z-index: 1;
+  width: 8px;
+  height: 14px;
+  overflow: clip;
+  pointer-events: none;
+}
+.pin-ribbon {
+  width: 8px;
+  height: 14px;
+}
+.pin-ribbon.is-waiting {
+  translate: 0 -100%;
+}
+.pin-ribbon.is-fading {
+  animation: v-fade-in 200ms var(--ease-out-soft) var(--d, 0ms) both;
 }
 
-/* 街の地図: 右上に重なる「栞」の丸ボタン（上端 12px＋高さ 36px 程度）の下にズームボタンを置く。 */
+/* 街の地図: 右上に重なる「栞」の丸ボタン（上端 12px＋高さ 44px。ズームの枠の上の余白 10px を足して重ならない）の下にズームボタンを置く。 */
 .city-map .maplibregl-ctrl-top-right {
   top: 56px;
 }
@@ -2355,6 +2485,741 @@ figcaption {
   html[data-nav] .map-underlay .verb-draw {
     animation: none;
     stroke-dashoffset: 0;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   P4 地図・さがす・店の詳細（SPEC motion §5.2・§5.3・§5.4）。
+   h1・p などの要素の既定はレイヤーの外にあるので、それを上書きするこの節もレイヤーの外に置く。
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* テープが貼られる（左端から 180ms）。遅れは --d */
+@keyframes v-tape {
+  from {
+    scale: 0 1;
+  }
+}
+.tape-in {
+  transform-origin: left center;
+  animation: v-tape 180ms var(--ease-out-soft) var(--d, 0ms) both;
+}
+
+/* — 地図（§5.2）— */
+.map-head-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px 0;
+  pointer-events: none;
+}
+.map-head {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  padding: 12px 16px 4px;
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-100);
+  box-shadow: var(--shadow-sticker);
+  pointer-events: auto;
+}
+.map-head-tape {
+  top: -8px;
+  left: 18px;
+}
+.map-head-title {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+}
+.map-head-count,
+.map-col-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 4px;
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.3;
+}
+.map-head-count b,
+.map-col-count b {
+  font-weight: 700;
+}
+.map-count-num {
+  position: relative;
+  display: inline-block;
+  margin-block: -0.22em;
+  clip-path: inset(0.04em -0.3em 0.04em -0.3em);
+  font-family: var(--font-heading);
+  font-size: 40px;
+  line-height: 1;
+  color: var(--color-accent-600);
+}
+.map-col-count .map-count-num {
+  font-size: var(--fs-num);
+}
+.map-pending-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--color-accent-700);
+  text-decoration: none;
+}
+.map-pending-link:hover {
+  text-decoration: underline;
+}
+.map-head-empty {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--color-text-muted);
+}
+.map-head-empty-link {
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--color-accent-700);
+  text-decoration: underline;
+  cursor: pointer;
+}
+/* 右上の「栞」の丸（1字の判子の字なので Mochiy） */
+.map-bm-btn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  background: var(--color-neutral-100);
+  box-shadow:
+    0 0 0 2px var(--color-neutral-800),
+    var(--shadow-sticker);
+  font-family: var(--font-heading);
+  font-size: 16px;
+  line-height: 1;
+  color: var(--color-text);
+  text-decoration: none;
+  pointer-events: auto;
+  transition: scale var(--dur-stamp) var(--spring-stamp);
+}
+.map-bm-btn:active {
+  scale: 0.94;
+  transition-duration: var(--dur-press);
+}
+/* 右下の「＋ ピンを立てる」 */
+.map-add {
+  position: absolute;
+  right: 16px;
+  bottom: 22px;
+  z-index: 10;
+  min-height: 52px;
+  gap: 6px;
+  padding: 0 20px;
+  box-shadow: var(--shadow-lg);
+}
+.map-add-plus {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  line-height: 1;
+}
+/* 下部カード（スマホ、ピンを選んだとき） */
+.map-bcard-slot {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 11;
+}
+.map-bcard {
+  position: relative;
+  gap: 0;
+  padding: 20px;
+  box-shadow: var(--shadow-lg);
+}
+.map-bcard-tape {
+  top: -9px;
+  left: 50%;
+  margin-left: -28px;
+}
+.map-bcard-kicker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+.map-bcard-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 8px 0 0;
+  font-family: var(--font-heading);
+  font-size: 1.375rem;
+  line-height: 1.35;
+}
+.map-bcard-desc {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.8;
+}
+.map-bcard-btns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+}
+/* PC のホバーカード（付箋。文が入るので傾けない） */
+.map-hovercard {
+  position: absolute;
+  z-index: 20;
+  width: 260px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: var(--color-accent-100);
+  box-shadow: var(--shadow-sticker);
+  pointer-events: none;
+}
+.map-hovercard-tape {
+  top: -8px;
+  left: 14px;
+}
+.map-hovercard-kicker {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  color: var(--color-accent-800);
+}
+.map-hovercard-name {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+.map-hovercard-desc {
+  margin: 2px 0 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-accent-800);
+}
+@media (max-width: 1023.98px) {
+  .map-hovercard {
+    display: none;
+  }
+}
+@media (min-width: 1024px) {
+  .map-add {
+    right: 24px;
+    bottom: 28px;
+  }
+  /* PC では左の列が見出しを持つ（この節はレイヤーの外なので Tailwind の lg:hidden より強い。ここで隠す） */
+  .map-head-row,
+  .map-bcard-slot {
+    display: none;
+  }
+}
+/* PC の左の列 */
+.map-col {
+  gap: 16px;
+  padding: 24px 20px;
+  background: var(--color-bg);
+  border-right: 1px solid var(--color-divider);
+}
+.map-col-title {
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+
+/* — 一覧の行（§5.3。検索と地図の PC の列）— */
+.spot-rows {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.spot-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-100);
+  color: var(--color-text);
+  text-decoration: none;
+  transition:
+    background-color var(--dur-quick) var(--ease-out-soft),
+    border-color var(--dur-quick) var(--ease-out-soft);
+}
+.spot-row:hover {
+  background: color-mix(in srgb, var(--color-accent-100) 60%, var(--color-neutral-100));
+}
+.spot-row[data-selected="true"] {
+  background: var(--color-accent-100);
+  border-color: var(--color-accent-600);
+}
+/* サムネ: 写真が無いときは砂色の地の真ん中に灯りの点。右下に静けさの判子 */
+.spot-thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+.spot-thumb::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-400);
+  box-shadow: var(--glow-sm);
+}
+.spot-thumb-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+.spot-thumb-stamp {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+}
+.spot-row-text {
+  flex: 1;
+  min-width: 0;
+  padding-left: 4px;
+}
+.spot-row-name {
+  display: block;
+  overflow: hidden;
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.spot-row-meta {
+  display: block;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+.spot-row-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+/* 小見出し（「しぼりこむ」「混みはじめた店」） */
+.mini-heading {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+/* 区切り: 横の散歩道 → 見出し → 一文 */
+.sink-divider {
+  margin: 20px 0 10px;
+}
+.walk-dots {
+  display: block;
+  width: 100%;
+  height: 4px;
+  background-image: radial-gradient(circle, var(--color-neutral-400) 2px, transparent 2.5px);
+  background-size: 18px 4px;
+  background-repeat: repeat-x;
+}
+.sink-divider .mini-heading {
+  margin-top: 14px;
+}
+.sink-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--color-text-muted);
+}
+
+/* — 空の状態（§4.6）— */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 4px;
+}
+.empty-state-big {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 22px;
+  line-height: 1.45;
+}
+.empty-state-small {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.9;
+  color: var(--color-text-muted);
+}
+
+/* — さがす（§5.3）— */
+.search-h1 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 0;
+  font-size: var(--fs-lead);
+}
+.search-h1:focus {
+  outline: none;
+}
+.search-h1-word {
+  font-family: var(--font-body);
+  font-size: var(--fs-lead);
+  font-weight: 700;
+  line-height: 1.2;
+}
+.search-h1-num {
+  position: relative;
+  display: inline-block;
+  margin-block: -0.22em;
+  clip-path: inset(0.04em -0.3em 0.04em -0.3em);
+  font-family: var(--font-heading);
+  font-size: var(--fs-giant);
+  line-height: 1;
+  color: var(--color-accent-600);
+}
+.search-h1-pending {
+  font-family: var(--font-body);
+  font-size: var(--fs-h3);
+  font-weight: 700;
+  line-height: 1.5;
+}
+.search-lead {
+  margin: 6px 0 0;
+  font-size: 15px;
+  color: var(--color-text-muted);
+}
+.search-field {
+  position: relative;
+  padding-top: 8px;
+}
+.search-field-input {
+  min-height: 52px;
+  padding-left: 44px;
+}
+.search-field-mag {
+  position: absolute;
+  left: 14px;
+  top: calc(8px + 17px);
+  z-index: 1;
+  width: 18px;
+  height: 18px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+  transition: rotate 240ms var(--ease-out-soft);
+}
+.search-field:focus-within .search-field-mag {
+  rotate: -12deg;
+}
+.search-filters {
+  padding-top: 12px;
+}
+.search-filters .mini-heading {
+  margin-bottom: 6px;
+}
+.search-pending {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  min-height: 20px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  /* すぐ終わる待ちでは出さない（400ms 待って出る。§4.5） */
+  animation: v-fade-in 1ms linear 400ms both;
+}
+.search-pending-lamp {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-400);
+  box-shadow: var(--glow-sm);
+  animation: v-breath var(--dur-breath) var(--ease-breath) 400ms 2;
+}
+.sort-note {
+  padding-top: 24px;
+}
+.sort-note-lead {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: var(--color-text-muted);
+}
+.sticky-kicker {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--color-accent-700);
+}
+.sticky-body {
+  margin: 4px 0 0;
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--color-accent-800);
+}
+
+/* — 店の詳細（§5.4）— */
+/* 飛んでくるカギカッコ（±40px）・テープ・傾いた写真が画面の横へはみ出して、スマホで横に広がらないように
+   （はみ出すと表示の幅が変わり、最初の表示でレイアウトがやり直しになって LCP が遅れていた）。縦は切らない */
+.spot-detail {
+  overflow-x: clip;
+}
+/* 要素の既定（figure・blockquote・p の margin）がレイヤーの外にあるので、段と段の間はここで取る */
+.spot-detail > :not(:last-child) {
+  margin-block-end: 1.5rem;
+}
+.spot-detail > .detail-photo {
+  margin-block-end: 1.75rem;
+}
+.spot-detail > .detail-head {
+  margin-block-end: 2.25rem;
+}
+.spot-detail > .detail-quote {
+  margin-block-end: 1.75rem;
+}
+.detail-photo {
+  position: relative;
+}
+.detail-photo-mount {
+  position: relative;
+  rotate: var(--tilt, -1.5deg);
+}
+.detail-photo-img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 8px solid var(--color-neutral-100);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-paper);
+}
+.detail-tape-l {
+  top: -9px;
+  left: -12px;
+  rotate: -6deg;
+}
+.detail-tape-r {
+  top: -9px;
+  right: -12px;
+  rotate: 5deg;
+  transform-origin: right center;
+}
+.detail-alley {
+  border-radius: var(--radius-lg);
+}
+.detail-no-photo {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  padding: 12px;
+  font-size: 13px;
+  color: var(--color-neutral-300);
+}
+/* 写真の栞のリボン（挟まる・抜ける） */
+.photo-rb-box {
+  position: absolute;
+  top: 0;
+  right: 28px;
+  z-index: 2;
+  width: 24px;
+  height: 84px;
+  overflow: clip;
+  pointer-events: none;
+}
+.photo-ribbon {
+  width: 24px;
+  height: 72px;
+}
+@keyframes photo-ribbon-out {
+  to {
+    translate: 0 -100%;
+  }
+}
+.photo-ribbon.is-leaving {
+  animation: photo-ribbon-out var(--dur-peel) var(--ease-peel) both;
+}
+.detail-kicker {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+.detail-title {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+}
+.detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+/* 投稿者の言葉: 飾りの大きなカギカッコが左外・右外から飛んできて、行き過ぎて止まる */
+.detail-quote {
+  position: relative;
+  margin: 0;
+  padding: 24px 32px;
+  border-radius: var(--radius-lg);
+  background: var(--color-neutral-100);
+}
+.detail-quote-text {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.9;
+}
+.detail-quote-by {
+  margin: 10px 0 0;
+  text-align: right;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+@keyframes v-bracket {
+  from {
+    translate: var(--bx) 0;
+  }
+}
+.detail-qmark {
+  position: absolute;
+  font-family: var(--font-heading);
+  font-size: 64px;
+  line-height: 1;
+  color: var(--color-accent-500);
+  pointer-events: none;
+  user-select: none;
+  animation:
+    v-bracket var(--dur-pop) var(--spring-pop) 300ms both,
+    v-fade-in 120ms var(--ease-out-soft) 300ms both;
+}
+.detail-qmark-open {
+  --bx: -40px;
+  left: 8px;
+  top: -6px;
+}
+.detail-qmark-close {
+  --bx: 40px;
+  right: 8px;
+  bottom: -28px;
+}
+@media (min-width: 1024px) {
+  .detail-quote {
+    padding: 28px 40px;
+  }
+}
+/* 状態のカード: 左に大きな判子、右に字 */
+.detail-status {
+  flex-direction: row;
+  align-items: center;
+  gap: 20px;
+}
+.detail-status-text {
+  min-width: 0;
+}
+.status-title {
+  margin: 6px 0 0;
+  font-family: var(--font-heading);
+  font-size: 1.625rem;
+  font-weight: 400;
+  font-synthesis: none;
+  line-height: 1.35;
+}
+.detail-status-body {
+  margin: 4px 0 0;
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+/* 画面の中の失敗の文（§4.7）: 左に消灯の提灯の線画 */
+.inline-alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-muted);
+}
+
+/* P4 の reduce（§5.2・§5.3・§5.4 の reduce の行）: 最終状態で即時に出す */
+@media (prefers-reduced-motion: reduce) {
+  .tape-in,
+  .pin-stamp,
+  .pin-stamp::after,
+  .pin-ribbon,
+  .photo-ribbon,
+  .detail-qmark,
+  .search-pending-lamp {
+    animation: none !important;
+  }
+  .pin-stamp.is-waiting {
+    opacity: 1;
+  }
+  .pin-ribbon.is-waiting {
+    translate: none;
+  }
+  .pin-stamp,
+  .map-bm-btn,
+  .spot-row,
+  .search-field-mag {
+    transition: none !important;
+  }
+  /* 待ちの表示は呼吸しないが、すぐ終わる待ちでは出さない（400ms 待つ）のは同じ */
+  .search-pending {
+    animation: v-fade-in 1ms linear 400ms both !important;
   }
 }
 

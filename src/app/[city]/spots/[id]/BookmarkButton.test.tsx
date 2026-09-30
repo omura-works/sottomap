@@ -31,9 +31,42 @@ describe("BookmarkButton", () => {
 
     await waitFor(() => {
       expect(screen.queryByText("栞に挟みました。")).not.toBeInTheDocument();
-      expect(screen.getByText("栞に挟めませんでした。")).toBeInTheDocument();
+      expect(
+        screen.getByText("ごめんなさい、栞に挟めませんでした。もう一度押してみてください。"),
+      ).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "栞に挟む" })).toBeEnabled();
     });
+  });
+
+  it("SPEC motion §5.2: 挟んだ瞬間に sotto:bookmarked が1回出て、失敗したら sotto:bookmark-failed が出る", async () => {
+    let rejectAction: (reason: Error) => void = () => {};
+    vi.mocked(addBookmarkAction).mockImplementation(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectAction = reject;
+        }),
+    );
+    const bookmarked = vi.fn();
+    const failed = vi.fn();
+    const onBookmarked = (event: Event) => bookmarked((event as CustomEvent<{ spotId: string }>).detail.spotId);
+    const onFailed = (event: Event) => failed((event as CustomEvent<{ spotId: string }>).detail.spotId);
+    window.addEventListener("sotto:bookmarked", onBookmarked);
+    window.addEventListener("sotto:bookmark-failed", onFailed);
+    try {
+      const user = userEvent.setup();
+      render(<BookmarkButton spotId="spot-1" initiallyBookmarked={false} />);
+      await user.click(screen.getByRole("button", { name: "栞に挟む" }));
+      expect(bookmarked).toHaveBeenCalledTimes(1);
+      expect(bookmarked).toHaveBeenCalledWith("spot-1");
+      expect(failed).not.toHaveBeenCalled();
+
+      await act(async () => rejectAction(new Error("network error")));
+      await waitFor(() => expect(failed).toHaveBeenCalledWith("spot-1"));
+      expect(bookmarked).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener("sotto:bookmarked", onBookmarked);
+      window.removeEventListener("sotto:bookmark-failed", onFailed);
+    }
   });
 
   it("Server Actionが成功したら確定表示を維持する", async () => {

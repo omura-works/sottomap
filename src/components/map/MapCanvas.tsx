@@ -16,7 +16,20 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import type { Quietness } from "@/lib/db/types";
 import { quietnessLabel } from "@/lib/domain/quietness";
 import { prefersReducedMotion } from "@/components/ui/motion-prefs";
-import { setMarkerGlyph, spawnPinHalo } from "./pin-halo";
+import { tiltFromId } from "@/components/motion/tilt";
+import { MapUnderlay } from "./MapUnderlay";
+import {
+  createPinElement,
+  hasStamped,
+  leavePin,
+  markStamped,
+  PIN_GLYPH,
+  PIN_GROUND,
+  playPinEntrance,
+  setMarkerGlyph,
+  setPinRibbon,
+  spawnPinHalo,
+} from "./pin-halo";
 
 // MapLibre v6 は Worker の URL を import.meta.url から実行時に組み立てるため、
 // Turbopack では Worker が配信されず 404 になる（タイルもピンも出なくなる）。
@@ -30,6 +43,10 @@ export interface MapPin {
   lng: number;
   quietness: Quietness;
   label: string;
+  /** 栞に挟んだ店（右上にリボン＋止まった光。SPEC motion §5.2.1）。 */
+  bookmarked?: boolean;
+  /** 変わるたびにそのピンの判子を押し直す（ピンを立てる画面のミニ地図で、タップのたびに変える数）。 */
+  stampKey?: string;
 }
 
 export interface MapPoint {
@@ -52,6 +69,13 @@ export interface MapCanvasProps {
   tileUrlTemplate?: string;
   /** 出典表記。既定は「地理院タイル」。 */
   attribution?: string;
+  /**
+   * 初回の判子の再生のキー（街の slug）。同じタブで同じキーの地図を2回目に開いたときは、判子の代わりにフェードで出す
+   * （`sessionStorage` の `sotto:stamped:{introKey}`）。無ければ毎回判子。
+   */
+  introKey?: string;
+  /** 地図の div の下に紙の地図（`MapUnderlay`）を敷く。既定 true。 */
+  underlay?: boolean;
 }
 
 export const DEFAULT_TILE_URL_TEMPLATE = "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png";
@@ -59,43 +83,34 @@ export const DEFAULT_ATTRIBUTION = "地理院タイル";
 const GSI_SOURCE_ID = "gsi-pale";
 const GSI_LAYER_ID = "gsi-pale-layer";
 
-const QUIETNESS_STYLE: Record<Quietness, { bg: string; fg: string; glyph: string }> = {
-  quiet: { bg: "var(--color-accent-2-600)", fg: "var(--color-bg)", glyph: "静" },
-  crowding: { bg: "var(--color-accent-600)", fg: "var(--color-bg)", glyph: "並" },
-  touristy: { bg: "var(--color-neutral-600)", fg: "var(--color-bg)", glyph: "観" },
-};
+/** 判子を押すのは 24 個まで。25 個目から後はフェード（SPEC motion §5.2・§7.1）。 */
+const STAMP_LIMIT = 24;
+const STAMP_STEP_MS = 30;
+const FADE_AFTER_STAMPS_MS = 720;
+/** インクの輪は最初の3つの「静」だけ。 */
+const INK_LIMIT = 3;
+/** 絞り込みで新しく出るピン: 20ms ずらし・12 個で打ち止め・インクなし。 */
+const NEW_PIN_STEP_MS = 20;
+const NEW_PIN_MAX_INDEX = 11;
+/** 最初の idle が来なくても、load からこの時間で判子を始める。 */
+const INTRO_FALLBACK_MS = 1200;
+const DUR_STAMP_MS = 480;
 
-// SPEC §9.14-14: ピンの見た目（30px）は変えず、タップ／クリックの当たり判定だけ
-// 透明な ::after（.map-pin-hit-area, globals.css）で44x44px以上に広げる。
-function createMarkerElement(pin: MapPin, selected: boolean): HTMLDivElement {
-  const style = QUIETNESS_STYLE[pin.quietness];
-  const el = document.createElement("div");
-  el.className = "map-pin-hit-area";
-  el.setAttribute("role", "button");
-  el.setAttribute("tabindex", "0");
-  el.setAttribute("aria-label", `${pin.label}・${quietnessLabel(pin.quietness)}`);
-  el.title = `${pin.label}（${quietnessLabel(pin.quietness)}）`;
-  el.style.cssText = [
-    "position:relative",
-    "display:flex",
-    "align-items:center",
-    "justify-content:center",
-    "width:30px",
-    "height:30px",
-    "border-radius:999px",
-    `background:${style.bg}`,
-    `color:${style.fg}`,
-    "font-family:var(--font-heading), system-ui, sans-serif",
-    "font-weight:700",
-    "font-size:13px",
-    "line-height:1",
-    "cursor:pointer",
-    "box-shadow:var(--shadow-md)",
-    `border:${selected ? "3px solid var(--color-text)" : "2px solid var(--color-bg)"}`,
-    "transform:translateZ(0)",
-  ].join(";");
-  el.textContent = style.glyph;
-  return el;
+interface PinRecord {
+  marker: maplibregl.Marker;
+  outer: HTMLDivElement;
+  stamp: HTMLSpanElement;
+  pin: MapPin;
+  /** 消えている途中なら、消えるのを取り消す関数。 */
+  cancelLeave: (() => void) | null;
+}
+
+function pinAriaLabel(pin: MapPin): string {
+  return `${pin.label}・${quietnessLabel(pin.quietness)}`;
+}
+
+function pinTitle(pin: MapPin): string {
+  return `${pin.label}（${quietnessLabel(pin.quietness)}）`;
 }
 
 /**
@@ -103,6 +118,10 @@ function createMarkerElement(pin: MapPin, selected: boolean): HTMLDivElement {
  * ピンの選択/ホバーはコールバックで通知するのみで、実際のカードUI（カード/一覧の
  * ハイライト等）は呼び出し側（`@/components/map/CityMapScreen` 等）が
  * `@/components/ui` の共通コンポーネントで描画する。
+ *
+ * ピンの動き（SPEC motion §5.2.1・§7.2-5）: マーカーの外側（MapLibre が位置の transform を書く要素）には演出を付けず、
+ * 内側の判子だけを動かす。判子は地図の最初の `idle`（または load から 1200ms）の後、地図が止まっている時に押し始める。
+ * 演出のために `jumpTo`・`flyTo`・`fitBounds` は呼ばない。
  */
 export function MapCanvas({
   center,
@@ -116,13 +135,19 @@ export function MapCanvas({
   className,
   tileUrlTemplate = DEFAULT_TILE_URL_TEMPLATE,
   attribution = DEFAULT_ATTRIBUTION,
+  introKey,
+  underlay = true,
 }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
-  const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
+  const recordsRef = useRef<Map<string, PinRecord>>(new Map());
   const hoveredIdRef = useRef<string | null>(null);
   // フォーカスハロー: 「選択した瞬間」だけ輪を出すため、前回の選択を覚えておく。
   const haloSelectedIdRef = useRef<string | null>(null);
+  // 初回の判子: "pending"（地図の準備待ち）→ "ready"（準備はできたがピンがまだ無い）→ "done"。
+  const introRef = useRef<"pending" | "ready" | "done">("pending");
+  const pinsRef = useRef<MapPin[]>(pins);
+  const introKeyRef = useRef(introKey);
 
   // コールバック類は毎レンダーで新しい参照になり得るため ref 経由で最新を参照する
   // （地図・マーカーの再生成を避けるため）。ref の更新はレンダー本体ではなく
@@ -131,10 +156,60 @@ export function MapCanvas({
   useEffect(() => {
     callbacksRef.current = { onSelectPin, onHoverPin, onBackgroundClick };
   }, [onSelectPin, onHoverPin, onBackgroundClick]);
+  useEffect(() => {
+    introKeyRef.current = introKey;
+  }, [introKey]);
+
+  // 初回の判子（ぽん、ぽん、ぽんと、静かな店から順に）。地図が動いている間は始めず、止まってから始める。
+  const playIntroRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    playIntroRef.current = () => {
+      const map = mapRef.current;
+      if (!map || introRef.current === "done") return;
+      if (map.isMoving()) {
+        map.once("moveend", () => playIntroRef.current());
+        return;
+      }
+      const records = recordsRef.current;
+      const order = pinsRef.current
+        .map((pin) => records.get(pin.id))
+        .filter((rec): rec is PinRecord => rec !== undefined && rec.cancelLeave === null);
+      if (order.length === 0) {
+        introRef.current = "ready";
+        return;
+      }
+      introRef.current = "done";
+      const secondVisit = hasStamped(introKeyRef.current);
+      let inks = 0;
+      order.forEach((rec, i) => {
+        const bookmarked = rec.outer.dataset.bookmarked === "true";
+        if (secondVisit) {
+          playPinEntrance(rec.stamp, "fade", 0);
+          if (bookmarked) setPinRibbon(rec.outer, true, "fade", 0);
+          return;
+        }
+        if (i < STAMP_LIMIT) {
+          const delay = i * STAMP_STEP_MS;
+          const ink = rec.pin.quietness === "quiet" && inks < INK_LIMIT;
+          if (ink) inks += 1;
+          playPinEntrance(rec.stamp, "stamp", delay, ink);
+          // 栞の店は、押し終わった後にリボンが挟まる
+          if (bookmarked) setPinRibbon(rec.outer, true, "tuck", delay + DUR_STAMP_MS);
+          return;
+        }
+        playPinEntrance(rec.stamp, "fade", FADE_AFTER_STAMPS_MS);
+        if (bookmarked) setPinRibbon(rec.outer, true, "fade", FADE_AFTER_STAMPS_MS);
+      });
+      markStamped(introKeyRef.current);
+    };
+  });
 
   // 地図の初期化（マウント時に一度だけ）。
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
+
+    // 動きを減らす設定なら、ピンは最初から押された状態（判子を待たない）。
+    introRef.current = prefersReducedMotion() ? "done" : "pending";
 
     maplibregl.setWorkerUrl(MAPLIBRE_WORKER_URL);
     const map = new maplibregl.Map({
@@ -171,8 +246,21 @@ export function MapCanvas({
       callbacksRef.current.onBackgroundClick?.({ lat: event.lngLat.lat, lng: event.lngLat.lng });
     });
 
+    // 地図が出そろった（最初の idle）か、load から 1200ms の早い方で判子を始める。
+    let fallbackTimer: number | undefined;
+    const onReady = () => {
+      window.clearTimeout(fallbackTimer);
+      if (introRef.current !== "pending") return;
+      introRef.current = "ready";
+      playIntroRef.current();
+    };
+    map.once("idle", onReady);
+    map.once("load", () => {
+      fallbackTimer = window.setTimeout(onReady, INTRO_FALLBACK_MS);
+    });
+
     mapRef.current = map;
-    const markers = markersRef.current;
+    const records = recordsRef.current;
 
     // コンテナは `h-[calc(100dvh-4rem)]` 等のCSSで決まるため、初期化直後の
     // レイアウト確定（フォント読み込み・dvh再計算等）より前にサイズを掴んでしまうことがある。
@@ -185,9 +273,13 @@ export function MapCanvas({
     resizeObserver.observe(containerRef.current);
 
     return () => {
+      window.clearTimeout(fallbackTimer);
       resizeObserver.disconnect();
-      markers.forEach((marker) => marker.remove());
-      markers.clear();
+      records.forEach((rec) => {
+        rec.cancelLeave?.();
+        rec.marker.remove();
+      });
+      records.clear();
       map.remove();
       mapRef.current = null;
     };
@@ -199,89 +291,151 @@ export function MapCanvas({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    pinsRef.current = pins;
 
     const apply = () => {
+      const records = recordsRef.current;
+      const reduced = prefersReducedMotion();
+      const introDone = introRef.current === "done";
       const nextIds = new Set(pins.map((p) => p.id));
 
-      // 消えたピンを除去。
-      for (const [id, marker] of markersRef.current) {
-        if (!nextIds.has(id)) {
-          marker.remove();
-          markersRef.current.delete(id);
+      // 消えたピン: 外側はすぐに読み上げ・フォーカス・当たり判定から外し、内側だけが 180ms で縮んで消える。
+      for (const [id, rec] of records) {
+        if (nextIds.has(id) || rec.cancelLeave) continue;
+        if (hoveredIdRef.current === id) {
+          hoveredIdRef.current = null;
+          callbacksRef.current.onHoverPin?.(null, null);
         }
+        const done = () => {
+          if (records.get(id) !== rec) return;
+          rec.marker.remove();
+          records.delete(id);
+        };
+        const cancel = leavePin(rec.outer, reduced, done);
+        if (records.get(id) === rec) rec.cancelLeave = cancel;
       }
 
+      let newIndex = 0;
       for (const pin of pins) {
         const selected = pin.id === selectedId;
-        const existing = markersRef.current.get(pin.id);
+        const bookmarked = pin.bookmarked ?? false;
+        const existing = records.get(pin.id);
 
         if (existing) {
-          existing.setLngLat([pin.lng, pin.lat]);
-          const el = existing.getElement();
-          const style = QUIETNESS_STYLE[pin.quietness];
-          el.style.border = selected ? "3px solid var(--color-text)" : "2px solid var(--color-bg)";
-          el.style.background = style.bg;
-          setMarkerGlyph(el, style.glyph);
-          el.title = `${pin.label}（${quietnessLabel(pin.quietness)}）`;
+          if (existing.cancelLeave) {
+            existing.cancelLeave();
+            existing.cancelLeave = null;
+          }
+          const previous = existing.pin;
+          existing.pin = pin;
+          existing.marker.setLngLat([pin.lng, pin.lat]);
+          existing.outer.dataset.selected = selected ? "true" : "false";
+          if (previous.quietness !== pin.quietness || previous.label !== pin.label) {
+            existing.stamp.dataset.q = pin.quietness;
+            setMarkerGlyph(existing.outer, PIN_GLYPH[pin.quietness]);
+            existing.outer.setAttribute("aria-label", pinAriaLabel(pin));
+            existing.outer.title = pinTitle(pin);
+          }
+          if ((existing.outer.dataset.bookmarked === "true") !== bookmarked) {
+            // 栞に挟んだ瞬間にリボンが挟まる（判子を待っている間は隠れたまま待つ）
+            setPinRibbon(existing.outer, bookmarked, !introDone ? "wait" : reduced ? "none" : "tuck", 0);
+          }
+          if (introDone && !reduced && pin.stampKey !== undefined && pin.stampKey !== previous.stampKey) {
+            playPinEntrance(existing.stamp, "stamp", 0);
+          }
           continue;
         }
 
-        const el = createMarkerElement(pin, selected);
+        const { outer, stamp } = createPinElement({
+          id: pin.id,
+          quietness: pin.quietness,
+          ariaLabel: pinAriaLabel(pin),
+          title: pinTitle(pin),
+          tilt: tiltFromId(pin.id, 4),
+        });
+        outer.dataset.selected = selected ? "true" : "false";
+        let entranceDelay = 0;
+        if (!introDone) {
+          stamp.classList.add("is-waiting");
+        } else if (!reduced) {
+          entranceDelay = Math.min(newIndex, NEW_PIN_MAX_INDEX) * NEW_PIN_STEP_MS;
+          playPinEntrance(stamp, "stamp", entranceDelay);
+          newIndex += 1;
+        }
+        if (bookmarked) {
+          setPinRibbon(outer, true, !introDone ? "wait" : reduced ? "none" : "tuck", entranceDelay + DUR_STAMP_MS);
+        }
+
+        const rec: PinRecord = {
+          marker: new maplibregl.Marker({ element: outer, anchor: "center" }).setLngLat([pin.lng, pin.lat]),
+          outer,
+          stamp,
+          pin,
+          cancelLeave: null,
+        };
 
         // SPEC §9.10: D1 のホバーカードはホバー・フォーカス・タップの3つで
         // 同等に開く必要がある。マウス(mouseenter/leave)に加えて、キーボード
         // フォーカス(focus/blur)とタップ(click/keydown)でも同じ通知を出す。
         const emitHoverEnter = () => {
-          hoveredIdRef.current = pin.id;
-          const point = map.project([pin.lng, pin.lat]);
-          callbacksRef.current.onHoverPin?.(pin.id, { x: point.x, y: point.y });
+          if (rec.cancelLeave) return;
+          hoveredIdRef.current = rec.pin.id;
+          const point = map.project([rec.pin.lng, rec.pin.lat]);
+          callbacksRef.current.onHoverPin?.(rec.pin.id, { x: point.x, y: point.y });
         };
         const emitHoverLeave = () => {
-          if (hoveredIdRef.current === pin.id) {
+          if (hoveredIdRef.current === rec.pin.id) {
             hoveredIdRef.current = null;
             callbacksRef.current.onHoverPin?.(null, null);
           }
         };
 
-        el.addEventListener("click", (event) => {
+        outer.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
+          if (rec.cancelLeave) return;
           emitHoverEnter();
-          callbacksRef.current.onSelectPin?.(pin.id);
+          callbacksRef.current.onSelectPin?.(rec.pin.id);
         });
-        el.addEventListener("keydown", (event) => {
+        outer.addEventListener("keydown", (event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
+            if (rec.cancelLeave) return;
             emitHoverEnter();
-            callbacksRef.current.onSelectPin?.(pin.id);
+            callbacksRef.current.onSelectPin?.(rec.pin.id);
           }
         });
-        el.addEventListener("mouseenter", emitHoverEnter);
-        el.addEventListener("mouseleave", emitHoverLeave);
-        el.addEventListener("focus", emitHoverEnter);
-        el.addEventListener("blur", emitHoverLeave);
+        outer.addEventListener("mouseenter", emitHoverEnter);
+        outer.addEventListener("mouseleave", emitHoverLeave);
+        outer.addEventListener("focus", emitHoverEnter);
+        outer.addEventListener("blur", emitHoverLeave);
 
-        const marker = new maplibregl.Marker({ element: el, anchor: "center" }).setLngLat([pin.lng, pin.lat]).addTo(map);
-        markersRef.current.set(pin.id, marker);
+        rec.marker.addTo(map);
+        records.set(pin.id, rec);
       }
 
       // モーションリファレンス「フォーカスハロー」: 選択が別のピンに変わった瞬間に1回だけ輪を広げる
       // （ピンの差し替え・ホバーなど、選択が変わらない再実行では出さない）。
       if (selectedId !== haloSelectedIdRef.current) {
         haloSelectedIdRef.current = selectedId;
-        const selectedPin = selectedId ? pins.find((p) => p.id === selectedId) : undefined;
-        const selectedMarker = selectedId ? markersRef.current.get(selectedId) : undefined;
-        if (selectedPin && selectedMarker) {
-          spawnPinHalo(selectedMarker.getElement(), QUIETNESS_STYLE[selectedPin.quietness].bg, prefersReducedMotion());
+        const selectedRec = selectedId ? records.get(selectedId) : undefined;
+        if (selectedRec) {
+          spawnPinHalo(selectedRec.outer, PIN_GROUND[selectedRec.pin.quietness], reduced);
         }
       }
+
+      // 地図の準備はできていたがピンがまだ無かった（位置の確定待ちなど）なら、そろったここで判子を押す。
+      if (introRef.current === "ready") playIntroRef.current();
     };
 
     if (map.isStyleLoaded()) {
       apply();
-    } else {
-      map.once("load", apply);
+      return;
     }
+    map.once("load", apply);
+    return () => {
+      map.off("load", apply);
+    };
   }, [pins, selectedId]);
 
   // ホバー中のピンが地図の移動・ズームで位置を変えたら、カード座標を追随させる。
@@ -332,6 +486,8 @@ export function MapCanvas({
 
   return (
     <div className={className} style={{ position: "relative", width: "100%", height: "100%" }}>
+      {/* 紙の地図（止まった絵）を地図の div の下に敷く: タイルが来るまでの間も地図らしく見える */}
+      {underlay ? <MapUnderlay /> : null}
       <div ref={containerRef} style={{ position: "absolute", inset: 0 }} aria-label="地図" />
       {/* 出典表記（SPEC §6: 地図タイルの出典表示必須）。折りたたみ式コントロールに頼らず常時表示する。 */}
       <div
