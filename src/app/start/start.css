@@ -431,6 +431,13 @@
 .start-trail {
   position: relative;
 }
+/* 画面の外の節は、最初の描画の後に描く（StartScreen の useDeferredUntilPainted）。JS が無ければ効かない */
+@media (scripting: enabled) {
+  .start-trail[data-deferred="wait"] {
+    content-visibility: hidden;
+    contain-intrinsic-size: auto 1500px;
+  }
+}
 .start-trail-col,
 .start-trail-lamp {
   display: none;
