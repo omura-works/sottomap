@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { City, Spot } from "@/lib/db/types";
@@ -9,9 +10,12 @@ import { buildDistanceMap, parseUrlOrigin, useResolvedOrigin, WITHIN_10MIN_METER
 import { sortSpots, splitByQuietness } from "@/lib/domain/ordering";
 import { FilterChips } from "./FilterChips";
 import { parseFiltersParam } from "./filters";
-import { SpotListItem } from "./SpotListItem";
+import { SpotRowLink } from "./SpotListItem";
 import { SortNote } from "./SortNote";
+import { SinkingRows } from "./SinkingRows";
 import { PageLamp } from "@/components/motion/PageLamp";
+import { BounceNumber } from "@/components/motion/BounceNumber";
+import { LanternChild } from "@/components/illustrations/LanternChild";
 
 export interface SearchScreenProps {
   city: City;
@@ -265,7 +269,8 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
     if (previousIds === null) return; // 初回描画ではフォーカスを奪わない。
     if (previousIds.join(",") === currentIds.join(",")) return;
     const lastFocused = lastFocusedRef.current;
-    if (lastFocused && !lastFocused.isConnected) {
+    // 退場中の行（`SinkingRows` が退場の間 inert にする）にあったフォーカスも「消えた」とみなす
+    if (lastFocused && (!lastFocused.isConnected || lastFocused.closest("[inert]") !== null)) {
       // Codex R11 重要1: 救済したら追跡をやめる（残すと、利用者が検索欄へ戻った後の次の更新でも
       // 切断済みの古い要素を再検出して、見出しへフォーカスを奪い続けてしまう）。
       lastFocusedRef.current = null;
@@ -274,68 +279,82 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
   }, [visibleSpots]);
 
   return (
-    <div className="mx-auto max-w-xl lg:max-w-2xl px-4 py-4 lg:py-8 space-y-4">
-      {/* SPEC §9.14-9: 検索画面の見出しはDOMの先頭にh1を置き、下位見出しはh2に整理する（見た目は現状維持）。
-          Codex R9 重要2: tabIndex=-1 にして、結果差し替えでフォーカスが消えたときの移動先にする。 */}
-      <h1 ref={headingRef} tabIndex={-1} style={{ fontSize: 22, fontWeight: 400, lineHeight: 1.5 }}>
-        <PageLamp />
-        {originPending ? "現在地を確認しています…" : `近い順に${visibleSpots.length}軒`}
+    <div className="search-screen mx-auto max-w-xl lg:max-w-2xl px-4 py-4 lg:py-8 space-y-4">
+      {/* SPEC §9.14-9: 検索画面の見出しはDOMの先頭にh1を置き、下位見出しはh2に整理する。
+          Codex R9 重要2: tabIndex=-1 にして、結果差し替えでフォーカスが消えたときの移動先にする。
+          SPEC motion §5.3: 件数の数字がこの画面の山（--fs-giant）。変わると桁が回り、止まったら跳ねる。 */}
+      <h1 ref={headingRef} tabIndex={-1} className="search-h1">
+        <span className={originPending ? "search-h1-pending" : "search-h1-word"}>
+          <PageLamp />
+          {originPending ? "いまいる場所をたしかめています…" : "近い順に"}
+        </span>
+        {originPending ? null : (
+          <>
+            <span className="search-h1-num verb-pop" style={{ "--d": "200ms" } as CSSProperties}>
+              <BounceNumber value={visibleSpots.length} />
+            </span>
+            <span className="search-h1-word">軒</span>
+          </>
+        )}
       </h1>
+      <p className="search-lead">気になる条件を、ぽちぽち選んでみてください。</p>
 
       {/* Codex R9 重要2・R10 重要2: 結果が確定・変化したことを常設のライブリージョンで通知する。 */}
       <p role="status" aria-live="polite" className="sr-only">
         {liveMessage}
       </p>
 
-      <Input
-        type="search"
-        value={inputValue}
-        onChange={(e) => setInputValue(e.target.value)}
-        placeholder={`${city.name}の店をさがす`}
-        aria-label={`${city.name}の店をさがす`}
-      />
+      <div className="search-field">
+        <svg className="search-field-mag" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden="true" focusable="false">
+          <circle cx={11} cy={11} r={6} />
+          <path d="m20 20-4.5-4.5" />
+        </svg>
+        <Input
+          type="search"
+          underline
+          className="search-field-input"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          placeholder={`${city.name}の店をさがす`}
+          aria-label={`${city.name}の店をさがす`}
+        />
+      </div>
 
-      <div className="space-y-2">
-        <h2 className="text-muted" style={{ fontFamily: "var(--font-body)", fontWeight: 400, fontSize: "0.875rem", lineHeight: 1.5 }}>
-          絞る
-        </h2>
+      <div className="search-filters">
+        <h2 className="mini-heading">しぼりこむ</h2>
         <FilterChips active={activeFilters} onToggle={toggleFilter} />
       </div>
 
-      <div className="space-y-2" aria-busy={isPending} ref={resultsContainerRef}>
-        {isPending ? <p className="text-muted text-sm m-0">読み込み中…</p> : null}
+      <div className="search-results" aria-busy={isPending} ref={resultsContainerRef}>
+        {isPending ? (
+          <p className="search-pending">
+            <span className="search-pending-lamp" aria-hidden="true" />
+            さがしています…
+          </p>
+        ) : null}
 
         {originPending ? (
-          <p className="text-muted text-sm m-0">現在地を確認しています…</p>
+          <p className="text-muted text-sm m-0">いまいる場所をたしかめています…</p>
         ) : (
           <>
-            <ul className="flex flex-col gap-1 list-none m-0 p-0">
-              {topList.map((spot) => (
-                <SpotListItem key={spot.id} spot={spot} distanceMeters={distances[spot.id]} rowMotion={rowMotion(spot.id)} />
-              ))}
-            </ul>
-
-            {bottomList.length > 0 ? (
-              <div className="space-y-2 mt-2">
-                <h2 className="text-muted m-0" style={{ fontFamily: "var(--font-body)", fontWeight: 400, fontSize: "0.875rem", lineHeight: 1.5 }}>
-                  混みはじめた店
-                </h2>
-                <ul className="flex flex-col gap-1 list-none m-0 p-0">
-                  {bottomList.map((spot) => (
-                    <SpotListItem key={spot.id} spot={spot} distanceMeters={distances[spot.id]} rowMotion={rowMotion(spot.id)} />
-                  ))}
-                </ul>
-              </div>
-            ) : null}
+            <SinkingRows
+              top={topList}
+              bottom={bottomList}
+              rowMotion={rowMotion}
+              dividerHeading="h2"
+              renderRow={(spot) => <SpotRowLink spot={spot} distanceMeters={distances[spot.id]} />}
+            />
 
             {visibleSpots.length === 0 ? (
-              <div className="space-y-2">
-                <p className="text-muted text-sm m-0">条件に合う店が見つかりませんでした。</p>
+              <div className="empty-state">
+                <LanternChild size={48} />
+                <p className="empty-state-big">その条件だと、見つかりませんでした</p>
+                <p className="empty-state-small">チップを1つはずしてみてください。</p>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" className="btn btn-secondary" onClick={clearConditions}>
-                    絞り込みを解除する
+                    しぼりこみをはずす
                   </button>
-                  <Link href={`/${city.slug}/spots/new`} className="btn btn-secondary">
+                  <Link href={`/${city.slug}/spots/new`} transitionTypes={["page-forward"]} className="btn btn-secondary">
                     ピンを立てる
                   </Link>
                 </div>

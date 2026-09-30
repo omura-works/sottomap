@@ -109,14 +109,14 @@ test.describe("現在地の扱い（回帰）", () => {
   });
 
   // Codex R9 重要2: 位置解決中は結果一覧の代わりに待機文言を出し、解決後に件数を通知する。
-  test("重要2(R9): 位置取得中は「現在地を確認しています…」、解決後は件数が確定する", async ({ page }) => {
+  test("重要2(R9): 位置取得中は見出しが「いまいる場所をたしかめています…」、解決後は件数が確定する", async ({ page }) => {
     await grantDelayedGeolocation(page, OTARU_CENTER);
 
     await page.goto("/otaru/search?filters=within-10min");
-    await expect(page.getByRole("heading", { level: 1, name: "現在地を確認しています…" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "いまいる場所をたしかめています…" })).toBeVisible();
 
     await page.waitForTimeout(2000);
-    await expect(page.getByRole("heading", { level: 1, name: "現在地を確認しています…" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { level: 1, name: "いまいる場所をたしかめています…" })).toHaveCount(0);
     await expect(page.getByRole("status")).toHaveText(/軒見つかりました|条件に合う店が見つかりませんでした。/);
   });
 
@@ -125,12 +125,12 @@ test.describe("現在地の扱い（回帰）", () => {
     await grantDelayedGeolocation(page, OTARU_CENTER);
 
     await page.goto("/otaru/search?filters=within-10min");
-    await expect(page.getByRole("heading", { level: 1, name: "現在地を確認しています…" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "いまいる場所をたしかめています…" })).toBeVisible();
     const searchbox = page.getByRole("searchbox", { name: "小樽の店をさがす" });
     await searchbox.focus();
     await expect(searchbox).toBeFocused();
 
-    await expect(page.getByRole("heading", { level: 1, name: "現在地を確認しています…" })).toHaveCount(0, { timeout: 5000 });
+    await expect(page.getByRole("heading", { level: 1, name: "いまいる場所をたしかめています…" })).toHaveCount(0, { timeout: 5000 });
     await expect(page.getByRole("status")).toHaveText(/軒見つかりました|条件に合う店が見つかりませんでした。/);
     await expect(searchbox).toBeFocused();
     await expect(page.getByRole("heading", { level: 1 })).not.toBeFocused();

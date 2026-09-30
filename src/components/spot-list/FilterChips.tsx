@@ -1,6 +1,6 @@
 "use client";
 
-import { Tag } from "@/components/ui";
+import { Chip } from "@/components/ui/Chip";
 import { FILTER_OPTIONS } from "./filters";
 
 export interface FilterChipsProps {
@@ -11,7 +11,7 @@ export interface FilterChipsProps {
 
 /**
  * 絞り込みチップ5種（SPEC §4 S3 / D1）。
- * 「まだ静か」は既定ON。選択中は accent 塗り、非選択は outline（S1のチップと同じ表現）。
+ * 「まだ静か」は既定ON。見た目は SPEC motion §2.9 の `.chip`（押した位置から円で塗る・✓ を描く）。
  */
 export function FilterChips({ active, onToggle, className }: FilterChipsProps) {
   return (
@@ -33,7 +33,7 @@ export function FilterChips({ active, onToggle, className }: FilterChipsProps) {
             aria-pressed={isActive}
             onClick={() => onToggle(option.slug)}
           >
-            <Tag kind={isActive ? "accent" : "outline"}>{option.label}</Tag>
+            <Chip on={isActive}>{option.label}</Chip>
           </button>
         );
       })}

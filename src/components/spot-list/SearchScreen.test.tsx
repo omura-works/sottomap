@@ -225,11 +225,42 @@ describe("SearchScreen（Codex R9 重要2: 位置解決待ち）", () => {
     nav.reset();
   });
 
-  it("URL座標が無く位置解決待ちの間は、結果の代わりに「現在地を確認しています…」を表示する", () => {
+  it("URL座標が無く位置解決待ちの間は、見出しを「いまいる場所をたしかめています…」にし、読み上げは今の文のまま", () => {
     render(<SearchScreen city={CITY} spots={[]} activeFilters={["within-10min"]} query="" />);
 
-    expect(screen.getByRole("heading", { level: 1, name: "現在地を確認しています…" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "いまいる場所をたしかめています…" })).toBeInTheDocument();
+    // SPEC motion §5.3: 読み上げ（ライブリージョン）の文は変えない
     expect(screen.getByRole("status")).toHaveTextContent("現在地を確認しています…");
+  });
+
+  it("SPEC motion §5.3: 0件の見た目は新しい文（大・小）、読み上げは今の文のまま", () => {
+    render(<SearchScreen city={CITY} spots={[]} activeFilters={["day-only"]} query="" />);
+
+    expect(screen.getByText("その条件だと、見つかりませんでした")).toBeInTheDocument();
+    expect(screen.getByText("チップを1つはずしてみてください。")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "しぼりこみをはずす" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "ピンを立てる" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("条件に合う店が見つかりませんでした。");
+  });
+
+  it("SPEC motion §5.3: 見出しは「近い順に N 軒」、リード・小見出し・並び順の話が出る", () => {
+    const spots = [makeSpot({ id: "q1", name: "静かな店" }), makeSpot({ id: "c1", name: "並ぶ店", quietness: "crowding" })];
+    render(<SearchScreen city={CITY} spots={spots} activeFilters={["quiet-now"]} query="" />);
+
+    expect(screen.getByRole("heading", { level: 1, name: "近い順に2軒" })).toBeInTheDocument();
+    expect(screen.getByText("気になる条件を、ぽちぽち選んでみてください。")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "しぼりこむ" })).toBeInTheDocument();
+    // 「まだ静か」ON: 混みはじめた店は区切りの下（見出し＋一文）へ
+    expect(screen.getByRole("heading", { level: 2, name: "混みはじめた店" })).toBeInTheDocument();
+    expect(screen.getByText("ここから下は、少しにぎやかになってきた店です。")).toBeInTheDocument();
+    const lists = screen.getAllByRole("list");
+    expect(lists[0]).toHaveTextContent("静かな店");
+    expect(lists[0]).not.toHaveTextContent("並ぶ店");
+    expect(lists[1]).toHaveTextContent("並ぶ店");
+    expect(screen.getByText("ちょっとだけ、並び順の話を。")).toBeInTheDocument();
+    expect(screen.getByText("並び順について")).toBeInTheDocument();
+    // 行は詳細への前へ進む遷移
+    expect(screen.getByRole("link", { name: /静かな店/ })).toHaveAttribute("href", "/sapporo/spots/q1");
   });
 });
 
