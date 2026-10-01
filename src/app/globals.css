@@ -3753,6 +3753,20 @@ figcaption {
   }
 }
 /* 画面に入ったら（Reveal）: 棒が光で満ち、粒が一緒に走って着いたら1回ふくらむ。取ったバッジは光が灯り、火の粉が出る */
+/* inView="parts" の再生前（サーバー描画から）: 棒は 0・粒は左端・光は消えた状態で待つ（ちらつかせない）。
+   JS が無い・reduce のときは最終状態のまま */
+@media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+  [data-reveal="pending"] .lantern-badge .lantern-progress-fill {
+    scale: 0 1;
+  }
+  [data-reveal="pending"] .lantern-badge .lantern-spark {
+    translate: -6px -50%;
+  }
+  [data-reveal="pending"] .lantern-badge[data-earned="true"] .lantern-badge-glow,
+  [data-reveal="pending"] .lantern-badge[data-earned="true"] .lantern-glow {
+    opacity: 0;
+  }
+}
 [data-reveal="wait"] .lantern-badge .lantern-progress-fill {
   scale: 0 1;
 }

@@ -6,7 +6,7 @@ import { prefersReducedMotion } from "@/components/ui/motion-prefs";
 import { STAGGER } from "./tokens";
 
 export type RevealVerb = "stick" | "stamp" | "pop" | "ignite" | "draw" | "tuck";
-export type RevealState = "done" | "wait" | "play" | "parts";
+export type RevealState = "done" | "wait" | "play" | "parts" | "pending";
 
 export interface RevealProps {
   as?: "div" | "li" | "span" | "section" | "p";
@@ -19,6 +19,8 @@ export interface RevealProps {
    * マウントの時にすでに画面に見えている物の扱い。既定 "skip"（最終状態のまま何もしない）。
    * "parts" なら、包み自体は動かさず（透明にもしない）、`inViewDelay` の後に `data-reveal="parts"` にして
    * 中身の動き（CSS の `[data-reveal="parts"] …`）だけを一度再生する（/me の灯りのバッジの棒など）。
+   * このときサーバー描画は `data-reveal="pending"` で、中身は最初から再生前の状態で出す（ハイドレーションの瞬間に
+   * 満ちた状態から 0 へ戻ってちらつかないように。CSS は scripting が有効で reduce でないときだけ。JS が無ければ最終状態）。
    */
   inView?: "skip" | "parts";
   /** inView="parts" のときの遅れ（ミリ秒）。`index` のずらしに足される。 */
@@ -85,12 +87,21 @@ export function Reveal({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (prefersReducedMotion()) return;
-    if (typeof IntersectionObserver === "undefined") return;
+    // inView="parts" はサーバー描画で "pending"（中身は再生前の状態）。動かさないときは最終状態に戻す
+    const settle = () => {
+      if (el.dataset.reveal === "pending") el.dataset.reveal = "done";
+    };
+    if (prefersReducedMotion() || typeof IntersectionObserver === "undefined") {
+      settle();
+      return;
+    }
     const rect = el.getBoundingClientRect();
     const viewportBottom = window.innerHeight || document.documentElement.clientHeight;
     if (rect.top <= viewportBottom) {
-      if (inView !== "parts") return;
+      if (inView !== "parts") {
+        settle();
+        return;
+      }
       return playParts(el, inViewDelay + Math.min(Math.max(index, 0), STAGGER.maxIndex) * STAGGER.step);
     }
 
@@ -157,7 +168,7 @@ export function Reveal({
   // as の要素はどれも HTMLElement。ref の型を1つにそろえるため div として扱う。
   const Tag = as as "div";
   return (
-    <Tag ref={ref as RefObject<HTMLDivElement | null>} className={className} style={style} data-reveal="done" data-verb={verb}>
+    <Tag ref={ref as RefObject<HTMLDivElement | null>} className={className} style={style} data-reveal={inView === "parts" ? "pending" : "done"} data-verb={verb}>
       {children}
     </Tag>
   );

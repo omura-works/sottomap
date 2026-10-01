@@ -124,7 +124,16 @@ describe("Reveal", () => {
     expect(el).toHaveAttribute("data-reveal", "done");
   });
 
-  it("inView=\"parts\" でも reduce なら done のまま", () => {
+  it("inView=\"parts\" はサーバー描画で pending（中身を再生前の状態で出し、ハイドレーションでちらつかせない）", () => {
+    const html = renderToString(
+      <Reveal verb="stick" inView="parts">
+        <span>中身</span>
+      </Reveal>,
+    );
+    expect(html).toContain('data-reveal="pending"');
+  });
+
+  it("inView=\"parts\" でも reduce なら done（最終状態）", () => {
     mockReducedMotion(true);
     mockLayout();
     render(
