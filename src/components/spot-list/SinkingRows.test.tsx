@@ -109,7 +109,8 @@ describe("SinkingRows（静かに下がる。SPEC motion §5.3）", () => {
     const { container, rerender } = render(<SinkingRows top={[a, b]} bottom={[]} renderRow={row} dividerHeading="h2" />);
     rerender(<SinkingRows top={[a]} bottom={[]} renderRow={row} dividerHeading="h2" />);
     const leaving = container.querySelector('[data-row-id="b"]');
-    if (leaving) expect(leaving).toHaveAttribute("inert");
+    expect(leaving).not.toBeNull();
+    expect(leaving).toHaveAttribute("inert");
     expect(container.querySelector('[data-row-id="a"]')).not.toHaveAttribute("inert");
   });
 });

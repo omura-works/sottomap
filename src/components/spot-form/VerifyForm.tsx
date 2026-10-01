@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import type { CSSProperties, MouseEvent } from "react";
 import { unstable_rethrow } from "next/navigation";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useIsPresent } from "motion/react";
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui";
 import type { Badge, Quietness, Verification } from "@/lib/db/types";
 import { quietnessLabel } from "@/lib/domain/quietness";
@@ -24,6 +25,24 @@ import { LanternProgress } from "@/app/me/LanternBadge";
 import { useShowRewardsSetting } from "./reward-settings";
 import { VERIFY_ANSWER_OPTIONS } from "./verify-schema";
 import { VerifyHeading, VerifyShopCard } from "./VerifyIntro";
+
+/** 答えのボタン群。はがれている間は inert（SPEC motion §6.3）。 */
+function AnswersGroup({ reduced, children }: { reduced: boolean; children: ReactNode }) {
+  const isPresent = useIsPresent();
+  return (
+    <motion.div
+      className="verify-answers"
+      inert={!isPresent}
+      exit={
+        reduced
+          ? { opacity: 0, transition: { duration: 0 } }
+          : { opacity: 0, y: -8, rotate: 1, transition: { duration: 0.16, ease: EASE.peel } }
+      }
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 export interface VerifyFormProps {
   requestId: string;
@@ -137,7 +156,6 @@ export function VerifyForm({ requestId, spotName, daysSinceLast, history, wasDor
   const keeperBefore = keeperThreshold > 0 ? Math.max(0, (keeperThreshold - keeperRemaining - 1) / keeperThreshold) : 0;
   const keeperAfter = keeperThreshold > 0 ? keeperNow / keeperThreshold : 0;
 
-  const instant = { duration: 0 } as const;
 
   return (
     <div className="verify">
@@ -202,7 +220,8 @@ export function VerifyForm({ requestId, spotName, daysSinceLast, history, wasDor
                   地図に戻りました。
                 </p>
               ) : null}
-              <HandLine variant="hanamaru" draw={!reduced} delay={1300} className="verify-hanamaru" />
+              {/* 答えのボタン群がはがれる 160ms の後に貼られるので、遅れ 1140ms で受け付けから 2.2 秒以内に描き終わる */}
+              <HandLine variant="hanamaru" draw={!reduced} delay={1140} className="verify-hanamaru" />
             </motion.div>
           ) : (
             <motion.div key="thanks-plain" className="card verify-result verb-stick">
@@ -216,11 +235,7 @@ export function VerifyForm({ requestId, spotName, daysSinceLast, history, wasDor
             </motion.div>
           )
         ) : (
-          <motion.div
-            key="answers"
-            className="verify-answers"
-            exit={reduced ? { opacity: 0, transition: instant } : { opacity: 0, y: -8, rotate: 1, transition: { duration: 0.16, ease: EASE.peel } }}
-          >
+          <AnswersGroup key="answers" reduced={reduced}>
             {VERIFY_ANSWER_OPTIONS.map((option, i) => (
               <Button
                 key={option.value}
@@ -252,7 +267,7 @@ export function VerifyForm({ requestId, spotName, daysSinceLast, history, wasDor
                 </>
               ) : null}
             </p>
-          </motion.div>
+          </AnswersGroup>
         )}
       </AnimatePresence>
 

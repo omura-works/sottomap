@@ -49,12 +49,14 @@ export default async function BookmarksPage() {
                 挟んだ店
               </h1>
               {/* SPEC motion §5.5: 件数の数字がこの画面の山。外して描き直されたら桁が回って跳ねる */}
-              <p className="bm-count">
-                <span className="bm-count-num verb-pop" style={{ "--d": "200ms" } as CSSProperties}>
-                  <BounceNumber value={items.length} />
-                </span>
-                <span className="bm-count-text">軒。旅のあいだ、地図の上でも光ります。</span>
-              </p>
+              {items.length > 0 ? (
+                <p className="bm-count">
+                  <span className="bm-count-num verb-pop" style={{ "--d": "200ms" } as CSSProperties}>
+                    <BounceNumber value={items.length} />
+                  </span>
+                  <span className="bm-count-text">軒。旅のあいだ、地図の上でも光ります。</span>
+                </p>
+              ) : null}
             </header>
           }
         />

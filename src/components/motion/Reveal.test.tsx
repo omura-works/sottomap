@@ -105,6 +105,36 @@ describe("Reveal", () => {
     expect(FakeObserver.instances).toHaveLength(0);
   });
 
+  it("inView=\"parts\": 最初の画面に入っている物は、包みは透明にせず、遅れの後に中身だけ再生（parts）→ done", () => {
+    vi.useFakeTimers();
+    mockReducedMotion(false);
+    mockLayout();
+    render(
+      <Reveal verb="stick" inView="parts" inViewDelay={600} index={1}>
+        <button type="button">中の操作</button>
+      </Reveal>,
+    );
+    const el = screen.getByRole("button", { name: "中の操作" }).parentElement as HTMLElement;
+    expect(el).toHaveAttribute("data-reveal", "parts");
+    expect(el.style.getPropertyValue("--d")).toBe("645ms");
+    expect(el).not.toHaveClass("verb-stick");
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(el).toHaveAttribute("data-reveal", "done");
+  });
+
+  it("inView=\"parts\" でも reduce なら done のまま", () => {
+    mockReducedMotion(true);
+    mockLayout();
+    render(
+      <Reveal verb="stick" inView="parts" inViewDelay={600}>
+        <button type="button">中の操作</button>
+      </Reveal>,
+    );
+    expect(screen.getByRole("button", { name: "中の操作" }).parentElement).toHaveAttribute("data-reveal", "done");
+  });
+
   it("画面の下の物は wait → 交差で play（verb のクラスと --d）→ animationend で done", () => {
     mockReducedMotion(false);
     mockLayout();

@@ -6,7 +6,7 @@ import { prefersReducedMotion } from "@/components/ui/motion-prefs";
 import { STAGGER } from "./tokens";
 
 export type RevealVerb = "stick" | "stamp" | "pop" | "ignite" | "draw" | "tuck";
-export type RevealState = "done" | "wait" | "play";
+export type RevealState = "done" | "wait" | "play" | "parts";
 
 export interface RevealProps {
   as?: "div" | "li" | "span" | "section" | "p";
@@ -15,9 +15,42 @@ export interface RevealProps {
   delay?: number;
   /** 並びの番号。`min(index, 7) × 45ms` だけ遅らせる。 */
   index?: number;
+  /**
+   * マウントの時にすでに画面に見えている物の扱い。既定 "skip"（最終状態のまま何もしない）。
+   * "parts" なら、包み自体は動かさず（透明にもしない）、`inViewDelay` の後に `data-reveal="parts"` にして
+   * 中身の動き（CSS の `[data-reveal="parts"] …`）だけを一度再生する（/me の灯りのバッジの棒など）。
+   */
+  inView?: "skip" | "parts";
+  /** inView="parts" のときの遅れ（ミリ秒）。`index` のずらしに足される。 */
+  inViewDelay?: number;
   className?: string;
   style?: CSSProperties;
   children: ReactNode;
+}
+
+/**
+ * 最初の画面に入っている物の、中身の動きだけを一度再生する（包みは動かさず、透明にもしない）。
+ * 中身の動きが終わったら "done" に戻す。片付けの関数を返す。
+ */
+function playParts(el: HTMLElement, delayMs: number): () => void {
+  el.style.setProperty("--d", `${delayMs}ms`);
+  el.dataset.reveal = "parts";
+  const finish = () => {
+    if (el.dataset.reveal !== "parts") return;
+    el.dataset.reveal = "done";
+    el.removeEventListener("animationend", onEnd);
+    clearTimeout(fallback);
+  };
+  function onEnd() {
+    const running =
+      typeof el.getAnimations === "function"
+        ? el.getAnimations({ subtree: true }).some((animation) => animation.playState === "running")
+        : false;
+    if (!running) finish();
+  }
+  const fallback = setTimeout(finish, DONE_FALLBACK_MS + delayMs);
+  el.addEventListener("animationend", onEnd);
+  return finish;
 }
 
 const OBSERVER_OPTIONS: IntersectionObserverInit = { rootMargin: "0px 0px -10% 0px", threshold: 0.2 };
@@ -36,7 +69,17 @@ const DONE_FALLBACK_MS = 2000;
  * - 一度 "done" になった物は二度と再生しない。スクロールを戻しても逆再生しない。
  * - 中にフォーカスが入ったら（focusin）すぐ "done"。
  */
-export function Reveal({ as = "div", verb, delay = 0, index = 0, className, style, children }: RevealProps) {
+export function Reveal({
+  as = "div",
+  verb,
+  delay = 0,
+  index = 0,
+  inView = "skip",
+  inViewDelay = 0,
+  className,
+  style,
+  children,
+}: RevealProps) {
   const ref = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -46,7 +89,10 @@ export function Reveal({ as = "div", verb, delay = 0, index = 0, className, styl
     if (typeof IntersectionObserver === "undefined") return;
     const rect = el.getBoundingClientRect();
     const viewportBottom = window.innerHeight || document.documentElement.clientHeight;
-    if (rect.top <= viewportBottom) return;
+    if (rect.top <= viewportBottom) {
+      if (inView !== "parts") return;
+      return playParts(el, inViewDelay + Math.min(Math.max(index, 0), STAGGER.maxIndex) * STAGGER.step);
+    }
 
     const verbClass = `verb-${verb}`;
     let fallback: ReturnType<typeof setTimeout> | undefined;

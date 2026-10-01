@@ -43,9 +43,15 @@ export const MapHoverCard = memo(function MapHoverCard({ spots, ref }: MapHoverC
           }
           return;
         }
-        if (id === openIdRef.current && cardRef.current) {
-          cardRef.current.style.left = `${point.x + OFFSET_X}px`;
-          cardRef.current.style.top = `${point.y + OFFSET_Y}px`;
+        // 前のカードがはがれ終わると ref が外れることがあるので、つながっていて同じ店のカードのときだけ直接書き換える
+        const card = cardRef.current;
+        if (id === openIdRef.current && card && card.isConnected && card.dataset.spotId === id) {
+          card.style.left = `${point.x + OFFSET_X}px`;
+          card.style.top = `${point.y + OFFSET_Y}px`;
+          return;
+        }
+        if (id === openIdRef.current) {
+          setOpen({ id, point });
           return;
         }
         openIdRef.current = id;
@@ -63,7 +69,10 @@ export const MapHoverCard = memo(function MapHoverCard({ spots, ref }: MapHoverC
       {open && spot ? (
         <motion.div
           key={spot.id}
-          ref={cardRef}
+          ref={(node: HTMLDivElement | null) => {
+            if (node) cardRef.current = node;
+          }}
+          data-spot-id={spot.id}
           className="map-hovercard"
           style={{ left: open.point.x + OFFSET_X, top: open.point.y + OFFSET_Y, transformOrigin: "left center" }}
           initial={reduced ? false : { scale: 0.92, opacity: 0 }}

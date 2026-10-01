@@ -29,6 +29,7 @@ export default defineConfig({
         "**/contact.spec.ts",
         "**/map-motion.spec.ts",
         "**/start-defer.spec.ts",
+        "**/bookmarks-gather.spec.ts",
       ],
     },
     {

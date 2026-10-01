@@ -3,6 +3,41 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { BookmarkList } from "./BookmarkList";
 import type { BookmarkListItem } from "./BookmarkList";
 import { removeBookmarkAction } from "@/app/actions/bookmark-actions";
+import { mockReducedMotion } from "@/components/motion/test-utils";
+import type { AnchorHTMLAttributes } from "react";
+
+// 「地図にまとめる」の飛行（灯りの層）とアイリスを見張る
+const lamp = vi.hoisted(() => ({
+  fly: vi.fn(),
+  target: vi.fn(() => null),
+  bump: vi.fn(),
+}));
+vi.mock("@/components/motion/LampLayer", () => ({ useLamp: () => lamp }));
+vi.mock("@/components/motion/iris", () => ({ setIrisOrigin: vi.fn() }));
+// next/link は App Router の外では遷移できないので、ただの <a> にする（遷移はさせない）
+vi.mock("next/link", () => ({
+  default: (
+    allProps: AnchorHTMLAttributes<HTMLAnchorElement> & {
+      transitionTypes?: string[];
+      prefetch?: boolean;
+    },
+  ) => {
+    const props = { ...allProps };
+    const onClick = props.onClick;
+    delete props.transitionTypes;
+    delete props.prefetch;
+    delete props.onClick;
+    return (
+      <a
+        {...props}
+        onClick={(event) => {
+          onClick?.(event);
+          event.preventDefault();
+        }}
+      />
+    );
+  },
+}));
 
 vi.mock("@/app/actions/bookmark-actions", () => ({
   removeBookmarkAction: vi.fn(),
@@ -64,7 +99,9 @@ describe("BookmarkList", () => {
     render(<BookmarkList initialItems={ITEMS} />);
 
     expect(screen.getByText("札幌・北24条 / 明日 12:30")).toBeInTheDocument();
-    expect(screen.getByText("小樽駅から徒歩10分 / 日替わり定食")).toBeInTheDocument();
+    expect(
+      screen.getByText("小樽駅から徒歩10分 / 日替わり定食"),
+    ).toBeInTheDocument();
     expect(screen.getByText("小樽 / 地元が買いに行く市場")).toBeInTheDocument();
     expect(screen.getByText("小樽 / 朝のうちに")).toBeInTheDocument();
   });
@@ -72,13 +109,22 @@ describe("BookmarkList", () => {
   it("SPEC §9.14-4: 複数都市にまたがる栞は街ごとにボタンを分け、表示件数と渡す件数を一致させる", () => {
     render(<BookmarkList initialItems={ITEMS} />);
 
-    const sapporoLink = screen.getByRole("link", { name: "札幌の1軒を地図にまとめる" });
+    const sapporoLink = screen.getByRole("link", {
+      name: "札幌の1軒を地図にまとめる",
+    });
     expect(sapporoLink).toHaveAttribute("href", "/sapporo?spots=spot-1");
 
-    const otaruLink = screen.getByRole("link", { name: "小樽の3軒を地図にまとめる" });
-    expect(otaruLink).toHaveAttribute("href", "/otaru?spots=spot-2,spot-3,spot-4");
+    const otaruLink = screen.getByRole("link", {
+      name: "小樽の3軒を地図にまとめる",
+    });
+    expect(otaruLink).toHaveAttribute(
+      "href",
+      "/otaru?spots=spot-2,spot-3,spot-4",
+    );
 
-    expect(screen.queryByRole("link", { name: "4軒を地図にまとめる" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "4軒を地図にまとめる" }),
+    ).not.toBeInTheDocument();
   });
 
   it("単一都市のときは「N軒を地図にまとめる」のまま、全件を渡す", () => {
@@ -91,7 +137,9 @@ describe("BookmarkList", () => {
   it("押しただけでは外れない（確定パネルが開くだけ）", async () => {
     render(<BookmarkList initialItems={ITEMS} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }),
+    );
     expect(removeBookmarkAction).not.toHaveBeenCalled();
     expect(screen.getByText("シハチ鮮魚店 北24条店")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "外す" })).toBeInTheDocument();
@@ -102,45 +150,73 @@ describe("BookmarkList", () => {
     vi.mocked(removeBookmarkAction).mockResolvedValueOnce(undefined);
     render(<BookmarkList initialItems={ITEMS} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "外す" }));
 
-    await waitFor(() => expect(removeBookmarkAction).toHaveBeenCalledWith("spot-1"));
-    await waitFor(() => expect(screen.queryByText("シハチ鮮魚店 北24条店")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(removeBookmarkAction).toHaveBeenCalledWith("spot-1"),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByText("シハチ鮮魚店 北24条店"),
+      ).not.toBeInTheDocument(),
+    );
   });
 
   it("「やめる」で取り消すと残る", async () => {
     render(<BookmarkList initialItems={ITEMS} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "やめる" }));
 
     expect(removeBookmarkAction).not.toHaveBeenCalled();
     expect(screen.getByText("シハチ鮮魚店 北24条店")).toBeInTheDocument();
-    await waitFor(() => expect(screen.queryByRole("button", { name: "外す" })).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "外す" }),
+      ).not.toBeInTheDocument(),
+    );
   });
 
   it("Escapeで取り消すと残る", async () => {
     render(<BookmarkList initialItems={ITEMS} />);
 
-    const trigger = screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" });
+    const trigger = screen.getByRole("button", {
+      name: "シハチ鮮魚店 北24条店を栞から外す",
+    });
     fireEvent.click(trigger);
-    fireEvent.keyDown(trigger.closest('[data-slot="confirm-remove-button"]')!, { key: "Escape" });
+    fireEvent.keyDown(trigger.closest('[data-slot="confirm-remove-button"]')!, {
+      key: "Escape",
+    });
 
     expect(removeBookmarkAction).not.toHaveBeenCalled();
     expect(screen.getByText("シハチ鮮魚店 北24条店")).toBeInTheDocument();
-    await waitFor(() => expect(screen.queryByRole("button", { name: "外す" })).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "外す" }),
+      ).not.toBeInTheDocument(),
+    );
   });
 
   it("SPEC §9.14-7: 削除が失敗したら元に戻し、role=alertで知らせる", async () => {
     vi.mocked(removeBookmarkAction).mockRejectedValueOnce(new Error("network"));
     render(<BookmarkList initialItems={ITEMS} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "外す" }));
 
-    expect(await screen.findByText("シハチ鮮魚店 北24条店")).toBeInTheDocument();
-    expect(await screen.findByRole("alert")).toHaveTextContent("ごめんなさい、栞から外せませんでした。もう一度ためしてみてください。");
+    expect(
+      await screen.findByText("シハチ鮮魚店 北24条店"),
+    ).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "ごめんなさい、栞から外せませんでした。もう一度ためしてみてください。",
+    );
   });
 
   // Codex R8 重要3: ConfirmRemoveButton 内蔵の live region ではなく、行が消えても残る
@@ -150,14 +226,22 @@ describe("BookmarkList", () => {
       vi.mocked(removeBookmarkAction).mockResolvedValueOnce(undefined);
       render(<BookmarkList initialItems={ITEMS} />);
 
-      fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "シハチ鮮魚店 北24条店を栞から外す",
+        }),
+      );
       fireEvent.click(screen.getByRole("button", { name: "外す" }));
 
       await waitFor(() =>
-        expect(screen.getByRole("status")).toHaveTextContent("シハチ鮮魚店 北24条店を栞から外しました。"),
+        expect(screen.getByRole("status")).toHaveTextContent(
+          "シハチ鮮魚店 北24条店を栞から外しました。",
+        ),
       );
       await waitFor(() =>
-        expect(screen.getByRole("button", { name: "聖徳太子 飛鳥店を栞から外す" })).toHaveFocus(),
+        expect(
+          screen.getByRole("button", { name: "聖徳太子 飛鳥店を栞から外す" }),
+        ).toHaveFocus(),
       );
     });
 
@@ -165,10 +249,16 @@ describe("BookmarkList", () => {
       vi.mocked(removeBookmarkAction).mockResolvedValueOnce(undefined);
       render(<BookmarkList initialItems={ITEMS} />);
 
-      fireEvent.click(screen.getByRole("button", { name: "鱗友朝市を栞から外す" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "鱗友朝市を栞から外す" }),
+      );
       fireEvent.click(screen.getByRole("button", { name: "外す" }));
 
-      await waitFor(() => expect(screen.getByRole("button", { name: "南樽市場を栞から外す" })).toHaveFocus());
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "南樽市場を栞から外す" }),
+        ).toHaveFocus(),
+      );
     });
 
     it("前後どちらも無ければ一覧の見出しへフォーカスが移る", async () => {
@@ -182,33 +272,57 @@ describe("BookmarkList", () => {
         </div>,
       );
 
-      fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
-      fireEvent.click(screen.getByRole("button", { name: "外す" }));
-
-      await waitFor(() => expect(screen.getByRole("heading", { name: "挟んだ店" })).toHaveFocus());
-    });
-
-    it("削除に失敗したら復元した行の「外す」ボタンへフォーカスが戻る", async () => {
-      vi.mocked(removeBookmarkAction).mockRejectedValueOnce(new Error("network"));
-      render(<BookmarkList initialItems={ITEMS} />);
-
-      fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "シハチ鮮魚店 北24条店を栞から外す",
+        }),
+      );
       fireEvent.click(screen.getByRole("button", { name: "外す" }));
 
       await waitFor(() =>
-        expect(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" })).toHaveFocus(),
+        expect(screen.getByRole("heading", { name: "挟んだ店" })).toHaveFocus(),
       );
-      expect(screen.getByRole("alert")).toHaveTextContent("ごめんなさい、栞から外せませんでした。もう一度ためしてみてください。");
+    });
+
+    it("削除に失敗したら復元した行の「外す」ボタンへフォーカスが戻る", async () => {
+      vi.mocked(removeBookmarkAction).mockRejectedValueOnce(
+        new Error("network"),
+      );
+      render(<BookmarkList initialItems={ITEMS} />);
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "シハチ鮮魚店 北24条店を栞から外す",
+        }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "外す" }));
+
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", {
+            name: "シハチ鮮魚店 北24条店を栞から外す",
+          }),
+        ).toHaveFocus(),
+      );
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "ごめんなさい、栞から外せませんでした。もう一度ためしてみてください。",
+      );
     });
 
     it("「やめる」で取り消すとライブリージョンが「そのままにしました。」を知らせる", async () => {
       render(<BookmarkList initialItems={ITEMS} />);
 
-      fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "シハチ鮮魚店 北24条店を栞から外す",
+        }),
+      );
       fireEvent.click(screen.getByRole("button", { name: "やめる" }));
 
       await waitFor(() =>
-        expect(screen.getByRole("status")).toHaveTextContent("シハチ鮮魚店 北24条店はそのままにしました。"),
+        expect(screen.getByRole("status")).toHaveTextContent(
+          "シハチ鮮魚店 北24条店はそのままにしました。",
+        ),
       );
     });
 
@@ -216,40 +330,70 @@ describe("BookmarkList", () => {
       vi.mocked(removeBookmarkAction).mockResolvedValueOnce(undefined);
       render(<BookmarkList initialItems={[ITEMS[0]]} />);
 
-      fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "シハチ鮮魚店 北24条店を栞から外す",
+        }),
+      );
       fireEvent.click(screen.getByRole("button", { name: "外す" }));
 
-      await waitFor(() => expect(screen.getByText("まだ、栞に挟んだ店はありません")).toBeInTheDocument());
       await waitFor(() =>
-        expect(screen.getByRole("status")).toHaveTextContent("シハチ鮮魚店 北24条店を栞から外しました。"),
+        expect(
+          screen.getByText("まだ、栞に挟んだ店はありません"),
+        ).toBeInTheDocument(),
+      );
+      await waitFor(() =>
+        expect(screen.getByRole("status")).toHaveTextContent(
+          "シハチ鮮魚店 北24条店を栞から外しました。",
+        ),
       );
     });
 
     it("2回連続で外すと2回とも通知が変化する", async () => {
-      vi.mocked(removeBookmarkAction).mockResolvedValueOnce(undefined).mockResolvedValueOnce(undefined);
+      vi.mocked(removeBookmarkAction)
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(undefined);
       render(<BookmarkList initialItems={ITEMS} />);
 
-      fireEvent.click(screen.getByRole("button", { name: "南樽市場を栞から外す" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "南樽市場を栞から外す" }),
+      );
       fireEvent.click(screen.getByRole("button", { name: "外す" }));
       await waitFor(() =>
-        expect(screen.getByRole("status")).toHaveTextContent("南樽市場を栞から外しました。"),
+        expect(screen.getByRole("status")).toHaveTextContent(
+          "南樽市場を栞から外しました。",
+        ),
       );
 
-      fireEvent.click(screen.getByRole("button", { name: "鱗友朝市を栞から外す" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "鱗友朝市を栞から外す" }),
+      );
       fireEvent.click(screen.getByRole("button", { name: "外す" }));
       await waitFor(() =>
-        expect(screen.getByRole("status")).toHaveTextContent("鱗友朝市を栞から外しました。"),
+        expect(screen.getByRole("status")).toHaveTextContent(
+          "鱗友朝市を栞から外しました。",
+        ),
       );
     });
 
     it("失敗時に成功文を出さない", async () => {
-      vi.mocked(removeBookmarkAction).mockRejectedValueOnce(new Error("network"));
+      vi.mocked(removeBookmarkAction).mockRejectedValueOnce(
+        new Error("network"),
+      );
       render(<BookmarkList initialItems={ITEMS} />);
 
-      fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "シハチ鮮魚店 北24条店を栞から外す",
+        }),
+      );
       fireEvent.click(screen.getByRole("button", { name: "外す" }));
 
-      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("ごめんなさい、栞から外せませんでした。もう一度ためしてみてください。"));
+      await waitFor(() =>
+        expect(screen.getByRole("alert")).toHaveTextContent(
+          "ごめんなさい、栞から外せませんでした。もう一度ためしてみてください。",
+        ),
+      );
       expect(screen.getByRole("status")).toHaveTextContent("");
     });
   });
@@ -274,33 +418,122 @@ describe("BookmarkList", () => {
     });
 
     it("削除が失敗して行が戻っても、順次表示のクラス（フォーカス中の要素が opacity: 0 になる原因）を付けない", async () => {
-      vi.mocked(removeBookmarkAction).mockRejectedValueOnce(new Error("network"));
+      vi.mocked(removeBookmarkAction).mockRejectedValueOnce(
+        new Error("network"),
+      );
       render(<BookmarkList initialItems={ITEMS} />);
 
-      fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "シハチ鮮魚店 北24条店を栞から外す",
+        }),
+      );
       fireEvent.click(screen.getByRole("button", { name: "外す" }));
 
-      const restoredButton = await screen.findByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" });
+      const restoredButton = await screen.findByRole("button", {
+        name: "シハチ鮮魚店 北24条店を栞から外す",
+      });
       await waitFor(() => expect(restoredButton).toHaveFocus());
-      expect(restoredButton.closest("li")).not.toHaveClass("motion-stagger-item");
+      expect(restoredButton.closest("li")).not.toHaveClass(
+        "motion-stagger-item",
+      );
     });
   });
 
   describe("SPEC motion §5.5: はがす・0件・地図にまとめる", () => {
     it("外した行ははがれている間 inert（フォーカスはもう隣へ移っている）", async () => {
-      vi.mocked(removeBookmarkAction).mockReturnValueOnce(new Promise<void>(() => {}));
+      const spy = mockReducedMotion(false);
+      vi.mocked(removeBookmarkAction).mockReturnValueOnce(
+        new Promise<void>(() => {}),
+      );
       const { container } = render(<BookmarkList initialItems={ITEMS} />);
-      fireEvent.click(screen.getByRole("button", { name: "シハチ鮮魚店 北24条店を栞から外す" }));
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "シハチ鮮魚店 北24条店を栞から外す",
+        }),
+      );
       fireEvent.click(screen.getByRole("button", { name: "外す" }));
-      await waitFor(() => expect(screen.getByRole("button", { name: "聖徳太子 飛鳥店を栞から外す" })).toHaveFocus());
-      for (const li of Array.from(container.querySelectorAll("li[data-leaving]"))) expect(li).toHaveAttribute("inert");
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "聖徳太子 飛鳥店を栞から外す" }),
+        ).toHaveFocus(),
+      );
+      const leaving = Array.from(
+        container.querySelectorAll("li[data-leaving]"),
+      );
+      expect(leaving.length).toBeGreaterThan(0);
+      for (const li of leaving) expect(li).toHaveAttribute("inert");
+      spy.mockRestore();
+    });
+
+    it("外せずに戻った行は透明にならない（元の位置に貼り直すだけ）", async () => {
+      const spy = mockReducedMotion(false);
+      vi.mocked(removeBookmarkAction).mockRejectedValueOnce(
+        new Error("network"),
+      );
+      render(<BookmarkList initialItems={ITEMS} />);
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "シハチ鮮魚店 北24条店を栞から外す",
+        }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "外す" }));
+      const restored = await screen.findByRole("button", {
+        name: "シハチ鮮魚店 北24条店を栞から外す",
+      });
+      await waitFor(() => expect(restored).toHaveFocus());
+      const li = restored.closest("li")!;
+      expect(li).not.toHaveAttribute("data-leaving");
+      expect(["", "1"]).toContain(li.style.opacity);
+      spy.mockRestore();
+    });
+
+    it("「地図にまとめる」: その街の見えている行のリボンだけがボタンへ飛び、最後の1本が着いたらボタンが弾む", () => {
+      lamp.fly.mockClear();
+      const rect = vi
+        .spyOn(Element.prototype, "getBoundingClientRect")
+        .mockReturnValue({
+          x: 0,
+          y: 100,
+          left: 0,
+          top: 100,
+          right: 10,
+          bottom: 132,
+          width: 10,
+          height: 32,
+          toJSON: () => ({}),
+        } as DOMRect);
+      render(<BookmarkList initialItems={ITEMS} />);
+      fireEvent.click(
+        screen.getByRole("link", { name: "小樽の3軒を地図にまとめる" }),
+      );
+      expect(lamp.fly).toHaveBeenCalledTimes(3);
+      for (const [from, , opts] of lamp.fly.mock.calls) {
+        expect((from as HTMLElement).dataset.bmRibbon).toBe("otaru");
+        expect(opts).toMatchObject({ kind: "ribbon", duration: 360 });
+      }
+      expect(
+        lamp.fly.mock.calls.map(
+          ([, , opts]) => (opts as { delay: number }).delay,
+        ),
+      ).toEqual([0, 30, 60]);
+      expect(
+        lamp.fly.mock.calls.filter(
+          ([, , opts]) => (opts as { onArrive?: unknown }).onArrive,
+        ),
+      ).toHaveLength(1);
+      rect.mockRestore();
     });
 
     it("0件は灯りの子・ひと言・説明（§4.6）", () => {
       render(<BookmarkList initialItems={[]} />);
-      expect(screen.getByText("まだ、栞に挟んだ店はありません")).toBeInTheDocument();
       expect(
-        screen.getByText("気になる店を見つけたら「栞に挟む」を押してみてね。地図の上でも光るようになります。"),
+        screen.getByText("まだ、栞に挟んだ店はありません"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "気になる店を見つけたら「栞に挟む」を押してみてね。地図の上でも光るようになります。",
+        ),
       ).toBeInTheDocument();
     });
 
@@ -308,8 +541,11 @@ describe("BookmarkList", () => {
       const { container } = render(<BookmarkList initialItems={ITEMS} />);
       const links = screen.getAllByRole("link", { name: /を地図にまとめる$/ });
       expect(links[0]).toHaveAttribute("data-lamp-target", "map-button");
-      for (const link of links.slice(1)) expect(link).not.toHaveAttribute("data-lamp-target");
-      expect(container.querySelectorAll("li .bm-row-ribbon")).toHaveLength(ITEMS.length);
+      for (const link of links.slice(1))
+        expect(link).not.toHaveAttribute("data-lamp-target");
+      expect(container.querySelectorAll("li .bm-row-ribbon")).toHaveLength(
+        ITEMS.length,
+      );
     });
   });
 });

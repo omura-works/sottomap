@@ -1,7 +1,9 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { VerifyForm } from "./VerifyForm";
 import { submitVerification } from "@/app/actions/spot-verify";
+import { badgeThreshold } from "@/lib/domain/lantern";
+import { mockReducedMotion } from "@/components/motion/test-utils";
 
 vi.mock("@/app/actions/spot-verify", () => ({
   submitVerification: vi.fn(),
@@ -10,7 +12,7 @@ vi.mock("@/app/actions/spot-verify", () => ({
 // 判子の飛行（灯りの層）を見張る
 const lamp = vi.hoisted(() => ({
   fly: vi.fn((_from: unknown, _to: unknown, opts?: { onArrive?: () => void }) => opts?.onArrive?.()),
-  target: vi.fn(() => document.querySelector("[data-lamp-target='verify-slot']")),
+  target: vi.fn((name: string) => document.querySelector(`[data-lamp-target='${name}']`)),
   bump: vi.fn(),
 }));
 vi.mock("@/components/motion/LampLayer", () => ({ useLamp: () => lamp }));
@@ -25,6 +27,7 @@ describe("VerifyForm", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -90,6 +93,53 @@ describe("VerifyForm", () => {
     expect(screen.queryByText("+5", { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     expect(container.querySelector(".verify-hanamaru")).toBeNull();
+  });
+
+  it("番人の棒: +N の灯りが飛び込むまでは今回の1件を数える前の値、着いたら新しい値", async () => {
+    const spy = mockReducedMotion(false);
+    mockedSubmit.mockResolvedValueOnce({
+      ok: true,
+      accepted: true,
+      pointsAwarded: 5,
+      totalPoints: 5,
+      badges: [{ id: "keeper", slug: "keeper", glyph: "灯", label: "灯りの番人", earned: false, remaining: 15 }],
+      status: "published",
+    });
+    render(<VerifyForm requestId="req-k" spotName="シハチ鮮魚店 北24条店" daysSinceLast={90} history={[]} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "静かなまま" }));
+    });
+    const threshold = badgeThreshold("keeper");
+    const bar = await screen.findByRole("progressbar", { name: "灯りの番人の進み具合" }, { timeout: 2000 });
+    expect(Number(bar.style.getPropertyValue("--p"))).toBeCloseTo((threshold - 15 - 1) / threshold, 5);
+    // 受け付けから 1100ms 後に灯りが棒の先へ飛び、着いたら新しい値になる
+    await waitFor(() => expect(Number(bar.style.getPropertyValue("--p"))).toBeCloseTo((threshold - 15) / threshold, 5), {
+      timeout: 3000,
+    });
+    expect(lamp.fly.mock.calls.some(([, , opts]) => (opts as { kind?: string }).kind === "lamp")).toBe(true);
+    spy.mockRestore();
+  });
+
+  it("reduce: 棒は最初から新しい値、花丸は描かずに出す", async () => {
+    const spy = mockReducedMotion(true);
+    mockedSubmit.mockResolvedValueOnce({
+      ok: true,
+      accepted: true,
+      pointsAwarded: 5,
+      totalPoints: 5,
+      badges: [{ id: "keeper", slug: "keeper", glyph: "灯", label: "灯りの番人", earned: false, remaining: 15 }],
+      status: "published",
+    });
+    const { container } = render(<VerifyForm requestId="req-r" spotName="シハチ鮮魚店 北24条店" daysSinceLast={90} history={[]} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "静かなまま" }));
+    });
+    const threshold = badgeThreshold("keeper");
+    const bar = await screen.findByRole("progressbar", { name: "灯りの番人の進み具合" });
+    expect(Number(bar.style.getPropertyValue("--p"))).toBeCloseTo((threshold - 15) / threshold, 5);
+    expect(container.querySelector(".verify-hanamaru .verb-draw")).toBeNull();
+    expect(lamp.fly.mock.calls.some(([, , opts]) => (opts as { kind?: string }).kind === "lamp")).toBe(false);
+    spy.mockRestore();
   });
 
   it("履歴が無ければ「これが最初の確認です。」", () => {

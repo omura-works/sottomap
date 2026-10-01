@@ -2499,6 +2499,13 @@ figcaption {
 }
 
 /* — 地図（§5.2）— */
+/* デモモードの帯: 要素の既定（p の下の余白）を確実に消し、高さを 24px に決める（地図の画面の高さの計算に使う） */
+[data-demo-banner] {
+  box-sizing: border-box;
+  height: 24px;
+  margin: 0;
+  line-height: 16px;
+}
 /* 地図の画面の高さ: 画面の高さから下部タブ（スマホ 4rem）とデモモードの帯を引く（帯の分だけ下が切れないように） */
 :root:has(body > [data-demo-banner]) {
   --demo-banner-h: 24px;
@@ -3404,6 +3411,8 @@ figcaption {
   rotate: var(--tilt);
 }
 .me-avatar-img {
+  --stamp-from: 1.25;
+  --tilt: 0deg;
   flex: none;
   width: 72px;
   height: 72px;
@@ -3753,20 +3762,26 @@ figcaption {
 [data-reveal="wait"] .lantern-badge[data-earned="true"] .lantern-badge-glow {
   opacity: 0;
 }
+/* 最初の画面に入っていたバッジは、数字の付箋の後に中身だけ再生する（Reveal の inView="parts"） */
+[data-reveal="parts"] .lantern-badge .lantern-progress-fill,
 [data-reveal="play"] .lantern-badge .lantern-progress-fill {
   animation: lantern-fill 900ms var(--ease-stage) calc(var(--d, 0ms) + 200ms) both;
 }
+[data-reveal="parts"] .lantern-badge .lantern-spark,
 [data-reveal="play"] .lantern-badge .lantern-spark {
   animation:
     lantern-spark-run 900ms var(--ease-stage) calc(var(--d, 0ms) + 200ms) both,
     v-bump 450ms var(--ease-out-soft) calc(var(--d, 0ms) + 1100ms) both;
 }
+[data-reveal="parts"] .lantern-badge[data-earned="true"] .lantern-badge-glow,
 [data-reveal="play"] .lantern-badge[data-earned="true"] .lantern-badge-glow {
   animation: v-ignite-glow var(--dur-pop) var(--spring-pop) calc(var(--d, 0ms) + 200ms) both;
 }
+[data-reveal="parts"] .lantern-badge[data-earned="true"] .lantern-badge-spark,
 [data-reveal="play"] .lantern-badge[data-earned="true"] .lantern-badge-spark {
   animation: v-spark 600ms var(--ease-out-soft) calc(var(--d, 0ms) + 500ms) both;
 }
+[data-reveal="parts"] .lantern-badge[data-earned="true"] .lantern-glow,
 [data-reveal="play"] .lantern-badge[data-earned="true"] .lantern-glow {
   animation: v-ignite-glow 480ms var(--ease-out-soft) calc(var(--d, 0ms) + 200ms) both;
 }
@@ -3948,9 +3963,11 @@ figcaption {
   animation: v-fade-in 240ms var(--ease-out-soft) 900ms both;
 }
 .verify-keeper {
-  /* 右下の花丸（96px）と重ならない幅 */
-  max-width: min(280px, calc(100% - 112px));
   margin-top: 18px;
+}
+/* 棒だけ、右下の花丸（96px）と重ならない幅にする（文は折り返さない） */
+.verify-keeper-bar {
+  max-width: min(280px, calc(100% - 112px));
 }
 .verify-keeper-text {
   margin: 0 0 10px;

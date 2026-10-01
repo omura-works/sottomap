@@ -132,6 +132,10 @@ test.describe("デモモードの主要導線", () => {
     await Promise.all([firstPage.goto(requestPath), stalePage.goto(requestPath)]);
     await firstPage.getByRole("button", { name: "静かなまま" }).click();
     await expect(firstPage.getByText("+5", { exact: true })).toBeVisible();
+    // SPEC motion §5.7: 受け付けられたら「ありがとう！」、選んだ答えの判子が店のカードの置き場に押され、花丸が描かれる
+    await expect(firstPage.getByText("ありがとう！", { exact: true })).toBeVisible();
+    await expect(firstPage.locator(".verify-slot .stamp")).toHaveText("静");
+    await expect(firstPage.locator(".verify-hanamaru")).toBeVisible();
 
     await stalePage.getByRole("button", { name: "静かなまま" }).click();
     await expect(stalePage.getByText("この確認は回答済みです。", { exact: true })).toBeVisible();

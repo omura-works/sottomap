@@ -11,6 +11,7 @@ import { Divider, Tag } from "@/components/ui";
 import { HomeCitySetting } from "@/components/profile/HomeCitySetting";
 import { DisplayNameSetting } from "./DisplayNameSetting";
 import { LanternBadge } from "./LanternBadge";
+import { Stat } from "./MeStat";
 import { canChangeHomeCity, formatHomeCityChangeDate, nextHomeCityChangeAt } from "@/lib/domain/home-city";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { PageLamp } from "@/components/motion/PageLamp";
@@ -101,7 +102,8 @@ export default async function ProfilePage() {
           {/* 2026-09-26 案B: 暗い角丸カードのバッジ（モバイルは2列、広い画面は幅200で横に並べる） */}
           <ul className="me-badges grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:gap-4">
             {badges.map((badge, i) => (
-              <Reveal key={badge.id} as="li" verb="stick" index={i} className="sm:w-[200px]">
+              // 最初の画面に入っていても、数字の付箋の後（600ms 後）に棒が満ちる動きを一度だけ再生する
+              <Reveal key={badge.id} as="li" verb="stick" index={i} inView="parts" inViewDelay={600} className="sm:w-[200px]">
                 <LanternBadge badge={badge} />
               </Reveal>
             ))}
@@ -175,40 +177,11 @@ export default async function ProfilePage() {
   );
 }
 
-interface StatProps {
-  index: number;
-  tone: "orange" | "moss" | "night";
-  tilt: number;
-  value: number;
-  unit: string;
-  label: string;
-}
-
-/** 数字の付箋（貼られて、数字が跳ねる。keep-visible なので最初から読める）。 */
-function Stat({ index, tone, tilt, value, unit, label }: StatProps) {
-  const digits = String(value).length;
-  return (
-    <div
-      className="sticky me-stat verb-stick keep-visible"
-      data-tone={tone}
-      style={{ "--tilt": `${tilt}deg`, "--d": `${index * 120}ms` } as CSSProperties}
-    >
-      <p className="me-stat-value">
-        <span className="me-stat-num verb-pop" data-digits={digits >= 3 ? "3" : undefined} style={{ "--d": `${index * 120 + 240}ms` } as CSSProperties}>
-          {value}
-        </span>
-        <span className="me-stat-unit">{unit}</span>
-      </p>
-      <p className="me-stat-label">{label}</p>
-    </div>
-  );
-}
-
 /** アバター（72px）。画像が無いときは判子の形（頭文字）で押される。読み上げは今のまま（画像は alt、判子は aria-hidden）。 */
 function Avatar({ avatarUrl, displayName }: { avatarUrl: string | null; displayName: string }) {
   if (avatarUrl) {
     // eslint-disable-next-line @next/next/no-img-element -- 外部URLのアバター画像をそのまま表示する
-    return <img src={avatarUrl} alt={displayName} className="me-avatar-img" />;
+    return <img src={avatarUrl} alt={displayName} className="me-avatar-img verb-stamp keep-visible" />;
   }
   return (
     <span className="me-avatar verb-stamp keep-visible" aria-hidden="true">
