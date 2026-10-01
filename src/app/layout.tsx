@@ -7,6 +7,7 @@ import { getCurrentUserId } from "@/lib/auth";
 import { getUserProfile, listCities } from "@/lib/db/spots";
 import { getSiteOrigin } from "@/lib/auth/site-url";
 import "./globals.css";
+import { DEFER_BELOW_SCRIPT } from "./defer-below";
 
 /**
  * metadataBase・OGP用の絶対URLの元になる origin。
@@ -101,6 +102,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const homeCitySlug = await resolveHomeCitySlug();
   return (
     <html lang="ja" className={`${zenMaruGothic.variable} ${mochiyPopOne.variable}`}>
+      <head>
+        {/* SPEC motion §7.1: /start の画面の外の節を最初の描画の後に描く（React・ハイドレーションとは無関係に動く） */}
+        <script dangerouslySetInnerHTML={{ __html: DEFER_BELOW_SCRIPT }} />
+      </head>
       <body className="min-h-screen">
         {showDemoBanner ? (
           <p data-demo-banner="" className="m-0 px-3 py-1 text-center text-xs text-muted" style={{ background: "var(--color-surface)" }}>

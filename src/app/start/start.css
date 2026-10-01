@@ -437,6 +437,11 @@
   content-visibility: auto;
   contain-intrinsic-size: auto 1500px;
 }
+/* 最初の描画までは最初のレイアウトから外す（<head> のインラインスクリプト src/app/defer-below.ts が付け外しする。
+   最初の描画の直後か、文書の解析から 1500ms で外れる。JS が無効なら付かない） */
+html[data-defer-below] .start-trail {
+  content-visibility: hidden;
+}
 .start-trail-col,
 .start-trail-lamp {
   display: none;

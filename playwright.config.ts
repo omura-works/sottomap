@@ -28,6 +28,7 @@ export default defineConfig({
         "**/legal-links.spec.ts",
         "**/contact.spec.ts",
         "**/map-motion.spec.ts",
+        "**/start-defer.spec.ts",
       ],
     },
     {
