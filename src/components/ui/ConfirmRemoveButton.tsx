@@ -64,7 +64,8 @@ const INSTANT = { duration: 0 } as const;
 const SURFACE = "bg-[var(--color-neutral-100)]";
 const RECESS = "bg-[var(--color-neutral-200)]";
 const GLYPH = "text-[var(--color-neutral-700)]";
-const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent-600)]";
+// フォーカスの輪は全体の :focus-visible（2px の accent-600 の線、2px 離す。§6.3）に任せる。ほかの部品と同じ輪にするため
+const FOCUS = "";
 const ACCENT = "var(--color-accent-700)";
 
 const CIRCLE = `grid h-7 w-7 place-items-center rounded-full transition-colors duration-200 hover:bg-[var(--color-neutral-100)] ${SURFACE} shadow-sm`;

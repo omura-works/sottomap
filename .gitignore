@@ -2,6 +2,7 @@ node_modules/
 .next/
 .next-realdb/
 .next-e2e/
+.next-e2e-reduce/
 out/
 .env*
 !.env.example

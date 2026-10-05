@@ -1703,6 +1703,18 @@ figcaption {
 .city-map .maplibregl-ctrl-top-right {
   top: 56px;
 }
+/* ズームのボタンも、ほかの部品と同じ輪（maplibre-gl.css の青い影の輪の代わり。§6.3） */
+.maplibregl-map .maplibregl-ctrl button:focus {
+  box-shadow: none;
+}
+.maplibregl-map .maplibregl-ctrl.maplibregl-ctrl-group button:focus-visible,
+.maplibregl-map .maplibregl-ctrl .maplibregl-ctrl-attrib-button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--color-accent-600);
+  outline-offset: 2px;
+  box-shadow: none;
+}
 
 /* ══════════════════════════════════════════════════════════════════════════
    7つの動詞（SPEC motion §1.2・§3.3）: 描く・貼る・押す・挟む・跳ねる（昼）、灯る・渡る（夜）。
@@ -2774,6 +2786,8 @@ figcaption {
 .spot-rows {
   position: relative;
   display: grid;
+  /* 行の長い店名で列が広がらない（幅 320px でも横にはみ出さない。§6.6） */
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   margin: 0;
   padding: 0;
@@ -3328,6 +3342,8 @@ figcaption {
 .bm-list {
   position: relative;
   display: grid;
+  /* 行の長い店名で列が広がらない（幅 320px でも横にはみ出さない。§6.6） */
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   margin: 0;
   padding: 0;
@@ -3511,6 +3527,8 @@ figcaption {
 }
 .me-rows {
   display: grid;
+  /* 行の長い店名で列が広がらない（幅 320px でも横にはみ出さない。§6.6） */
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   margin: 16px 0 0;
   padding: 0;
@@ -3541,7 +3559,9 @@ figcaption {
 }
 .me-row-tags {
   display: flex;
-  flex: none;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 4px;
 }
 .me-pending-link {
