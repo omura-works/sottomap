@@ -16,8 +16,8 @@ describe("newSpotSchema（緯度・経度）", () => {
     if (!result.success) {
       const latIssue = result.error.issues.find((i) => i.path[0] === "lat");
       const lngIssue = result.error.issues.find((i) => i.path[0] === "lng");
-      expect(latIssue?.message).toBe("地図で位置を選ぶか、緯度・経度を入力してください");
-      expect(lngIssue?.message).toBe("地図で位置を選ぶか、緯度・経度を入力してください");
+      expect(latIssue?.message).toBe("地図で場所を選ぶか、緯度・経度を入れてください");
+      expect(lngIssue?.message).toBe("地図で場所を選ぶか、緯度・経度を入れてください");
     }
   });
 

@@ -40,7 +40,7 @@ test.describe("デモモードの主要導線", () => {
 
     await expect(pendingCard.getByText("承認 1/2", { exact: true }).first()).toBeVisible();
     await pendingCard.getByRole("button", { name: "行ったことがある", exact: true }).click();
-    await expect(page.getByText("2人目の承認で地図に公開されました。", { exact: true })).toBeVisible();
+    await expect(page.getByText("2人目の「行ったことがある」で、地図に出ました！", { exact: true })).toBeVisible();
 
     // 地図ピン（role="button"）はモバイル（全面地図）・デスクトップ（右ペイン）どちらでも
     // 常に描画される。D1サイドバーのリンク（lg:以上のみ）ではなくピンで公開を確認する。

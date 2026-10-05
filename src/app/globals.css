@@ -4098,6 +4098,719 @@ figcaption {
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   P6 フォーム・ログイン・静的ページ・404・エラー（SPEC motion §5.8〜§5.15）。要素の既定を上書きするのでレイヤーの外。
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* — ピンを立てる（§5.8）— */
+.new-spot-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+.new-spot {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.new-spot-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 20px;
+  margin-top: 12px;
+}
+.new-spot-title {
+  margin: 0;
+  flex: 0 1 auto;
+}
+@media (min-width: 640px) {
+  .new-spot-title {
+    max-width: calc(100% - 148px);
+  }
+}
+.new-spot-ikken {
+  position: relative;
+  display: inline-block;
+}
+.new-spot-ikken-line {
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  bottom: -10px;
+  width: calc(100% + 8px);
+  height: 16px;
+  color: var(--color-accent-500);
+}
+.new-spot-ikken-line path {
+  --dur-draw: 420ms;
+}
+/* 3段の提灯: そろった段の光が灯る（spring-pop）。そろわなくなったら 160ms で消える（.lantern-glow の transition） */
+.new-spot-lanterns {
+  display: inline-flex;
+  flex: none;
+  gap: 10px;
+  padding-bottom: 6px;
+}
+.new-spot-lanterns .lantern[data-lit="true"] .lantern-glow {
+  animation: v-ignite-glow var(--dur-pop) var(--spring-pop) both;
+}
+.new-spot-lead {
+  margin: 14px 0 0;
+  font-size: var(--fs-lead);
+  color: var(--color-text-muted);
+}
+.new-spot-position-text {
+  margin: 0;
+  font-size: 15px;
+  color: var(--color-text-muted);
+}
+.new-spot-map {
+  position: relative;
+  height: 240px;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+}
+@keyframes v-flash-field {
+  30% {
+    background-color: var(--color-accent-100);
+  }
+}
+.new-spot-coords[data-flash="true"] .input {
+  animation: v-flash-field 600ms var(--ease-out-soft) 1;
+}
+.new-spot-position-note {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-accent-700);
+}
+.new-spot-frequency {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.new-spot-frequency-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+.new-spot-after {
+  position: relative;
+  background: var(--color-accent-2-100);
+  padding-right: 80px;
+}
+.new-spot-after-art {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+}
+.new-spot-pending {
+  margin: 8px 0 0;
+}
+/* 投稿後の知らせ: 苔色の付箋に灯りの子 */
+.new-spot-created {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.new-spot-created-child {
+  flex: none;
+}
+.new-spot-created-text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--color-accent-2-800);
+}
+/* 承認待ち */
+.pending-spots-title {
+  margin: 0;
+}
+.pending-spots-lead {
+  margin: 6px 0 0;
+  font-size: 15px;
+  color: var(--color-text-muted);
+}
+.pending-spots-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+.pending-empty {
+  position: relative;
+  padding-left: 72px;
+}
+.pending-empty-child {
+  position: absolute;
+  top: 22px;
+  left: 22px;
+}
+.endorse {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.endorse-meter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: var(--fs-micro);
+  color: var(--color-text-muted);
+}
+.endorse-frames {
+  display: inline-flex;
+  gap: 6px;
+}
+.endorse-frame {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-pill);
+}
+.endorse-frame > * {
+  grid-area: 1 / 1;
+}
+.endorse-frame-empty {
+  border: 2px dotted var(--color-neutral-400);
+}
+.endorse-check {
+  position: relative;
+  z-index: 1;
+  width: 12px;
+  height: 12px;
+  color: var(--color-accent-2-900);
+}
+.endorse-hanamaru {
+  position: absolute;
+  top: -24px;
+  right: -12px;
+  width: 96px;
+  height: 96px;
+  color: var(--color-accent-600);
+}
+.endorse-published {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-accent-2-800);
+}
+
+/* — ログイン（§5.9）— 夜から入る */
+.login-night {
+  --ring: var(--color-accent-300);
+  position: relative;
+  overflow: hidden;
+  min-height: calc(100dvh - 120px);
+  padding: 48px 16px 72px;
+  background: var(--night-horizon);
+}
+@media (min-width: 1024px) {
+  .login-night {
+    padding: 80px 40px 120px;
+  }
+}
+.login-night-deco {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.login-night-ridge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 64px;
+}
+/* ロード中の画面（画面いっぱいの下書き）の間はフッターを出さない。中身に差し替わったときに、画面の外にあったフッターが
+   画面の中へ上がってきてレイアウトのずれ（CLS）にならないように（404 のように中身が短い画面で起きていた） */
+main:has(.city-loading, .loading-screen) + .site-footer {
+  display: none;
+}
+/* 夜の面の下端の山並みから、そのままフッターの夜の帯へ続ける（間の紙の余白とフッターの山並みを出さない） */
+main:has(.login-night) + .site-footer {
+  margin-top: 0;
+}
+main:has(.login-night) + .site-footer .site-footer-ridge {
+  display: none;
+}
+.login-card {
+  --ring: var(--color-accent-600);
+  position: relative;
+  max-width: 440px;
+  margin: 0 auto;
+  padding: 24px;
+  border-radius: var(--radius-hero);
+  background: var(--color-bg);
+  color: var(--color-text);
+  box-shadow: var(--shadow-lg);
+}
+@media (min-width: 640px) {
+  .login-card {
+    padding: 32px;
+  }
+}
+.login-kicker {
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+.login-title {
+  margin: 10px 0 0;
+}
+.login-lead {
+  margin: 6px 0 0;
+  font-size: 15px;
+  color: var(--color-text-muted);
+}
+.login-head {
+  margin-bottom: 20px;
+}
+.login-form-wrap {
+  position: relative;
+  padding-top: 52px;
+}
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.login-email {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* 封筒（右上）と、そこからカードの右上の角へ伸びる点線 */
+.login-envelope-wrap {
+  position: absolute;
+  top: 0;
+  right: 40px;
+  width: 48px;
+  height: 36px;
+  pointer-events: none;
+}
+.login-envelope-path {
+  position: absolute;
+  left: 24px;
+  top: -38px;
+  width: 96px;
+  height: 56px;
+  overflow: visible;
+}
+.login-envelope {
+  position: relative;
+}
+@keyframes login-envelope-fly {
+  0% {
+    offset-distance: 0%;
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+.login-envelope.is-sent {
+  offset-path: path("M0 0 C 30 -6, 60 -26, 96 -56");
+  offset-rotate: 0deg;
+  offset-anchor: left top;
+  animation: login-envelope-fly 700ms var(--ease-draw) both;
+}
+.login-sent {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+/* — お問い合わせ（§5.10）— */
+.contact-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.contact-title {
+  margin: 10px 0 0;
+}
+.contact-lead {
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+}
+.contact-promise {
+  gap: 8px;
+}
+/* 用件: ピルのカード。選んだものは枠 accent-600・地 accent-100・字 700、左に灯りの点（前の選択肢から渡る） */
+.contact-kind {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 10px 18px;
+  border: 1.5px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-neutral-100);
+}
+.contact-kind + .contact-kind {
+  margin-top: 8px;
+}
+.contact-kind[data-on="true"] {
+  border-color: var(--color-accent-600);
+  background: var(--color-accent-100);
+  font-weight: 700;
+}
+.contact-kind-lamp {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-400);
+  box-shadow: var(--glow-sm);
+}
+/* 本文の欄: 便箋の罫線 */
+.contact-letter {
+  min-height: 0;
+  padding-block: 10px;
+  border-radius: var(--radius-md);
+  line-height: 1.9;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(1.9em - 1px),
+    color-mix(in srgb, var(--color-neutral-400) 45%, transparent) calc(1.9em - 1px),
+    transparent 1.9em
+  );
+  background-attachment: local;
+}
+.contact-sent {
+  position: relative;
+  padding-right: 120px;
+}
+.contact-sent-mark {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+@keyframes contact-flap-close {
+  from {
+    transform: scaleY(-1);
+  }
+}
+.contact-envelope .envelope-flap {
+  animation: contact-flap-close var(--dur-settle) var(--spring-settle) both;
+}
+.contact-sent-stamp {
+  --d: 600ms;
+}
+
+/* — よくある質問（§5.11）— */
+.faq-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.faq-title {
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+.faq-lead {
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+}
+.faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.faq-item {
+  gap: 0;
+  padding: 8px 20px;
+}
+.faq-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  list-style: none;
+  cursor: pointer;
+}
+.faq-summary::-webkit-details-marker {
+  display: none;
+}
+.faq-q {
+  --stamp-from: 1.2;
+}
+.faq-q::before {
+  content: "Q";
+}
+.faq-item[open] .faq-q {
+  animation:
+    v-stamp var(--dur-stamp) var(--spring-stamp) both,
+    v-fade-in 80ms var(--ease-out-soft) both;
+}
+.faq-question {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 700;
+}
+.faq-plus {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  stroke: var(--color-accent-700);
+  transition: rotate var(--dur-stamp) var(--spring-stamp);
+}
+.faq-item[open] .faq-plus {
+  rotate: 45deg;
+}
+.faq-answer {
+  padding: 4px 0 16px 42px;
+  font-size: 15px;
+  line-height: 1.9;
+}
+
+/* — 掲載店舗の方へ（§5.12）— 暖簾が一度だけゆれる */
+.shops-noren {
+  margin-bottom: 4px;
+}
+@keyframes v-noren {
+  0% {
+    rotate: 0deg;
+  }
+  8% {
+    rotate: 2.32deg;
+  }
+  17% {
+    rotate: 2.14deg;
+  }
+  25% {
+    rotate: 0.7deg;
+  }
+  33% {
+    rotate: -0.53deg;
+  }
+  42% {
+    rotate: -0.87deg;
+  }
+  50% {
+    rotate: -0.51deg;
+  }
+  58% {
+    rotate: 0deg;
+  }
+  67% {
+    rotate: 0.29deg;
+  }
+  75% {
+    rotate: 0.26deg;
+  }
+  83% {
+    rotate: 0.08deg;
+  }
+  92% {
+    rotate: -0.07deg;
+  }
+  100% {
+    rotate: 0deg;
+  }
+}
+.shops-noren .noren-cloth {
+  animation: v-noren 1200ms linear both;
+}
+.shops-noren .noren-cloth:nth-of-type(2) {
+  animation-delay: 60ms;
+}
+.shops-noren .noren-cloth:nth-of-type(3) {
+  animation-delay: 120ms;
+}
+.shops-title {
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+.shops-card-h2 {
+  margin: 0;
+  font-size: 1.375rem;
+}
+
+/* — 規約・プライバシー（§5.13）— 本文は触らない。見出しと読んだところまでの線だけ */
+.legal-title {
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+.legal-body {
+  max-width: 42em;
+  font-size: 16px;
+  line-height: 1.9;
+}
+.legal-h2 {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.legal-h2::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-400);
+  box-shadow: var(--glow-sm);
+}
+.legal-read-line {
+  display: none;
+}
+@keyframes v-read {
+  from {
+    scale: 0 1;
+  }
+  to {
+    scale: 1 1;
+  }
+}
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .legal-read-line {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 45;
+      display: block;
+      height: 3px;
+      background: var(--color-accent-400);
+      transform-origin: left center;
+      pointer-events: none;
+      animation: v-read linear both;
+      animation-timeline: scroll(root);
+    }
+  }
+}
+
+/* — 404（§5.14）— 道に迷った灯りの子 */
+.nf-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.nf-art {
+  position: relative;
+  width: 100%;
+  height: 140px;
+}
+.nf-path {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+/* 道の先（viewBox の x 256・y 48 のあたり。挿絵は高さ 140px にそろえて左寄せ） */
+.nf-child {
+  position: absolute;
+  left: calc(min(100%, 360px) * 0.711);
+  top: 22px;
+  margin: -28px 0 0 -28px;
+}
+@keyframes nf-look {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  33% {
+    translate: -3px 0;
+  }
+  66% {
+    translate: 3px 0;
+  }
+}
+.nf-child .lantern-child-eye {
+  animation:
+    nf-look 1200ms var(--ease-breath) 1300ms 1 both,
+    v-blink 120ms linear 2500ms 2;
+}
+.nf-title {
+  margin: 8px 0 0;
+}
+.nf-lead {
+  margin: 0;
+  font-size: var(--fs-lead);
+  color: var(--color-text-muted);
+}
+.nf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+/* — エラー（§5.15）— 提灯の光が一度だけ「ふっ」と弱まって戻る（点滅ではない） */
+@keyframes error-lantern-dim {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+  100% {
+    opacity: 0.8;
+  }
+}
+.error-lantern .lantern-glow {
+  opacity: 0.8;
+  animation: error-lantern-dim 600ms var(--ease-breath) 1 both;
+}
+.error-lantern.is-full .lantern-glow {
+  opacity: 1;
+  animation: none;
+  transition: opacity 480ms var(--ease-out-soft);
+}
+.error-title {
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+
+/* P6 の reduce: 最終状態で出す */
+@media (prefers-reduced-motion: reduce) {
+  .new-spot-lanterns .lantern-glow,
+  .new-spot-coords .input,
+  .login-envelope.is-sent,
+  .contact-envelope .envelope-flap,
+  .faq-item[open] .faq-q,
+  .shops-noren .noren-cloth,
+  .nf-child .lantern-child-eye,
+  .error-lantern .lantern-glow {
+    animation: none !important;
+  }
+  .faq-plus,
+  .error-lantern .lantern-glow {
+    transition: none !important;
+  }
+  /* 封筒は飛ばない（そのまま残る） */
+  .login-envelope.is-sent {
+    offset-path: none;
+  }
+}
+
 /* 画面の中の失敗の文（SPEC motion §4.7）: 揺らさない。少し傾いて上から置かれる */
 @keyframes v-alert-in {
   from {

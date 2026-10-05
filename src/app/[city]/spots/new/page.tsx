@@ -4,7 +4,9 @@ import { getCurrentUserId } from "@/lib/auth";
 import { getCity, listPendingSpots } from "@/lib/db/spots";
 import { NewSpotForm } from "@/components/spot-form/NewSpotForm";
 import { PendingSpotList } from "@/components/spot-form/PendingSpotList";
+import type { CSSProperties } from "react";
 import { PageTransition } from "@/components/motion/PageTransition";
+import { LanternChild } from "@/components/illustrations/LanternChild";
 
 interface NewSpotPageProps {
   params: Promise<{ city: string }>;
@@ -26,11 +28,13 @@ export default async function NewSpotPage({ params, searchParams }: NewSpotPageP
 
   return (
     <PageTransition>
-      <div className="mx-auto max-w-xl px-4 py-8 lg:py-12 space-y-10">
+      <div className="new-spot-screen mx-auto max-w-xl px-4 py-8 lg:py-12">
         {created ? (
-          <p className="rounded-full bg-[var(--color-accent-100)] px-4 py-2 text-sm">
-            ピンを立てました。同じ街の2人が「行ったことがある」と答えると地図に出ます。
-          </p>
+          // SPEC motion §5.8-1: 苔色の付箋が貼られ、灯りの子が跳ねる
+          <div className="sticky new-spot-created verb-stick keep-visible" data-tone="moss" style={{ "--tilt": "-1deg" } as CSSProperties}>
+            <LanternChild size={36} className="new-spot-created-child verb-pop" style={{ "--d": "200ms" } as CSSProperties} />
+            <p className="new-spot-created-text">ピンを立てました！同じ街の2人が「行ったことがある」と答えると、地図に出ます。</p>
+          </div>
         ) : null}
 
         <NewSpotForm city={city} />

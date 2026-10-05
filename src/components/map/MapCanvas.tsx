@@ -344,7 +344,8 @@ export function MapCanvas({
             setPinRibbon(existing.outer, bookmarked, !introDone ? "wait" : reduced ? "none" : "tuck", 0);
           }
           if (introDone && !reduced && pin.stampKey !== undefined && pin.stampKey !== previous.stampKey) {
-            playPinEntrance(existing.stamp, "stamp", 0);
+            // 置き直したピン（ピンを立てる画面のミニ地図）: インクの輪つきでもう一度押す（SPEC motion §5.8）
+            playPinEntrance(existing.stamp, "stamp", 0, true);
           }
           continue;
         }

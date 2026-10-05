@@ -24,7 +24,7 @@ const coerceOptionalNumber = (value: unknown) => {
   return value;
 };
 
-const POSITION_REQUIRED_ERROR = "地図で位置を選ぶか、緯度・経度を入力してください";
+export const POSITION_REQUIRED_ERROR = "地図で場所を選ぶか、緯度・経度を入れてください";
 
 export const newSpotSchema = z.object({
   cityId: z.string().min(1, "街の情報が取得できませんでした"),

@@ -1,7 +1,8 @@
 import type { Spot } from "@/lib/db/types";
 import { Card } from "@/components/ui";
-import { ENDORSEMENTS_REQUIRED } from "@/lib/domain/lifecycle";
+import { LanternChild } from "@/components/illustrations/LanternChild";
 import { EndorseButton } from "./EndorseButton";
+import { EndorseMeter } from "./EndorseMeter";
 
 export interface PendingSpotListProps {
   spots: Spot[];
@@ -10,7 +11,7 @@ export interface PendingSpotListProps {
 }
 
 /**
- * 承認待ち一覧（Server Component）。
+ * 承認待ち一覧（Server Component。SPEC motion §5.8-3）。
  *
  * 導線について: 現時点でこのコンポーネントを開くルートは
  * `/[city]/spots/new`（このタスクの所有ページ）の下部のみ。
@@ -20,34 +21,39 @@ export interface PendingSpotListProps {
  */
 export function PendingSpotList({ spots, citySlug, viewerId }: PendingSpotListProps) {
   if (spots.length === 0) {
+    // §4.6: カードの左上に灯りの子。title をひと言、本文を説明に
     return (
-      <Card kicker="承認待ち" title="いま、承認待ちのピンはありません">
-        この街で新しく立てられたピンがあれば、ここに表示されます。
+      <Card kicker="承認待ち" title="いま、承認待ちのピンはありません" className="pending-empty">
+        <LanternChild size={36} className="pending-empty-child" />
+        この街で新しいピンが立ったら、ここに出てきます。
       </Card>
     );
   }
 
   return (
-    <div className="space-y-3">
-      <h3>承認待ちのピン</h3>
-      {spots.map((spot) => {
-        const isOwn = spot.authorId === viewerId;
-        return (
-          <Card
-            key={spot.id}
-            kicker={spot.areaName ?? undefined}
-            title={spot.name}
-            meta={`承認 ${spot.endorsementCount}/${ENDORSEMENTS_REQUIRED}`}
-          >
-            <p>{spot.reason}</p>
-            {isOwn ? (
-              <p className="text-muted text-sm">自分の投稿には承認できません。</p>
-            ) : (
-              <EndorseButton spotId={spot.id} citySlug={citySlug} initialCount={spot.endorsementCount} />
-            )}
-          </Card>
-        );
-      })}
-    </div>
+    <section className="pending-spots" aria-labelledby="pending-spots-heading">
+      <h2 id="pending-spots-heading" className="pending-spots-title">
+        承認待ちのピン
+      </h2>
+      <p className="pending-spots-lead">同じ街の人が立てたピンです。行ったことがあれば、教えてください。</p>
+      <div className="pending-spots-list">
+        {spots.map((spot) => {
+          const isOwn = spot.authorId === viewerId;
+          return (
+            <Card key={spot.id} kicker={spot.areaName ?? undefined} title={spot.name} className="relative pending-spot">
+              <p className="m-0">{spot.reason}</p>
+              {isOwn ? (
+                <>
+                  <EndorseMeter count={spot.endorsementCount} />
+                  <p className="text-muted text-sm m-0">自分で立てたピンには、承認できません。</p>
+                </>
+              ) : (
+                <EndorseButton spotId={spot.id} citySlug={citySlug} initialCount={spot.endorsementCount} />
+              )}
+            </Card>
+          );
+        })}
+      </div>
+    </section>
   );
 }

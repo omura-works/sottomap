@@ -1,14 +1,17 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { City } from "@/lib/db/types";
 import { NewSpotForm } from "./NewSpotForm";
+import { POSITION_REQUIRED_ERROR } from "./schema";
 
 // SPEC §9.14-14: 範囲外の緯度・経度でも MapLibre（実MapCanvas）へピンを渡さないことを検証する。
 // 実MapCanvasはmaplibre-gl依存のため、pinsプロパティだけを見えるようにモックする。
 let lastPins: unknown[] = [];
+let lastClick: ((point: { lat: number; lng: number }) => void) | undefined;
 vi.mock("@/components/map", () => ({
-  MapCanvas: (props: { pins: unknown[] }) => {
+  MapCanvas: (props: { pins: unknown[]; onBackgroundClick?: (point: { lat: number; lng: number }) => void }) => {
     lastPins = props.pins;
+    lastClick = props.onBackgroundClick;
     return <div data-testid="map-canvas" />;
   },
 }));
@@ -57,5 +60,45 @@ describe("NewSpotForm", () => {
     expect(screen.getByLabelText("緯度")).toHaveAttribute("max", "90");
     expect(screen.getByLabelText("経度")).toHaveAttribute("min", "-180");
     expect(screen.getByLabelText("経度")).toHaveAttribute("max", "180");
+  });
+
+  describe("SPEC motion §5.8: 見た目の文と動きのための状態", () => {
+    it("新しい文: 題・文・リード・補足・頻度の見出し。未選択の注意は schema と同じ文", () => {
+      render(<NewSpotForm city={CITY} />);
+      expect(screen.getByRole("heading", { level: 1, name: "まだ知られていない店を、一軒" })).toBeInTheDocument();
+      expect(screen.getByText("あなたがふだん通っている、あの店を教えてください。")).toBeInTheDocument();
+      expect(screen.getByText("地図をタップして、ピンを置いてね")).toBeInTheDocument();
+      expect(screen.getByText("地図をクリック（タップ）した場所にピンが立ちます。一度も置かないままだと、送れません。")).toBeInTheDocument();
+      expect(screen.getByText("ひとことで大丈夫です。")).toBeInTheDocument();
+      expect(screen.getByText("正直に、どのくらい行きますか？")).toBeInTheDocument();
+      expect(POSITION_REQUIRED_ERROR).toBe("地図で場所を選ぶか、緯度・経度を入れてください");
+      expect(screen.getByText(POSITION_REQUIRED_ERROR)).toBeInTheDocument();
+      expect(screen.getByRole("radiogroup", { name: "行く頻度" })).toBeInTheDocument();
+    });
+
+    it("3段の提灯が、位置・名前（空白だけは数えない）・理由に合わせて灯る", () => {
+      const { container } = render(<NewSpotForm city={CITY} />);
+      const lit = () => Array.from(container.querySelectorAll(".new-spot-lanterns .lantern")).map((el) => el.getAttribute("data-lit"));
+      expect(lit()).toEqual(["false", "false", "false"]);
+      fireEvent.change(screen.getByLabelText("緯度"), { target: { value: "43.05" } });
+      fireEvent.change(screen.getByLabelText("経度"), { target: { value: "141.35" } });
+      expect(lit()).toEqual(["true", "false", "false"]);
+      fireEvent.change(screen.getByLabelText("店の名前"), { target: { value: "   " } });
+      expect(lit()).toEqual(["true", "false", "false"]);
+      fireEvent.change(screen.getByLabelText("店の名前"), { target: { value: "喫茶" } });
+      fireEvent.change(screen.getByLabelText("なぜ、あなたはここへ行くのか（60字まで）"), { target: { value: "静か" } });
+      expect(lit()).toEqual(["true", "true", "true"]);
+    });
+
+    it("地図をタップするたびにピンの stampKey が変わる（手で入れたときは変わらない）", () => {
+      render(<NewSpotForm city={CITY} />);
+      act(() => lastClick?.({ lat: 43.05, lng: 141.35 }));
+      const first = (lastPins[0] as { stampKey: string }).stampKey;
+      act(() => lastClick?.({ lat: 43.06, lng: 141.36 }));
+      const second = (lastPins[0] as { stampKey: string }).stampKey;
+      expect(second).not.toBe(first);
+      fireEvent.change(screen.getByLabelText("緯度"), { target: { value: "43.07" } });
+      expect((lastPins[0] as { stampKey: string }).stampKey).toBe(second);
+    });
   });
 });
