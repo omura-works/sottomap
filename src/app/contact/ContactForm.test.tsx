@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 // /contact のフォーム（SPEC §9.17）。成功したらお礼の見出しへ、失敗したら最初の不正な入力欄へ
 // フォーカスを移すこと、送るボタンが44px以上であること、個人情報の請求（privacy）の2つの経路
 // （ログイン中は返信先の欄を出さない／ログインできない人は返信先必須）の案内と、用件ごとの成功時の文言を確かめる。
@@ -25,6 +27,11 @@ describe("ContactForm", () => {
   it("送るボタンは高さ44px以上（SPEC motion §5.10: 大きい主ボタン .btn-lg＝56px。実際の高さは e2e/contact.spec.ts で測る）", () => {
     render(<ContactForm spot={null} isLoggedIn={false} />);
     expect(screen.getByRole("button", { name: "送る" })).toHaveClass("btn-lg");
+    // .btn-lg の高さの指定そのものを globals.css から読んで 44px 以上を確かめる（jsdom は CSS を当てないため）
+    const css = readFileSync(resolve(process.cwd(), "src/app/globals.css"), "utf8");
+    const block = css.slice(css.indexOf(".btn-lg {"), css.indexOf("}", css.indexOf(".btn-lg {")));
+    const minHeight = Number(/min-height:\s*(\d+)px/.exec(block)?.[1]);
+    expect(minHeight).toBeGreaterThanOrEqual(44);
   });
 
   it("送信に成功したら、お礼の見出し（tabIndex=-1）へフォーカスを移す", async () => {

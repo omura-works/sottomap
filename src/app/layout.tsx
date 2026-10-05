@@ -102,7 +102,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const homeCitySlug = await resolveHomeCitySlug();
   return (
     // data-defer-below は <head> のインラインスクリプトが最初の描画まで付ける印（src/app/defer-below.ts）。
-    // ハイドレーションの時にまだ付いていることがあるので、<html> の属性の食い違いだけは警告しない
+    // ハイドレーションの時にまだ付いていることがあるので、<html> の属性の食い違いだけは警告しない。
+    // 注意: suppressHydrationWarning は <html> 自身の属性（className・lang を含む）の食い違いもすべて黙らせる
+    // （子の要素には効かない）。<html> の className・lang を描くたびに変えるような変更をするときは外して確かめること
     <html lang="ja" className={`${zenMaruGothic.variable} ${mochiyPopOne.variable}`} suppressHydrationWarning>
       <head>
         {/* SPEC motion §7.1: /start の画面の外の節を最初の描画の後に描く（React・ハイドレーションとは無関係に動く） */}

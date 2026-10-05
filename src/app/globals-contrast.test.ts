@@ -37,6 +37,14 @@ describe("トークンのコントラスト", () => {
     expect(contrast(token("bg"), token("accent-600"))).toBeGreaterThanOrEqual(4.5);
   });
 
+  it("P6 で足した組み合わせ: 補足の字（text-muted）は苔色のカード（accent-2-100）・選んだ用件（accent-100）の上で 4.5:1 以上", () => {
+    expect(contrast(token("text-muted"), token("accent-2-100"))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(token("text-muted"), token("accent-100"))).toBeGreaterThanOrEqual(4.5);
+    // 失敗の文（accent-700）は紙の地（bg・neutral-100）の上で 4.5:1 以上
+    expect(contrast(token("accent-700"), token("bg"))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(token("accent-700"), token("neutral-100"))).toBeGreaterThanOrEqual(4.5);
+  });
+
   it("placeholder（neutral-700）は入力欄の地（neutral-100）に 4.5:1 以上", () => {
     expect(block(".input::placeholder")).toContain("var(--color-neutral-700)");
     expect(contrast(token("neutral-700"), token("neutral-100"))).toBeGreaterThanOrEqual(4.5);

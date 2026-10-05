@@ -13,9 +13,10 @@
  *   最初の描画より先に切れてしまい、遅らせる意味がなくなるため）
  * JS が無効ならこのスクリプトも動かないので、最初から見える（読み上げ・検索でも読める）。
  *
- * CSP: script-src は今 'unsafe-inline' を許していて、このスクリプトはそれで動く。ハッシュ（sha256）を
- * script-src に足すと、ブラウザは 'unsafe-inline' を無視するようになり Next.js 自身のインラインスクリプトが
- * 止まるので、nonce/ハッシュ方式へ移るときにまとめて足す（`DEFER_BELOW_SCRIPT` の sha256 を使う）。
+ * CSP: 今は Content-Security-Policy-Report-Only（next.config.ts）で、script-src は 'unsafe-inline' を許している。
+ * 強制（Content-Security-Policy）に切り替えるときも 'unsafe-inline' のままならこのスクリプトはそのまま動く。
+ * ハッシュ（sha256）を script-src に足すと、ブラウザは 'unsafe-inline' を無視するようになり Next.js 自身の
+ * インラインスクリプトが止まるので、nonce/ハッシュ方式へ移るときにまとめて足す（`DEFER_BELOW_SCRIPT` の sha256 を使う）。
  */
 export const DEFER_BELOW_ATTRIBUTE = "data-defer-below";
 export const DEFER_BELOW_SAFETY_MS = 1500;

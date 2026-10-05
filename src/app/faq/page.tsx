@@ -208,7 +208,8 @@ export default function FaqPage() {
           {FAQ_ITEMS.map((item, i) => (
             <details
               key={item.question}
-              className="card motion-accordion faq-item verb-stick keep-visible"
+              // 同時に動くのは12個まで（SPEC motion §7.1）。13個目からは最初から置かれている
+              className={i < 12 ? "card motion-accordion faq-item verb-stick keep-visible" : "card motion-accordion faq-item"}
               style={{ "--d": `${Math.min(i, 7) * 45}ms` } as CSSProperties}
             >
               <summary className="faq-summary">

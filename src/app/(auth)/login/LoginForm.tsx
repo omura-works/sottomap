@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import type { CSSProperties } from "react";
 import { Button, Input } from "@/components/ui";
 import { Envelope } from "@/components/illustrations/Envelope";
@@ -19,6 +19,11 @@ const ENVELOPE_PATH = "M0 36 C 30 30, 60 10, 96 -20";
  */
 export function LoginForm({ nextPath }: { nextPath: string }) {
   const [state, action, pending] = useActionState(sendLoginLink, INITIAL_STATE);
+  // 送れたらフォームが消えるので、フォーカスを送った後の文へ移す（body へ落とさない）
+  const sentRef = useRef<HTMLParagraphElement | null>(null);
+  useEffect(() => {
+    if (state.sent) sentRef.current?.focus();
+  }, [state.sent]);
 
   return (
     <div className="login-form-wrap">
@@ -26,12 +31,23 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
         <WalkPath d={ENVELOPE_PATH} viewBox="0 -20 96 56" draw delay={300} className="login-envelope-path" />
         <Envelope width={48} className={state.sent ? "login-envelope is-sent" : "login-envelope"} />
       </span>
-      {state.sent ? (
-        <p className="login-sent verb-stick" style={{ "--d": "200ms" } as CSSProperties}>
-          メールを送りました！届いたリンクを開いてくださいね。
-        </p>
-      ) : (
-        <form action={action} className="login-form">
+      {/* 送った後の文は常に置いた status の中に出す（読み上げで伝わる） */}
+      <div role="status">
+        {state.sent ? (
+          <p ref={sentRef} tabIndex={-1} className="login-sent verb-stick" style={{ "--d": "200ms" } as CSSProperties}>
+            メールを送りました！届いたリンクを開いてくださいね。
+          </p>
+        ) : null}
+      </div>
+      {state.sent ? null : (
+        <form
+          action={action}
+          className="login-form"
+          onSubmit={(event) => {
+            // 送信中は disabled にせず（フォーカスを落とさない）、二度目の送信だけを止める
+            if (pending) event.preventDefault();
+          }}
+        >
           <input type="hidden" name="next" value={nextPath} />
           <label className="login-email">
             <span className="text-sm">メールアドレス</span>
@@ -56,7 +72,7 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
               {state.error}
             </p>
           ) : null}
-          <Button type="submit" variant="primary" size="lg" block disabled={pending}>
+          <Button type="submit" variant="primary" size="lg" block aria-disabled={pending ? "true" : undefined}>
             ログイン用リンクを送る
           </Button>
         </form>
