@@ -22,9 +22,9 @@ async function submit(): Promise<void> {
 }
 
 describe("ContactForm", () => {
-  it("送るボタンは高さ44px以上", () => {
+  it("送るボタンは高さ44px以上（SPEC motion §5.10: 大きい主ボタン .btn-lg＝56px。実際の高さは e2e/contact.spec.ts で測る）", () => {
     render(<ContactForm spot={null} isLoggedIn={false} />);
-    expect(screen.getByRole("button", { name: "送る" })).toHaveStyle({ minHeight: "44px" });
+    expect(screen.getByRole("button", { name: "送る" })).toHaveClass("btn-lg");
   });
 
   it("送信に成功したら、お礼の見出し（tabIndex=-1）へフォーカスを移す", async () => {

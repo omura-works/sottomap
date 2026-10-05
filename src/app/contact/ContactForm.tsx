@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { startTransition, useActionState, useEffect, useId, useRef, useState } from "react";
+import { motion } from "motion/react";
 import { Button, Card } from "@/components/ui";
+import { Envelope } from "@/components/illustrations/Envelope";
+import { Lantern } from "@/components/illustrations/Lantern";
+import { Stamp } from "@/components/motion/Stamp";
+import { SPRING } from "@/components/motion/tokens";
+import { usePrefersReducedMotion } from "@/components/ui/motion-prefs";
 import {
   CONTACT_CATEGORY_OPTIONS,
   CONTACT_LOGIN_HREF,
@@ -42,6 +48,7 @@ function charLength(value: string): number {
  */
 export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
   const [state, formAction, isPending] = useActionState(submitContactAction, INITIAL_STATE);
+  const reduced = usePrefersReducedMotion();
   const [message, setMessage] = useState("");
   const [category, setCategory] = useState<string>("");
   // 表示時はログイン中でも、送信時に期限が切れていたとサーバーが返したら、未ログインの表示に切り替える（R22 重要1）。
@@ -106,7 +113,12 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
 
   if (state.status === "success") {
     return (
-      <Card>
+      <Card className="contact-sent">
+        {/* 便箋が封筒に入り（ふたが閉じる）、「受付」の判子が押される。送れたときだけなので事実どおり（SPEC motion §5.10） */}
+        <span className="contact-sent-mark" aria-hidden="true">
+          <Envelope width={56} className="contact-envelope" />
+          <Stamp glyph="受付" tone="orange" size={56} tilt={-6} animate="press" className="contact-sent-stamp" />
+        </span>
         <div role="status">
           <h2 ref={successHeadingRef} tabIndex={-1} className="m-0">
             お送りしました。ありがとうございます。
@@ -158,11 +170,7 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
           用件
         </legend>
         {CONTACT_CATEGORY_OPTIONS.map((option) => (
-          <label
-            key={option.value}
-            className="radio"
-            style={{ display: "flex", minHeight: 44, alignItems: "center" }}
-          >
+          <label key={option.value} className="radio contact-kind" data-on={category === option.value ? "true" : "false"}>
             <input
               type="radio"
               name="category"
@@ -171,6 +179,15 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
               onChange={() => setCategory(option.value)}
             />
             <span className="dot" aria-hidden="true" />
+            {/* 選んだものの左に灯りの点。選び直すと前の選択肢から渡る */}
+            {category === option.value ? (
+              <motion.span
+                layoutId="contact-kind-lamp"
+                className="contact-kind-lamp"
+                aria-hidden="true"
+                transition={reduced ? { duration: 0 } : SPRING.settle}
+              />
+            ) : null}
             <span>{option.label}</span>
           </label>
         ))}
@@ -187,7 +204,8 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
           ) : null}
         </div>
         {categoryErrorMessage ? (
-          <p id={categoryErrorId} role="alert" className="text-sm m-0" style={{ color: "var(--color-accent-700)" }}>
+          <p id={categoryErrorId} role="alert" className="inline-alert alert-in text-sm m-0">
+            <Lantern size={16} tone="paper" />
             {categoryErrorMessage}
           </p>
         ) : null}
@@ -199,9 +217,8 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
           ref={messageRef}
           id={messageId}
           name="message"
-          className="input"
-          // 複数行の入力欄は、1行用の丸い形だと文字が縁に寄って読みにくいので角を控えめにする
-          style={{ borderRadius: "var(--radius-md)", paddingBlock: "10px" }}
+          // 便箋の罫線（複数行の入力欄は、1行用の丸い形だと文字が縁に寄って読みにくいので角を控えめにする）
+          className="input contact-letter"
           rows={8}
           value={message}
           onChange={(event) => setMessage(event.target.value)}
@@ -253,7 +270,8 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
       )}
 
       {formError ? (
-        <p role="alert" className="text-sm m-0" style={{ color: "var(--color-accent-700)" }}>
+        <p role="alert" className="inline-alert alert-in text-sm m-0">
+          <Lantern size={16} tone="paper" />
           {formError}
         </p>
       ) : null}
@@ -261,8 +279,8 @@ export function ContactForm({ spot, isLoggedIn }: ContactFormProps) {
       <Button
         type="submit"
         variant="primary"
+        size="lg"
         block
-        style={{ minHeight: 44 }}
         aria-disabled={isPending || undefined}
       >
         送る

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { PageLamp } from "@/components/motion/PageLamp";
+import { Stamp } from "@/components/motion/Stamp";
+import type { CSSProperties } from "react";
 
 export const metadata: Metadata = {
   title: "よくある質問",
@@ -191,24 +193,34 @@ const FAQ_ITEMS: FaqItem[] = [
 export default function FaqPage() {
   return (
     <PageTransition>
-      <div className="mx-auto max-w-3xl px-4 py-8 lg:py-12 space-y-6">
-        <header className="space-y-2">
-          <h1 className="m-0" style={{ fontSize: 30 }}>
+      <div className="faq-screen mx-auto max-w-3xl px-4 py-8 lg:py-12">
+        <header className="faq-head">
+          <h1 className="faq-title">
             <PageLamp />
             よくある質問
           </h1>
-          <p className="text-muted m-0">
-            ここに無い質問は<Link href="/contact">お問い合わせフォーム</Link>からお願いします。
+          <p className="faq-lead">
+            ここに無いことは、<Link href="/contact">お問い合わせフォーム</Link>から気軽にどうぞ。
           </p>
         </header>
 
-        <div className="space-y-3">
-          {FAQ_ITEMS.map((item) => (
-            <details key={item.question} className="card motion-accordion">
-              <summary className="cursor-pointer" style={{ fontWeight: 400 }}>
-                {item.question}
+        <div className="faq-list">
+          {FAQ_ITEMS.map((item, i) => (
+            <details
+              key={item.question}
+              className="card motion-accordion faq-item verb-stick keep-visible"
+              style={{ "--d": `${Math.min(i, 7) * 45}ms` } as CSSProperties}
+            >
+              <summary className="faq-summary">
+                {/* 「Q」は飾りなので CSS で描く（ページの文としては数えない） */}
+                <Stamp glyph="" tone="orange" size={30} className="faq-q" />
+                <span className="faq-question">{item.question}</span>
+                {/* 手描きの「＋」。開くと 45° 回って「×」 */}
+                <svg className="faq-plus" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                  <path d="M8 2.5 C 8.2 6, 7.8 10, 8 13.5 M2.5 8.2 C 6 7.9, 10 8.1, 13.5 7.9" fill="none" strokeWidth={2} strokeLinecap="round" />
+                </svg>
               </summary>
-              <div className="pt-2">{item.answer}</div>
+              <div className="faq-answer">{item.answer}</div>
             </details>
           ))}
         </div>

@@ -45,19 +45,20 @@ export default async function ContactPage(props: PageProps<"/contact">) {
 
   return (
     <PageTransition>
-      <div className="mx-auto max-w-2xl px-4 py-6 lg:py-10 space-y-6">
-        <header className="space-y-2">
-          <p className="text-muted text-xs tracking-wide uppercase">窓口</p>
-          <h1 style={{ fontSize: 30 }}>
+      <div className="contact-screen mx-auto max-w-2xl px-4 py-6 lg:py-10">
+        <header className="contact-head">
+          <p className="verify-kickers">
             <PageLamp />
-            お問い合わせ
-          </h1>
-          <p className="text-muted">
+            <span className="kicker-pill">窓口</span>
+          </p>
+          <h1 className="contact-title">お問い合わせ</h1>
+          <p className="contact-lead">
             掲載を止めてほしい、内容が違う、そのほかのご連絡はこちらへ。いただいた内容は公開しません。
           </p>
         </header>
 
-        <div className="space-y-2">
+        {/* 約束と注意の3つの文（文は変えない）は紙のカードに貼る */}
+        <div className="card contact-promise verb-stick keep-visible">
           <p className="text-sm m-0">
             返信をお約束するものではありません。ただし、ご自身の個人情報についての請求には、本人確認のうえ回答します。
           </p>

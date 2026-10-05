@@ -8,6 +8,17 @@ describe("FaqPage", () => {
     expect(screen.getByRole("heading", { level: 1, name: "よくある質問" })).toBeInTheDocument();
   });
 
+  it("SPEC motion §5.11: リードだけ新しい文（リンクはお問い合わせのまま）。質問の左に Q の判子は飾り", () => {
+    const { container } = render(<FaqPage />);
+    const lead = container.querySelector(".faq-lead")!;
+    expect(lead).toHaveTextContent("ここに無いことは、お問い合わせフォームから気軽にどうぞ。");
+    expect(lead.querySelector("a")).toHaveAttribute("href", "/contact");
+    const firstSummary = container.querySelector("summary")!;
+    expect(firstSummary.querySelector(".stamp")).toHaveAttribute("aria-hidden", "true");
+    // 「Q」は CSS で描く飾り（質問の文は今のまま）
+    expect(firstSummary).not.toHaveTextContent(/^Q/);
+  });
+
   it("最低15問を折りたたみ（details/summary）で並べる", () => {
     render(<FaqPage />);
     const groups = document.querySelectorAll("details");
