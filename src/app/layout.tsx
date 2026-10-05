@@ -101,7 +101,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const showDemoBanner = shouldShowDemoBanner();
   const homeCitySlug = await resolveHomeCitySlug();
   return (
-    <html lang="ja" className={`${zenMaruGothic.variable} ${mochiyPopOne.variable}`}>
+    // data-defer-below は <head> のインラインスクリプトが最初の描画まで付ける印（src/app/defer-below.ts）。
+    // ハイドレーションの時にまだ付いていることがあるので、<html> の属性の食い違いだけは警告しない
+    <html lang="ja" className={`${zenMaruGothic.variable} ${mochiyPopOne.variable}`} suppressHydrationWarning>
       <head>
         {/* SPEC motion §7.1: /start の画面の外の節を最初の描画の後に描く（React・ハイドレーションとは無関係に動く） */}
         <script dangerouslySetInnerHTML={{ __html: DEFER_BELOW_SCRIPT }} />

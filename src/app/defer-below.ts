@@ -6,6 +6,7 @@
  * インラインスクリプトが `<html>` に `data-defer-below` を付け、その間だけ CSS で `content-visibility: hidden`
  * にする（`contain-intrinsic-size` で高さは取っておくので CLS は増えない）。
  *
+ * 印を付けるのは /start だけ（ほかの画面には遅らせる節が無い）。
  * 外すのは次のうち早い方（React・ハイドレーション・JS 本体の読み込みとは無関係に動く）:
  * - 最初の描画（first-contentful-paint）を見届けた直後の次のフレーム
  * - 保険のタイマー（描画が始まる最初のフレームから 1500ms。CPU が遅い端末では文書の解析の終わりから数えると
@@ -19,4 +20,4 @@
 export const DEFER_BELOW_ATTRIBUTE = "data-defer-below";
 export const DEFER_BELOW_SAFETY_MS = 1500;
 
-export const DEFER_BELOW_SCRIPT = `(function(){var d=document.documentElement,a="${DEFER_BELOW_ATTRIBUTE}",done=false;function show(){if(done)return;done=true;d.removeAttribute(a);}d.setAttribute(a,"");try{if(performance.getEntriesByName("first-contentful-paint").length){requestAnimationFrame(show);}else if(window.PerformanceObserver&&PerformanceObserver.supportedEntryTypes&&PerformanceObserver.supportedEntryTypes.indexOf("paint")>=0){var o=new PerformanceObserver(function(l){if(l.getEntriesByName("first-contentful-paint").length){o.disconnect();requestAnimationFrame(show);}});o.observe({type:"paint",buffered:true});}else{requestAnimationFrame(function(){requestAnimationFrame(show);});}}catch(e){show();return;}requestAnimationFrame(function(){setTimeout(show,${DEFER_BELOW_SAFETY_MS});});})();`;
+export const DEFER_BELOW_SCRIPT = `(function(){if(location.pathname!=="/start")return;var d=document.documentElement,a="${DEFER_BELOW_ATTRIBUTE}",done=false;function show(){if(done)return;done=true;d.removeAttribute(a);}d.setAttribute(a,"");try{if(performance.getEntriesByName("first-contentful-paint").length){requestAnimationFrame(show);}else if(window.PerformanceObserver&&PerformanceObserver.supportedEntryTypes&&PerformanceObserver.supportedEntryTypes.indexOf("paint")>=0){var o=new PerformanceObserver(function(l){if(l.getEntriesByName("first-contentful-paint").length){o.disconnect();requestAnimationFrame(show);}});o.observe({type:"paint",buffered:true});}else{requestAnimationFrame(function(){requestAnimationFrame(show);});}}catch(e){show();return;}requestAnimationFrame(function(){setTimeout(show,${DEFER_BELOW_SAFETY_MS});});})();`;
