@@ -21,7 +21,7 @@ export default function GlobalError({ retry }: { error: Error & { digest?: strin
       >
         <div role="alert" style={{ maxWidth: 480, margin: "0 auto" }}>
           <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "0.05em" }}>うまく開けませんでした</h1>
-          <p>時間をおいて、もう一度お試しください。</p>
+          <p>少し時間をおいて、もう一度ためしてみてください。</p>
           <button type="button" onClick={() => retry()}>
             もう一度試す
           </button>
