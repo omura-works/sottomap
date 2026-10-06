@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -11,6 +11,7 @@ import { usePrefersReducedMotion } from "@/components/ui/motion-prefs";
 import { AddBookmarkButton, BOOKMARK_FAILED_EVENT, BOOKMARKED_EVENT } from "@/components/bookmark/AddBookmarkButton";
 import type { BookmarkEventDetail } from "@/components/bookmark/AddBookmarkButton";
 import { FilterChips, SpotRowLink } from "@/components/spot-list";
+import type { SpotRowLinkProps } from "@/components/spot-list/SpotListItem";
 import { SinkingRows } from "@/components/spot-list/SinkingRows";
 import { sortSpots, splitByQuietness } from "@/lib/domain/ordering";
 import { MapCanvas } from "./index";
@@ -21,11 +22,18 @@ import { PIN_GLYPH } from "./pin-halo";
 import { PageLamp } from "@/components/motion/PageLamp";
 import { Stamp } from "@/components/motion/Stamp";
 import { tiltFromId } from "@/components/motion/tilt";
-import { EASE, SPRING } from "@/components/motion/tokens";
+import { EASE } from "@/components/motion/tokens";
 import { MapHoverCard } from "./MapHoverCard";
 import type { MapHoverCardHandle } from "./MapHoverCard";
 import { LanternChild } from "@/components/illustrations/LanternChild";
 import { DESKTOP_QUERY, useMediaQuery } from "@/components/motion/useMediaQuery";
+
+// ピンを選ぶたびに画面全体が描き直されるので、選択と関係の無い部品は memo で止める（P7: ピンを押したときの反応 INP を守る）。
+// 一覧の行は選択が変わった2行だけが描き直される。
+const StillFilterChips = memo(FilterChips);
+const StillSpotRowLink = memo(SpotRowLink);
+const StillHoverCard = memo(MapHoverCard);
+const StillCounter = memo(AnimatedCounter);
 
 export interface CityMapScreenProps {
   city: City;
@@ -58,25 +66,29 @@ interface MapSpotListProps {
   top: readonly Spot[];
   bottom: readonly Spot[];
   distances: DistanceMap;
-  selectedId: string | null;
   onSelect: (id: string) => void;
 }
 
-/** PC の左の列の一覧（同じ行・同じ「静かに下がる」）。地図の操作で描き直さないよう memo。 */
-const MapSpotList = memo(function MapSpotList({ top, bottom, distances, selectedId, onSelect }: MapSpotListProps) {
+/** 選んでいる店の id。一覧の行だけが読む（選択が変わっても一覧の包み・SinkingRows は描き直さない）。 */
+const SelectedSpotContext = createContext<string | null>(null);
+
+function SelectableRow(props: Omit<SpotRowLinkProps, "selected">) {
+  const selectedId = useContext(SelectedSpotContext);
+  return <StillSpotRowLink {...props} selected={props.spot.id === selectedId} />;
+}
+
+/**
+ * PC の左の列の一覧（同じ行・同じ「静かに下がる」）。地図の操作で描き直さないよう memo。
+ * 選択は SelectedSpotContext で行にだけ届ける（P7: ピンを押したときの反応 INP を守るため。スマホでは列が隠れていても描かれる）。
+ */
+const MapSpotList = memo(function MapSpotList({ top, bottom, distances, onSelect }: MapSpotListProps) {
   return (
     <SinkingRows
       top={top}
       bottom={bottom}
       dividerHeading="h4"
       renderRow={(spot) => (
-        <SpotRowLink
-          spot={spot}
-          distanceMeters={distances[spot.id]}
-          selected={spot.id === selectedId}
-          onSelect={onSelect}
-          description={spot.reason}
-        />
+        <SelectableRow spot={spot} distanceMeters={distances[spot.id]} onSelect={onSelect} description={spot.reason} />
       )}
     />
   );
@@ -235,7 +247,7 @@ export function CityMapScreen({
           <p className="map-col-count">
             地元の人が「まだ静か」とたしかめた店、
             <span className="map-count-num verb-pop" style={{ "--d": "300ms" } as CSSProperties}>
-              <AnimatedCounter value={quietCount} />
+              <StillCounter value={quietCount} />
             </span>
             <b>軒。</b>
           </p>
@@ -244,7 +256,7 @@ export function CityMapScreen({
             <span aria-hidden="true">{"\u00a0→"}</span>
           </Link>
         </div>
-        <FilterChips active={activeFilters} onToggle={toggleFilter} />
+        <StillFilterChips active={activeFilters} onToggle={toggleFilter} />
         {sortedSpots.length === 0 ? (
           originPending ? (
             // Codex R9 重要2: 位置解決待ちの間はピンを出さず、その旨を控えめに表示する。
@@ -271,7 +283,9 @@ export function CityMapScreen({
             </div>
           )
         ) : (
-          <MapSpotList top={topSpots} bottom={bottomSpots} distances={distances} selectedId={selectedId} onSelect={setSelectedId} />
+          <SelectedSpotContext value={selectedId}>
+            <MapSpotList top={topSpots} bottom={bottomSpots} distances={distances} onSelect={setSelectedId} />
+          </SelectedSpotContext>
         )}
       </aside>
 
@@ -290,7 +304,7 @@ export function CityMapScreen({
             <p className="map-head-count">
               静かなまま、
               <span className="map-count-num verb-pop" style={{ "--d": "300ms" } as CSSProperties}>
-                <AnimatedCounter value={quietCount} />
+                <StillCounter value={quietCount} />
               </span>
               <b>軒</b>
             </p>
@@ -364,7 +378,7 @@ export function CityMapScreen({
         </Link>
 
         {/* D1: 地図の上のホバーカード（付箋）「地元3人が確認・12日前」 */}
-        <MapHoverCard ref={hoverCardRef} spots={filteredSpots} />
+        <StillHoverCard ref={hoverCardRef} spots={filteredSpots} />
 
         {/* ピン選択時の下部カード（S2）: 徒歩N分・地元N人が確認／店名／一行説明／この店を読む＋栞に挟む。
             下から貼られ、別のピンでは中身だけ入れ替わり、地図の余白を押すとはがれる。 */}
@@ -372,11 +386,11 @@ export function CityMapScreen({
           {selectedSpot ? (
             <motion.div
               key="map-bcard"
+              // 下から貼られる入りは CSS の animation（.map-bcard-slot）。押した瞬間に motion のスプリングを
+              // 組み立てると、ピンを押してから次の描画までが 200ms を超えたため（P7 の INP の測定）。はがれる動きだけ motion
               className="map-bcard-slot"
-              initial={reduced ? false : { y: 32, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
+              initial={false}
               exit={{ y: 16, opacity: 0, transition: reduced ? instant : { duration: 0.18, ease: EASE.peel } }}
-              transition={reduced ? instant : { y: SPRING.settle, opacity: { duration: 0.12 } }}
             >
               <PresenceInert className="card map-bcard">
                 <span className="tape tape-in map-bcard-tape" style={{ "--d": "120ms" } as CSSProperties} aria-hidden="true" />

@@ -2670,6 +2670,15 @@ figcaption {
   right: 16px;
   bottom: 16px;
   z-index: 11;
+  /* 下から貼られる（移動はスプリング、不透明度は短いイーズ。§5.2） */
+  animation:
+    map-bcard-rise var(--dur-settle) var(--spring-settle) both,
+    v-fade-in 120ms var(--ease-out-soft) both;
+}
+@keyframes map-bcard-rise {
+  from {
+    translate: 0 32px;
+  }
 }
 .map-bcard {
   position: relative;
@@ -4877,6 +4886,7 @@ main:has(.login-night) + .site-footer .site-footer-ridge {
     --dur-pop: 0ms;
     --dur-ignite: 0ms;
   }
+  .map-bcard-slot,
   .verb-stick,
   .verb-stamp,
   .verb-tuck,

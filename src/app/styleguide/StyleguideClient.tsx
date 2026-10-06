@@ -110,7 +110,7 @@ export function StyleguideClient() {
             灯りの地図帳
           </p>
           <p className="fs-lead" style={{ color: "var(--color-neutral-300)", maxWidth: "32em", margin: 0 }}>
-            歩くたびに書き込みがふえていく地図帳に、ひとつぶの灯りがついてくる。文字の段・色・部品・7つの動詞を、ここで確かめます。
+            歩くたびに書き込みがふえていく地図帳に、ひとつぶの灯りがついてくる。文字の段・色・部品・7つの動詞を、ここでたしかめます。
           </p>
           {reduced ? (
             <p className="sg-reduced" role="note">

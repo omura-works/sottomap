@@ -9,7 +9,7 @@
 // ピンは静けさ（quiet/crowding/touristy）で色を変えるが、色だけで伝えないよう
 // 必ず短い文字グリフを併記する（SPEC §8）。
 
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 // maplibre-gl v6 は default export を持たないため名前空間 import を使う。
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -31,6 +31,9 @@ import {
   setPinWaiting,
   spawnPinHalo,
 } from "./pin-halo";
+
+/** 紙の地図の下敷きは止まった絵。ピンの選択などで MapCanvas が描き直されても描き直さない（P7: ピンを押したときの反応を守る） */
+const StillUnderlay = memo(MapUnderlay);
 
 // MapLibre v6 は Worker の URL を import.meta.url から実行時に組み立てるため、
 // Turbopack では Worker が配信されず 404 になる（タイルもピンも出なくなる）。
@@ -491,7 +494,7 @@ export function MapCanvas({
   return (
     <div className={className} style={{ position: "relative", width: "100%", height: "100%" }}>
       {/* 紙の地図（止まった絵）を地図の div の下に敷く: タイルが来るまでの間も地図らしく見える */}
-      {underlay ? <MapUnderlay /> : null}
+      {underlay ? <StillUnderlay /> : null}
       <div ref={containerRef} style={{ position: "absolute", inset: 0 }} aria-label="地図" />
       {/* 出典表記（SPEC §6: 地図タイルの出典表示必須）。折りたたみ式コントロールに頼らず常時表示する。 */}
       <div

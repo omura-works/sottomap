@@ -208,7 +208,9 @@ export function BookmarkList({ initialItems, header }: { initialItems: BookmarkL
           </span>
           {header ? <div className="relative">{header}</div> : null}
           {items.length > 0 ? (
-            <div className="bm-gather relative flex flex-wrap gap-3">
+            // 街ごとのボタンは縦に積む。横に並べると、Zen Maru の 700 が届いた瞬間に字の幅が変わって折り返しが変わり、
+            // 下の一覧がずれていた（PC 1280 で CLS 0.054。P7 の測定）
+            <div className="bm-gather relative flex flex-col items-start gap-3">
               {cityOrder.length <= 1
                 ? gatherLink(`/${cityOrder[0]}?spots=${items.map((item) => item.spotId).join(",")}`, `${items.length}軒を地図にまとめる`, null, true)
                 : cityOrder.map((citySlug, i) => {
