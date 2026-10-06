@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { changeDisplayNameAction } from "@/app/actions/display-name";
-import { Button } from "@/components/ui";
+import { Button } from "@/components/ui/Button";
 
 /** 処理中は aria-disabled（フォーカスを保つため disabled にしない）。見た目は .btn:disabled と同じ値にそろえる。 */
 const BUTTON_CLASS = "min-h-11 aria-disabled:opacity-45 aria-disabled:cursor-not-allowed";

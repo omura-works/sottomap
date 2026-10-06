@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { CSSProperties } from "react";
-import { Button } from "@/components/ui";
+import { Button } from "@/components/ui/Button";
 import { endorseSpot } from "@/app/actions/spot-endorse";
 import { HandLine } from "@/components/illustrations/HandLine";
 import { Lantern } from "@/components/illustrations/Lantern";

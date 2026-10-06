@@ -1,6 +1,5 @@
 "use client";
 
-import { LayoutGroup } from "motion/react";
 import { usePathname } from "next/navigation";
 import { NavTab } from "./NavTab";
 import { cityContextFromPathname, getNavItems } from "./nav-items";
@@ -34,11 +33,9 @@ export function BottomNav({ homeCitySlug = null, moved = false }: BottomNavProps
         viewTransitionName: "site-tabs",
       }}
     >
-      <LayoutGroup id="tabs">
-        {navItems.map((item) => (
-          <NavTab key={item.key} item={item} pathname={pathname} variant="tabs" moved={moved} />
-        ))}
-      </LayoutGroup>
+      {navItems.map((item) => (
+        <NavTab key={item.key} item={item} pathname={pathname} variant="tabs" moved={moved} />
+      ))}
     </nav>
   );
 }

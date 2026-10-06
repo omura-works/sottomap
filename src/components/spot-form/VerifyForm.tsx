@@ -5,7 +5,7 @@ import type { CSSProperties, MouseEvent } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui";
+import { Button } from "@/components/ui/Button";
 import type { Badge, Quietness, Verification } from "@/lib/db/types";
 import { quietnessLabel } from "@/lib/domain/quietness";
 import { badgeThreshold } from "@/lib/domain/lantern";

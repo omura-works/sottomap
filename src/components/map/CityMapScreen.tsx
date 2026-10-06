@@ -1,12 +1,12 @@
 "use client";
 
-import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, memo, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import type { City, Spot } from "@/lib/db/types";
-import { AnimatedCounter } from "@/components/ui";
+import { LazyAnimatedCounter } from "@/components/ui/LazyAnimatedCounter";
 import { usePrefersReducedMotion } from "@/components/ui/motion-prefs";
 import { AddBookmarkButton, BOOKMARK_FAILED_EVENT, BOOKMARKED_EVENT } from "@/components/bookmark/AddBookmarkButton";
 import type { BookmarkEventDetail } from "@/components/bookmark/AddBookmarkButton";
@@ -33,7 +33,7 @@ import { DESKTOP_QUERY, useMediaQuery } from "@/components/motion/useMediaQuery"
 const StillFilterChips = memo(FilterChips);
 const StillSpotRowLink = memo(SpotRowLink);
 const StillHoverCard = memo(MapHoverCard);
-const StillCounter = memo(AnimatedCounter);
+const StillCounter = memo(LazyAnimatedCounter);
 
 export interface CityMapScreenProps {
   city: City;
@@ -193,6 +193,9 @@ export function CityMapScreen({
   const hasConditions = hasExcludingFilter || focusedSpotIds !== null;
 
   const selectedSpot = filteredSpots.find((s) => s.id === selectedId) ?? null;
+  // 下部カードの中身は1フレーム遅れて描く（押した直後の描画では枠だけ。中身の最初のレイアウトが重く、
+  // ピンを押してから次の描画までが 200ms を超えていたため。P7）。枠は透明から 120ms で現れるので見た目は変わらない
+  const cardSpot = useDeferredValue(selectedSpot);
 
   // ピンの並び＝一覧の並び（静かな店が先・近い順）。判子もこの順に押される。
   const pins: MapPin[] = useMemo(
@@ -394,44 +397,46 @@ export function CityMapScreen({
             >
               <PresenceInert className="card map-bcard">
                 <span className="tape tape-in map-bcard-tape" style={{ "--d": "120ms" } as CSSProperties} aria-hidden="true" />
-                <AnimatePresence initial={false} mode="popLayout">
-                  <motion.div
-                    key={selectedSpot.id}
-                    initial={reduced ? false : { opacity: 0, x: 8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, transition: instant }}
-                    transition={reduced ? instant : { duration: 0.16, ease: EASE.outSoft }}
-                  >
-                    <p className="map-bcard-kicker">
-                      <Stamp
-                        glyph={PIN_GLYPH[selectedSpot.quietness]}
-                        tone={selectedSpot.quietness}
-                        size={26}
-                        tilt={tiltFromId(selectedSpot.id, 4)}
-                      />
-                      <span>{`${walkingLabel(distances[selectedSpot.id] ?? 0)}・地元${selectedSpot.verifierCount}人が確認`}</span>
-                    </p>
-                    <p className="map-bcard-name">{selectedSpot.name}</p>
-                    <p className="map-bcard-desc">{selectedSpot.reason}</p>
-                    <div className="map-bcard-btns">
-                      <Link
-                        href={`/${city.slug}/spots/${selectedSpot.id}`}
-                        transitionTypes={["page-forward"]}
-                        className="btn btn-primary"
-                      >
-                        この店を読む
-                      </Link>
-                      {/* 栞アクション（T5 所有の src/app/actions/bookmark-actions.ts に接続。
-                          SPEC §9.12-5）。楽観更新後に Server Action を呼ぶ。 */}
-                      <AddBookmarkButton
-                        key={selectedSpot.id}
-                        spotId={selectedSpot.id}
-                        initiallyBookmarked={bookmarked.has(selectedSpot.id)}
-                        variant="ghost"
-                      />
-                    </div>
-                  </motion.div>
-                </AnimatePresence>
+                {cardSpot ? (
+                  <AnimatePresence initial={false} mode="popLayout">
+                    <motion.div
+                      key={cardSpot.id}
+                      initial={reduced ? false : { opacity: 0, x: 8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, transition: instant }}
+                      transition={reduced ? instant : { duration: 0.16, ease: EASE.outSoft }}
+                    >
+                      <p className="map-bcard-kicker">
+                        <Stamp
+                          glyph={PIN_GLYPH[cardSpot.quietness]}
+                          tone={cardSpot.quietness}
+                          size={26}
+                          tilt={tiltFromId(cardSpot.id, 4)}
+                        />
+                        <span>{`${walkingLabel(distances[cardSpot.id] ?? 0)}・地元${cardSpot.verifierCount}人が確認`}</span>
+                      </p>
+                      <p className="map-bcard-name">{cardSpot.name}</p>
+                      <p className="map-bcard-desc">{cardSpot.reason}</p>
+                      <div className="map-bcard-btns">
+                        <Link
+                          href={`/${city.slug}/spots/${cardSpot.id}`}
+                          transitionTypes={["page-forward"]}
+                          className="btn btn-primary"
+                        >
+                          この店を読む
+                        </Link>
+                        {/* 栞アクション（T5 所有の src/app/actions/bookmark-actions.ts に接続。
+                            SPEC §9.12-5）。楽観更新後に Server Action を呼ぶ。 */}
+                        <AddBookmarkButton
+                          key={cardSpot.id}
+                          spotId={cardSpot.id}
+                          initiallyBookmarked={bookmarked.has(cardSpot.id)}
+                          variant="ghost"
+                        />
+                      </div>
+                    </motion.div>
+                  </AnimatePresence>
+                ) : null}
               </PresenceInert>
             </motion.div>
           ) : null}

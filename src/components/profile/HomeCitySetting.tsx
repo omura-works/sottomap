@@ -4,7 +4,8 @@ import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { changeHomeCityAction } from "@/app/actions/home-city";
 import { formatHomeCityChangeDate, homeCityConfirmMessage, nextHomeCityChangeAt } from "@/lib/domain/home-city";
-import { Button, Dialog } from "@/components/ui";
+import { Button } from "@/components/ui/Button";
+import { Dialog } from "@/components/ui/Dialog";
 
 /** 処理中は aria-disabled（フォーカスを保つため disabled にしない）。見た目は .btn:disabled と同じ値にそろえる。 */
 const DIALOG_BUTTON_CLASS = "min-h-11 aria-disabled:opacity-45 aria-disabled:cursor-not-allowed";

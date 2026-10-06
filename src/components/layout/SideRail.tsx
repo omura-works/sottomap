@@ -1,6 +1,5 @@
 "use client";
 
-import { LayoutGroup } from "motion/react";
 import { usePathname } from "next/navigation";
 import { LogoMark } from "@/components/brand/LogoMark";
 import { NavTab } from "./NavTab";
@@ -42,12 +41,10 @@ export function SideRail({ homeCitySlug = null, moved = false }: SideRailProps) 
       </div>
       {/* Codex R27 軽微1: 名前は navigation ランドマーク（nav）自体に付ける（フッターにも別の nav があるため） */}
       <nav aria-label="主要ナビゲーション" className="flex flex-col items-center gap-2.5">
-        {/* 灯りが左ナビと下部タブの間を飛ばないよう、ナビごとに別のグループにする */}
-        <LayoutGroup id="rail">
-          {navItems.map((item) => (
-            <NavTab key={item.key} item={item} pathname={pathname} variant="rail" moved={moved} />
-          ))}
-        </LayoutGroup>
+        {/* 灯りは左ナビと下部タブで別々に位置を覚える（NavTab の variant）ので、2つの間を飛ばない */}
+        {navItems.map((item) => (
+          <NavTab key={item.key} item={item} pathname={pathname} variant="rail" moved={moved} />
+        ))}
       </nav>
     </aside>
   );

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Card } from "@/components/ui";
+import { Card } from "@/components/ui/Card";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { PageLamp } from "@/components/motion/PageLamp";
 import { Reveal } from "@/components/motion/Reveal";

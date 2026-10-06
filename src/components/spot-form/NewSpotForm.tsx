@@ -2,7 +2,10 @@
 
 import { useActionState, useState } from "react";
 import type { ChangeEvent, CSSProperties } from "react";
-import { Button, Card, Field, Segment } from "@/components/ui";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Field } from "@/components/ui/Field";
+import { Segment } from "@/components/ui/Segment";
 import { HandLine } from "@/components/illustrations/HandLine";
 import { Lantern } from "@/components/illustrations/Lantern";
 import { PromiseArt } from "@/components/illustrations/PromiseArt";

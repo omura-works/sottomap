@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useActionState, useEffect, useRef } from "react";
 import type { CSSProperties } from "react";
-import { Button, Input } from "@/components/ui";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { Envelope } from "@/components/illustrations/Envelope";
 import { Lantern } from "@/components/illustrations/Lantern";
 import { WalkPath } from "@/components/illustrations/WalkPath";

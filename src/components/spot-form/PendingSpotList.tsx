@@ -1,5 +1,5 @@
 import type { Spot } from "@/lib/db/types";
-import { Card } from "@/components/ui";
+import { Card } from "@/components/ui/Card";
 import { LanternChild } from "@/components/illustrations/LanternChild";
 import { EndorseButton } from "./EndorseButton";
 import { EndorseMeter } from "./EndorseMeter";

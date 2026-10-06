@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AnimatedCounter } from "@/components/ui/AnimatedCounter";
+import { LazyAnimatedCounter } from "@/components/ui/LazyAnimatedCounter";
 import type { AnimatedCounterProps } from "@/components/ui/AnimatedCounter";
 import { prefersReducedMotion } from "@/components/ui/motion-prefs";
 
@@ -29,7 +29,7 @@ export function BounceNumber({ value, duration = 0.6, className, ...props }: Bou
 
   return (
     <span className={bump ? "bounce-number is-bumping" : "bounce-number"} data-bump={bump ?? undefined}>
-      <AnimatedCounter value={value} duration={duration} className={className} {...props} />
+      <LazyAnimatedCounter value={value} duration={duration} className={className} {...props} />
     </span>
   );
 }

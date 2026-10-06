@@ -4,8 +4,8 @@ import { useOptimistic, useState, useTransition } from "react";
 import type { MouseEvent } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { addBookmarkAction } from "@/app/actions/bookmark-actions";
-import { Button } from "@/components/ui";
-import type { ButtonVariant } from "@/components/ui";
+import { Button } from "@/components/ui/Button";
+import type { ButtonVariant } from "@/components/ui/Button";
 import { useLamp } from "@/components/motion/LampLayer";
 import { Lantern } from "@/components/illustrations/Lantern";
 

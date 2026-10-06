@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { startTransition, useActionState, useEffect, useId, useRef, useState } from "react";
 import { motion } from "motion/react";
-import { Button, Card } from "@/components/ui";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { Envelope } from "@/components/illustrations/Envelope";
 import { Lantern } from "@/components/illustrations/Lantern";
 import { Stamp } from "@/components/motion/Stamp";
