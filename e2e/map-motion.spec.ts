@@ -23,7 +23,9 @@ test.describe("地図のピンと「静かに下がる」", () => {
   });
 
   test("「まだ静か」を付け直すと、混みはじめた店の行が区切りの下へ滑って止まる", async ({ page }) => {
-    await page.goto("/sapporo/search");
+    // さがすは上位3軒だけを出す（SPEC §4 S3）。デモの札幌は静かな店が3軒より多いので、何も入れないと3軒とも静かな店になり
+    // 区切りが出ない。「すすきの」で静かな店（札幌ザンギ本舗）と混みはじめた店（輝風）が並ぶ条件にして確かめる。
+    await page.goto(`/sapporo/search?q=${encodeURIComponent("すすきの")}`);
     const quiet = page.getByRole("button", { name: "まだ静か" });
     await expect(page.getByRole("heading", { level: 2, name: "混みはじめた店" })).toBeVisible();
     await quiet.click();

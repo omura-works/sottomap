@@ -36,14 +36,28 @@ describe("listSpots", () => {
     const { listSpots } = await import("./spots");
     const spots = await listSpots({ citySlug: "sapporo" });
     expect(spots.every((s) => s.status === "published")).toBe(true);
-    // 札幌の中心（43.0621, 141.3544）から: ザンギ約0.8km・シハチ約2.5km／輝風約0.7km・大通の2店は約0.7km・約0.9km
+    // 札幌の中心（43.0621, 141.3544）からの距離。静か → 並びはじめた → 観光地の順に、同じ静けさの中は近い順。
+    // 実在5店＋架空2店（大通の2店）＋2026-10-06 に足した実在の店8軒（fixtures-real-shops.ts）
     expect(spots.map((s) => [s.quietness, s.name])).toEqual([
-      ["quiet", "札幌ザンギ本舗"],
-      ["quiet", "シハチ鮮魚店 北24条店"],
+      ["quiet", "第三モッキリセンター"], // 約0.4km
+      ["quiet", "札幌ザンギ本舗"], // 約0.8km
+      ["quiet", "ゆりや食堂"],
+      ["quiet", "Seesaw Books（シーソーブックス）"],
+      ["quiet", "シハチ鮮魚店 北24条店"], // 約2.6km
+      ["quiet", "あんみつ さきの"],
+      ["quiet", "鶴の湯"],
+      ["quiet", "フレッシュベーカリー ノア 本店"],
+      ["crowding", "珈琲とサンドイッチの店 さえら"], // 約0.2km（並びはじめた店は静かな店の後ろ）
       ["crowding", "札幌らーめん輝風 すすきの店"],
       ["crowding", "大通の小さな定食屋"],
       ["crowding", "大通の古い蕎麦屋"],
+      ["touristy", "二条市場"], // 約0.6km でも観光地は最後
     ]);
+    const distances = spots.map((s) => s.distanceMeters ?? Number.NaN);
+    for (const quietness of ["quiet", "crowding", "touristy"] as const) {
+      const group = distances.filter((_, i) => spots[i].quietness === quietness);
+      expect(group).toEqual([...group].sort((a, b) => a - b));
+    }
   });
 
   it("q は前後の空白を除いて、地域名（area_name）も検索する", async () => {
@@ -54,14 +68,15 @@ describe("listSpots", () => {
 
   it("空白だけの q は全件（§9.10 空検索）", async () => {
     const { listSpots } = await import("./spots");
-    expect(await listSpots({ citySlug: "otaru", q: "   " })).toHaveLength(3);
+    // 小樽は実在3店＋追加分9軒
+    expect(await listSpots({ citySlug: "otaru", q: "   " })).toHaveLength(12);
   });
 
   it("filters: quiet-now は絞り込まない（SPEC §9.14-5: 表示側の並べ替え専用）", async () => {
     const { listSpots } = await import("./spots");
     const spots = await listSpots({ citySlug: "sapporo", filters: ["quiet-now"] });
     expect(spots.some((s) => s.quietness === "crowding")).toBe(true);
-    expect(spots).toHaveLength(5);
+    expect(spots).toHaveLength(13);
   });
 
   it("q で名前・理由を検索できる", async () => {
@@ -73,14 +88,14 @@ describe("listSpots", () => {
 
   it("limit で件数を絞れる（並べてから絞る）", async () => {
     const { listSpots } = await import("./spots");
-    const spots = await listSpots({ citySlug: "sapporo", limit: 1 });
-    expect(spots.map((s) => s.name)).toEqual(["札幌ザンギ本舗"]);
+    const spots = await listSpots({ citySlug: "sapporo", limit: 2 });
+    expect(spots.map((s) => s.name)).toEqual(["第三モッキリセンター", "札幌ザンギ本舗"]);
   });
 
   it("タグ slug フィルタで絞り込める", async () => {
     const { listSpots } = await import("./spots");
     const spots = await listSpots({ citySlug: "sapporo", filters: ["fish-shop-direct"] });
-    expect(spots.map((s) => s.name)).toEqual(["シハチ鮮魚店 北24条店"]);
+    expect(spots.map((s) => s.name)).toEqual(["シハチ鮮魚店 北24条店", "二条市場"]);
   });
 });
 
@@ -138,14 +153,18 @@ describe("listBookmarks", () => {
 describe("countPublishedSpots / countQuietSpots", () => {
   it("街ごとの公開件数を数える", async () => {
     const { countPublishedSpots } = await import("./spots");
-    // 札幌は実在3店＋デモモード専用の架空2店（fixtures.ts 冒頭の注記）
-    expect(await countPublishedSpots("sapporo")).toBe(5);
-    expect(await countPublishedSpots("otaru")).toBe(3);
+    // 札幌は実在3店＋デモモード専用の架空2店（fixtures.ts 冒頭の注記）＋追加分8軒、小樽は実在3店＋追加分9軒
+    expect(await countPublishedSpots("sapporo")).toBe(13);
+    expect(await countPublishedSpots("otaru")).toBe(12);
+    // 追加分だけの街
+    expect(await countPublishedSpots("hakodate")).toBe(10);
+    expect(await countPublishedSpots("furano")).toBe(9);
   });
 
   it("quiet のみを数える（鱗友朝市=touristy は除外）", async () => {
     const { countQuietSpots } = await import("./spots");
-    expect(await countQuietSpots("otaru")).toBe(2);
+    // 小樽: 実在3店のうち quiet 2・追加分 9軒のうち quiet 6
+    expect(await countQuietSpots("otaru")).toBe(8);
   });
 });
 

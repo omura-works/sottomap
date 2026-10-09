@@ -1,6 +1,6 @@
 // Supabase 実インスタンス未接続時のフォールバック・フィクスチャ。
 //
-// supabase/seed.sql と同じ内容（街8件・タグ10件・実在6店・確認履歴・承認・確認依頼・栞4件）を
+// supabase/seed.sql と同じ内容（街8件・タグ10件・実在の店82軒・確認履歴・承認・確認依頼・栞4件）を
 // インメモリの TypeScript オブジェクトとして持つ。他タスク（T3〜T5）が画面を作れるよう、
 // src/lib/db/spots.ts の各関数は Supabase 環境変数が無いときに自動でここへフォールバックする。
 // src/lib/db/mutations.ts の書き込み系関数も、同じ未接続条件下ではここの配列を直接
@@ -19,13 +19,15 @@
 //   - 北24条の小さな喫茶店（pending。承認の導線）
 //   - 大通の小さな定食屋／大通の古い蕎麦屋（published。デモ利用者 Aさん（札幌在住）が投稿者で、
 //     期限到来済みの確認依頼・期限前の確認依頼を持つ。確認の導線と E2E に使う）
-// それ以外（実在6店の投稿者・静けさ・時刻・確認履歴）は seed.sql と一致させる。
+// それ以外（実在の店の投稿者・静けさ・時刻・確認履歴）は seed.sql と一致させる。
+// 2026-10-06 に足した実在の店 76 軒と、札幌・小樽以外の街の架空の利用者は fixtures-real-shops.ts（自動生成）にある。
 
 import { formatAuthorLabel } from "../domain/author-label";
 import { canChangeHomeCity, homeCityLimitMessage, nextHomeCityChangeAt } from "../domain/home-city";
 import { isWinterMonth } from "../domain/lantern";
 import { countAnswerableRequests, isMissed } from "../domain/lifecycle";
 import { nextDayAtTokyoTime } from "../format/date-time";
+import { REAL_SHOP_ENDORSEMENTS, REAL_SHOP_USERS, REAL_SHOP_VERIFICATIONS, REAL_SHOPS } from "./fixtures-real-shops";
 import type {
   Badge,
   Bookmark,
@@ -117,6 +119,8 @@ const FIXTURE_USERS: FixtureUser[] = [
   { id: "b0000000-0000-4000-8000-000000000008", displayName: "Rさん", homeCitySlug: "otaru", lanternPoints: 45, createdAtDaysAgo: 600 },
   { id: "b0000000-0000-4000-8000-000000000009", displayName: "Fさん", homeCitySlug: "otaru", lanternPoints: 15, createdAtDaysAgo: 600 },
   { id: "b0000000-0000-4000-8000-00000000000a", displayName: "Yさん", homeCitySlug: "otaru", lanternPoints: 10, createdAtDaysAgo: 600 },
+  // 札幌・小樽以外の街の住人（各街3人。実在の店の追加分の投稿・承認・確認に使う）
+  ...REAL_SHOP_USERS.map((u) => ({ ...u })),
 ];
 
 /** 居住街の初期値（テスト間で元に戻すため）。 */
@@ -142,7 +146,7 @@ function findCityById(id: string): City | null {
 }
 
 // =========================================================
-// 5. spots（実在6店＋デモモード専用の架空3店。実在店は supabase/seed.sql と同じ実データ）
+// 5. spots（実在6店＋デモモード専用の架空3店＋実在の店の追加分76軒。実在店は supabase/seed.sql と同じ実データ）
 //    reason（引用・説明文）は Spec §9.8「D1 の店3件の説明」の文言に一字一句合わせてある。
 // =========================================================
 interface RawSpot {
@@ -368,6 +372,15 @@ const RAW_SPOTS: RawSpot[] = [
     createdAtDaysAgo: 120,
     tagSlugs: [],
   },
+  // 実在の店（追加分 76 軒。fixtures-real-shops.ts）。公開済み・写真なし・次の確認は前回の確認の 90 日後。
+  ...REAL_SHOPS.map(
+    (shop): RawSpot => ({
+      ...shop,
+      status: "published",
+      photoUrl: null,
+      nextVerificationAtDaysAgo: shop.lastVerifiedAtDaysAgo - 90,
+    }),
+  ),
 ];
 
 // =========================================================
@@ -436,6 +449,7 @@ const RAW_ENDORSEMENTS: Array<{ spotId: string; userId: string; daysAgo: number 
   { spotId: "d0000000-0000-4000-8000-000000000008", userId: "b0000000-0000-4000-8000-000000000005", daysAgo: 182 },
   { spotId: "d0000000-0000-4000-8000-000000000009", userId: "b0000000-0000-4000-8000-000000000001", daysAgo: 115 },
   { spotId: "d0000000-0000-4000-8000-000000000009", userId: "b0000000-0000-4000-8000-000000000005", daysAgo: 110 },
+  ...REAL_SHOP_ENDORSEMENTS,
 ];
 
 /** mutable: mutations.ts の endorseSpot がここへ push する。読み取りは endorsementCountForSpot 経由。 */
@@ -511,6 +525,7 @@ const RAW_VERIFICATIONS: RawVerification[] = [
   // デモモード専用の架空店（投稿者 Aさんの前回の確認）
   { id: "c0000000-0000-4000-8000-000000000020", spotId: "d0000000-0000-4000-8000-000000000008", userId: "b0000000-0000-4000-8000-000000000004", answer: "crowding", daysAgo: 92 },
   { id: "c0000000-0000-4000-8000-000000000021", spotId: "d0000000-0000-4000-8000-000000000009", userId: "b0000000-0000-4000-8000-000000000004", answer: "crowding", daysAgo: 15 },
+  ...REAL_SHOP_VERIFICATIONS,
 ];
 
 // =========================================================

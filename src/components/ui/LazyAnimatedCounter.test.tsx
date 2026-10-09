@@ -15,7 +15,8 @@ describe("LazyAnimatedCounter", () => {
     await act(async () => {
       rerender(<LazyAnimatedCounter value={12} />);
     });
-    await waitFor(() => expect(screen.getByText("12")).toHaveClass("sr-only"));
+    // 動的な import を待つ（全部のテストを並べて走らせると 1 秒を超えることがある）
+    await waitFor(() => expect(screen.getByText("12")).toHaveClass("sr-only"), { timeout: 5000 });
     expect(screen.queryByText("38")).toBeNull();
   });
 });

@@ -23,7 +23,7 @@ describe("栞の予定日時フィクスチャ", () => {
   });
 });
 
-describe("seed.sql との一致（実在6店）", () => {
+describe("seed.sql との一致（実在の店 82 軒）", () => {
   interface SeedSpot {
     citySlug: string;
     status: string;
@@ -44,8 +44,11 @@ describe("seed.sql との一致（実在6店）", () => {
 
   it("街・状態・静けさ（spots.quietness）・投稿者が seed と同じ", async () => {
     const { FIXTURE_SPOTS } = await import("./fixtures");
+    const { REAL_SHOPS } = await import("./fixtures-real-shops");
     const seed = readSeedSpots();
-    expect(seed.size).toBe(6);
+    // 最初の実在6店＋2026-10-06 に足した76軒（デモモード専用の架空3店は seed に入れない）
+    expect(REAL_SHOPS).toHaveLength(76);
+    expect(seed.size).toBe(6 + REAL_SHOPS.length);
     for (const [id, expected] of seed) {
       const spot = FIXTURE_SPOTS.find((candidate) => candidate.id === id);
       expect(spot, id).toBeDefined();
@@ -53,6 +56,35 @@ describe("seed.sql との一致（実在6店）", () => {
         { citySlug: spot!.citySlug, status: spot!.status, quietness: spot!.quietness, authorId: spot!.authorId },
         id,
       ).toEqual(expected);
+    }
+  });
+
+  it("追加した実在の店の店名・住所・座標・一言は seed と同じ", async () => {
+    const { REAL_SHOPS } = await import("./fixtures-real-shops");
+    // 作業コピーの改行が CRLF のこともある（core.autocrlf）ので LF にそろえて読む
+    const sql = readFileSync(resolve(process.cwd(), "supabase/seed.sql"), "utf8").replace(/\r\n/g, "\n");
+    for (const shop of REAL_SHOPS) {
+      const quote = (text: string) => `'${text.replaceAll("'", "''")}'`;
+      const at = sql.indexOf(`'${shop.id}',\n  (select id from cities`);
+      expect(at, shop.name).toBeGreaterThan(0);
+      const block = sql.slice(at);
+      const head = block.slice(0, 1200);
+      expect(head, shop.name).toContain(quote(shop.name));
+      expect(head, shop.name).toContain(quote(shop.address));
+      expect(head, shop.name).toContain(quote(shop.reason));
+      expect(head, shop.name).toContain(`ST_MakePoint(${shop.lng}, ${shop.lat})`);
+    }
+  });
+
+  it("公開済みの店は、その街の住人2人以上の承認を持つ（承認の規則）", async () => {
+    const { FIXTURE_SPOTS, FIXTURE_ENDORSEMENT_LOG, fixtureUserHomeCitySlug } = await import("./fixtures");
+    for (const spot of FIXTURE_SPOTS.filter((s) => s.status === "published")) {
+      const endorsers = FIXTURE_ENDORSEMENT_LOG.filter((e) => e.spotId === spot.id);
+      expect(endorsers.length, spot.name).toBeGreaterThanOrEqual(2);
+      for (const e of endorsers) {
+        expect(e.userId, spot.name).not.toBe(spot.authorId);
+        expect(fixtureUserHomeCitySlug(e.userId), spot.name).toBe(spot.citySlug);
+      }
     }
   });
 
