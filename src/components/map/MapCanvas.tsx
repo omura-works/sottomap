@@ -28,9 +28,11 @@ import {
   playPinEntrance,
   setMarkerGlyph,
   setPinRibbon,
+  setPinSpread,
   setPinWaiting,
   spawnPinHalo,
 } from "./pin-halo";
+import { computePinSpread } from "./pin-spread";
 
 /** 紙の地図の下敷きは止まった絵。ピンの選択などで MapCanvas が描き直されても描き直さない（P7: ピンを押したときの反応を守る） */
 const StillUnderlay = memo(MapUnderlay);
@@ -164,6 +166,22 @@ export function MapCanvas({
     introKeyRef.current = introKey;
   }, [introKey]);
 
+  // 重なったピンを表示のためだけに少しずらす（pin-spread.ts）。ピンの差し替え・ズーム・回転・大きさの変化のたびに測り直す。
+  const applySpreadRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    applySpreadRef.current = () => {
+      const map = mapRef.current;
+      if (!map) return;
+      const live = [...recordsRef.current.values()].filter((rec) => rec.cancelLeave === null);
+      const points = live.map((rec) => {
+        const point = map.project([rec.pin.lng, rec.pin.lat]);
+        return { id: rec.pin.id, x: point.x, y: point.y };
+      });
+      const spread = computePinSpread(points);
+      for (const rec of live) setPinSpread(rec.outer, spread.get(rec.pin.id) ?? null);
+    };
+  });
+
   // 初回の判子（ぽん、ぽん、ぽんと、静かな店から順に）。地図が動いている間は始めず、止まってから始める。
   const playIntroRef = useRef<() => void>(() => {});
   useEffect(() => {
@@ -264,6 +282,20 @@ export function MapCanvas({
       fallbackTimer = window.setTimeout(onReady, INTRO_FALLBACK_MS);
     });
 
+    // ピンのずらしはズームで変わる（ずらしの CSS は transition で滑らかにつながるので、測り直しは1フレームに1回まで）
+    let spreadFrame = 0;
+    const scheduleSpread = () => {
+      if (spreadFrame) return;
+      spreadFrame = window.requestAnimationFrame(() => {
+        spreadFrame = 0;
+        applySpreadRef.current();
+      });
+    };
+    map.on("zoom", scheduleSpread);
+    map.on("rotate", scheduleSpread);
+    map.on("pitch", scheduleSpread);
+    map.on("resize", scheduleSpread);
+
     mapRef.current = map;
     const records = recordsRef.current;
 
@@ -279,6 +311,7 @@ export function MapCanvas({
 
     return () => {
       window.clearTimeout(fallbackTimer);
+      window.cancelAnimationFrame(spreadFrame);
       resizeObserver.disconnect();
       records.forEach((rec) => {
         rec.cancelLeave?.();
@@ -430,6 +463,9 @@ export function MapCanvas({
           spawnPinHalo(selectedRec.outer, PIN_GROUND[selectedRec.pin.quietness], reduced);
         }
       }
+
+      // 重なったピンを少しずらす（入れ替わったピンも含めて測り直す）
+      applySpreadRef.current();
 
       // 地図の準備はできていたがピンがまだ無かった（位置の確定待ちなど）なら、そろったここで判子を押す。
       if (introRef.current === "ready") playIntroRef.current();

@@ -349,3 +349,72 @@ describe("SearchScreen（Codex R10 重要2: 結果差し替え時のフォーカ
     vi.useRealTimers();
   });
 });
+
+// SPEC §4 S3（2026-10-10）: 静かな店は最初の5軒、残りは「もっと見る（あと N 軒）」。混みはじめた店は数に関係なく区切りの下に全部出す。
+describe("さがすの「もっと見る」", () => {
+  const quietSpots = Array.from({ length: 8 }, (_, i) => makeSpot({ id: `q${i}`, name: `静かな店${i + 1}` }));
+  const crowdedSpots = [
+    makeSpot({ id: "c1", name: "並びはじめた店", quietness: "crowding" }),
+    makeSpot({ id: "c2", name: "観光地の店", quietness: "touristy" }),
+  ];
+
+  beforeEach(() => {
+    nav.reset();
+    window.history.pushState({}, "", "/sapporo/search");
+  });
+
+  it("静かな店は5軒だけ出し、混みはじめた店は区切りの下に全部出す。見出しと読み上げは全部の件数", () => {
+    render(<SearchScreen city={CITY} spots={[...quietSpots, ...crowdedSpots]} activeFilters={["quiet-now"]} query="" />);
+    expect(screen.getAllByRole("link", { name: /静かな店\d/ })).toHaveLength(5);
+    expect(screen.getByRole("heading", { level: 2, name: "混みはじめた店" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /並びはじめた店/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /観光地の店/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "もっと見る（あと3軒）" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("10軒見つかりました");
+  });
+
+  it("押すと残りの3軒が出て、増えた最初の行へフォーカスが移り、増えた件数を読み上げる", () => {
+    vi.useFakeTimers();
+    render(<SearchScreen city={CITY} spots={[...quietSpots, ...crowdedSpots]} activeFilters={["quiet-now"]} query="" />);
+    fireEvent.click(screen.getByRole("button", { name: "もっと見る（あと3軒）" }));
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+    const links = screen.getAllByRole("link", { name: /静かな店\d/ });
+    expect(links).toHaveLength(8);
+    expect(screen.queryByRole("button", { name: /もっと見る/ })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("link", { name: /静かな店6/ }));
+    expect(screen.getByRole("status")).toHaveTextContent("あと3軒を出しました");
+    vi.useRealTimers();
+  });
+
+  it("「まだ静か」が OFF でも、静かな店は5軒まで・混みはじめた店は全部を、区切りなしで静かな店の後ろに出す", () => {
+    render(<SearchScreen city={CITY} spots={[...quietSpots, ...crowdedSpots]} activeFilters={[]} query="" />);
+    expect(screen.getAllByRole("link", { name: /静かな店\d/ })).toHaveLength(5);
+    expect(screen.getByRole("link", { name: /並びはじめた店/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /観光地の店/ })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: "混みはじめた店" })).toBeNull();
+    expect(screen.getByRole("button", { name: "もっと見る（あと3軒）" })).toBeInTheDocument();
+  });
+
+  it("静かな店が5軒以下ならボタンを出さない（0軒のときも）", () => {
+    const { rerender } = render(
+      <SearchScreen city={CITY} spots={[...quietSpots.slice(0, 5), ...crowdedSpots]} activeFilters={["quiet-now"]} query="" />,
+    );
+    expect(screen.queryByRole("button", { name: /もっと見る/ })).toBeNull();
+    rerender(<SearchScreen city={CITY} spots={crowdedSpots} activeFilters={["quiet-now"]} query="" />);
+    expect(screen.queryByRole("button", { name: /もっと見る/ })).toBeNull();
+    expect(screen.getByRole("link", { name: /並びはじめた店/ })).toBeInTheDocument();
+  });
+
+  it("結果が変わったら、また5軒に戻る", () => {
+    const { rerender } = render(<SearchScreen city={CITY} spots={quietSpots} activeFilters={["quiet-now"]} query="" />);
+    fireEvent.click(screen.getByRole("button", { name: "もっと見る（あと3軒）" }));
+    expect(screen.getAllByRole("link", { name: /静かな店\d/ })).toHaveLength(8);
+    rerender(<SearchScreen city={CITY} spots={quietSpots.slice(0, 7)} activeFilters={["quiet-now"]} query="" />);
+    // はがれている途中の行（inert）は数えない
+    const live = screen.getAllByRole("link", { name: /静かな店\d/ }).filter((link) => !link.closest("[inert]"));
+    expect(live).toHaveLength(5);
+    expect(screen.getByRole("button", { name: "もっと見る（あと2軒）" })).toBeInTheDocument();
+  });
+});

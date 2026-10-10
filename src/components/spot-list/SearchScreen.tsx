@@ -27,8 +27,13 @@ export interface SearchScreenProps {
 }
 
 const SEARCH_DEBOUNCE_MS = 300;
-/** 「近い順に」表示件数。SPEC §4 S3 の原本表示に合わせ、上位3軒までに絞る。 */
-const SEARCH_RESULT_LIMIT = 3;
+/**
+ * 最初に出す静かな店の数（SPEC §4 S3、2026-10-10 改訂。依頼者の判断「スマホで見やすい形なら何でもよい」）。
+ * 残りは「もっと見る（あと N 軒）」で出す。混みはじめた店・観光地になった店は数に関係なく区切りの下に全部出す。
+ */
+export const SEARCH_INITIAL_QUIET = 5;
+/** 「もっと見る」で増えた行が順に貼られる間隔（SPEC motion §3.5 の一覧のずらしと同じ）。 */
+const MORE_STAGGER_MS = 45;
 
 /**
  * S3「検索」`/[city]/search`。
@@ -188,35 +193,83 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
     if (!withinTenMinActive) return spots;
     return spots.filter((spot) => (distances[spot.id] ?? Infinity) <= WITHIN_10MIN_METERS);
   }, [spots, distances, withinTenMinActive]);
-  // 並び順は必ず sortSpots を通し、見出し「近い順に{N}軒」は絞り込み・上位3軒切りの後の件数。
-  const visibleSpots = useMemo(
-    () => (originPending ? [] : sortSpots(nearbySpots, distances).slice(0, SEARCH_RESULT_LIMIT)),
+  // 並び順は必ず sortSpots を通す。見出し「近い順に{N}軒」は絞り込みの後の全部の件数（「もっと見る」で隠れている分も含む）。
+  const allSpots = useMemo(
+    () => (originPending ? [] : sortSpots(nearbySpots, distances)),
     [nearbySpots, distances, originPending],
   );
 
   // SPEC §9.14-5: 「まだ静か」ON時は quiet を上、crowding/touristy を「混みはじめた店」の下にまとめる。
   // OFF時は §9.5 の順のまま区切りなしで表示する。
+  // SPEC §4 S3（2026-10-10）: 静かな店は近い順に最初の5軒だけ出し、残りは「もっと見る」で出す。
+  // 混みはじめた店・観光地になった店は数に関係なく全部出す（ON なら区切りの下、OFF なら静かな店の後ろに区切りなしで）。
+  // どちらでも同じ行が出ているので、ON/OFF を切り替えると「静かに下がる」で滑る。
   const quietNowActive = activeFilters.includes("quiet-now");
-  const { quiet, crowded } = useMemo(() => splitByQuietness(visibleSpots), [visibleSpots]);
-  const topList = quietNowActive ? quiet : visibleSpots;
-  const bottomList = quietNowActive ? crowded : [];
+  const { quiet, crowded } = useMemo(() => splitByQuietness(allSpots), [allSpots]);
+  const fullTop = quiet;
+  // 結果（検索語・絞り込み・並び）が変わったら、また5軒に戻す（React公式の「props が変わったら state を合わせる」形）
+  const allKey = allSpots.map((spot) => spot.id).join(",") + (quietNowActive ? "|q" : "|a");
+  const [expanded, setExpanded] = useState<{ key: string; from: number } | null>(null);
+  const [moreMessage, setMoreMessage] = useState("");
+  if (expanded && expanded.key !== allKey) {
+    setExpanded(null);
+    setMoreMessage("");
+  }
+  const showAllTop = expanded !== null || fullTop.length <= SEARCH_INITIAL_QUIET;
+  const shownQuiet = useMemo(() => (showAllTop ? fullTop : fullTop.slice(0, SEARCH_INITIAL_QUIET)), [showAllTop, fullTop]);
+  const hiddenCount = fullTop.length - shownQuiet.length;
+  // §9.5 の順（静けさ → 距離）なので、OFF のときも「静かな店 → 混みはじめた店」の順に1つの一覧で並ぶ
+  const topList = useMemo(() => (quietNowActive ? shownQuiet : [...shownQuiet, ...crowded]), [quietNowActive, shownQuiet, crowded]);
+  const bottomList = useMemo(() => (quietNowActive ? crowded : []), [quietNowActive, crowded]);
+  const visibleSpots = useMemo(() => [...topList, ...bottomList], [topList, bottomList]);
 
   // Codex R9 重要2: 結果件数（の確定・変化）をライブリージョンで知らせる。
   // 位置解決待ちの間はその旨を、確定後は件数（0件なら既存の空状態文言に合わせる）を通知する。
   const statusMessage = originPending
     ? "現在地を確認しています…"
-    : visibleSpots.length > 0
-      ? `${visibleSpots.length}軒見つかりました`
+    : allSpots.length > 0
+      ? `${allSpots.length}軒見つかりました`
       : "条件に合う店が見つかりませんでした。";
 
   // Codex R10 重要2: 結果のID並びが変わったら、件数（文言）が同じでも再通知する。
   // 栞（BookmarkList）と同じく、一度空にして次のティックで設定する
   // （同期的に空→本文をまとめて設定すると、DOM上は本文しか変化せず、直前と同じ文言のときは
   // 読み上げられない）。初回描画では即時に確定値を出す（テストや初期表示で待たせないため）。
-  const resultKey = visibleSpots.map((spot) => spot.id).join(",");
+  const resultKey = allSpots.map((spot) => spot.id).join(",");
   // モーションリファレンス「リスト順次表示」: 初回表示の結果だけ順に出す（絞り込みの切り替えでは再生しない）。
-  const rowMotion = useIntroStagger(visibleSpots.map((spot) => spot.id));
+  const introMotion = useIntroStagger(visibleSpots.map((spot) => spot.id));
+  // 「もっと見る」で増えた行は、上から順に貼られる（45ms ずつ。reduce では CSS 側で止まる）
+  const moreIds = useMemo(
+    () => (expanded ? new Map(fullTop.slice(expanded.from).map((spot, i) => [spot.id, i])) : null),
+    [expanded, fullTop],
+  );
+  const rowMotion = useCallback(
+    (id: string) => {
+      const index = moreIds?.get(id);
+      if (index === undefined) return introMotion(id);
+      return {
+        className: "verb-stick",
+        style: { "--d": `${Math.min(index, 7) * MORE_STAGGER_MS}ms`, "--from-y": "-10px", "--from-rot": "0deg" } as CSSProperties,
+      };
+    },
+    [moreIds, introMotion],
+  );
   const [liveMessage, setLiveMessage] = useState(statusMessage);
+  // 「もっと見る」を押したら、増えた最初の行へフォーカスを移し、増えた件数を読み上げる
+  const firstMoreIdRef = useRef<string | null>(null);
+  const showMore = useCallback(() => {
+    firstMoreIdRef.current = fullTop[SEARCH_INITIAL_QUIET]?.id ?? null;
+    setMoreMessage("");
+    setExpanded({ key: allKey, from: SEARCH_INITIAL_QUIET });
+    setTimeout(() => setMoreMessage(`あと${hiddenCount}軒を出しました`), 0);
+  }, [fullTop, allKey, hiddenCount]);
+  useEffect(() => {
+    const id = firstMoreIdRef.current;
+    if (!id || !expanded) return;
+    firstMoreIdRef.current = null;
+    const row = resultsContainerRef.current?.querySelector<HTMLElement>(`[data-row-id="${id}"] a`);
+    row?.focus();
+  }, [expanded]);
   const announceKeyRef = useRef(`${resultKey}|${statusMessage}`);
   useEffect(() => {
     const key = `${resultKey}|${statusMessage}`;
@@ -292,7 +345,7 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
         {originPending ? null : (
           <>
             <span className="search-h1-num verb-pop" style={{ "--d": "200ms" } as CSSProperties}>
-              <BounceNumber value={visibleSpots.length} />
+              <BounceNumber value={allSpots.length} />
             </span>
             <span className="search-h1-word">軒</span>
           </>
@@ -302,7 +355,7 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
 
       {/* Codex R9 重要2・R10 重要2: 結果が確定・変化したことを常設のライブリージョンで通知する。 */}
       <p role="status" aria-live="polite" className="sr-only">
-        {liveMessage}
+        {moreMessage || liveMessage}
       </p>
 
       <div className="search-field">
@@ -347,9 +400,16 @@ export function SearchScreen({ city, spots, activeFilters, query }: SearchScreen
               rowMotion={rowMotion}
               dividerHeading="h2"
               renderRow={(spot) => <SpotRowLink spot={spot} distanceMeters={distances[spot.id]} />}
+              afterTop={
+                hiddenCount > 0 ? (
+                  <button type="button" className="btn btn-secondary search-more" onClick={showMore}>
+                    もっと見る（あと{hiddenCount}軒）
+                  </button>
+                ) : null
+              }
             />
 
-            {visibleSpots.length === 0 ? (
+            {allSpots.length === 0 ? (
               <div className="empty-state">
                 <LanternChild size={48} />
                 <p className="empty-state-big">その条件だと、見つかりませんでした</p>

@@ -250,3 +250,34 @@ export function markStamped(key: string | undefined): void {
     // 保存できなくても次も判子で出るだけ
   }
 }
+
+const PIN_TETHER_CLASS = "pin-tether";
+
+/**
+ * 重なったピンを表示のためだけにずらす（`pin-spread.ts` の計算結果）。外側（MapLibre が位置を書く要素）は動かさず、
+ * CSS の `--sx`/`--sy` で内側（判子・当たり判定・リボン・輪）だけを `translate` で動かす。
+ * ずらしたときは、本当の位置に小さな点（外側の `::before`）を残し、点と判子を細い線（`.pin-tether`）でつなぐ。
+ * `offset` が null（重なっていない）なら元へ戻す。
+ */
+export function setPinSpread(markerEl: HTMLElement, offset: { dx: number; dy: number } | null): void {
+  const dx = offset ? Math.round(offset.dx * 10) / 10 : 0;
+  const dy = offset ? Math.round(offset.dy * 10) / 10 : 0;
+  const spread = Math.hypot(dx, dy) >= 0.5;
+  markerEl.style.setProperty("--sx", `${spread ? dx : 0}px`);
+  markerEl.style.setProperty("--sy", `${spread ? dy : 0}px`);
+  let tether = markerEl.querySelector<HTMLSpanElement>(`.${PIN_TETHER_CLASS}`);
+  if (!spread) {
+    delete markerEl.dataset.spread;
+    return;
+  }
+  markerEl.dataset.spread = "true";
+  if (!tether) {
+    tether = document.createElement("span");
+    tether.className = PIN_TETHER_CLASS;
+    tether.setAttribute("aria-hidden", "true");
+    // 判子・リボンより下に描く
+    markerEl.insertBefore(tether, markerEl.firstChild);
+  }
+  tether.style.width = `${Math.hypot(dx, dy).toFixed(1)}px`;
+  tether.style.rotate = `${((Math.atan2(dy, dx) * 180) / Math.PI).toFixed(1)}deg`;
+}

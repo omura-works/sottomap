@@ -124,6 +124,8 @@ export interface SinkingRowsProps {
   rowMotion?: (id: string) => StaggerRowProps | undefined;
   /** 区切りの見出しの段（検索は h2、地図の列は今の h4 のまま）。 */
   dividerHeading: "h2" | "h4";
+  /** 上の一覧の直後（区切りの前）に置く物（さがすの「もっと見る」ボタン）。 */
+  afterTop?: ReactNode;
 }
 
 /**
@@ -133,7 +135,7 @@ export interface SinkingRowsProps {
  * 動かすのは `translate` だけなので DOM の順番・フォーカス・ライブリージョンは変わらない。
  * 行が 40 を超えるとき・reduce のときは動かさない（即時に並ぶ）。
  */
-export function SinkingRows({ top, bottom, renderRow, rowMotion, dividerHeading }: SinkingRowsProps) {
+export function SinkingRows({ top, bottom, renderRow, rowMotion, dividerHeading, afterTop }: SinkingRowsProps) {
   const reduced = usePrefersReducedMotion();
   const total = top.length + bottom.length;
   const layoutOn = !reduced && total <= SINK_LAYOUT_MAX_ROWS;
@@ -213,6 +215,7 @@ export function SinkingRows({ top, bottom, renderRow, rowMotion, dividerHeading 
       <ul className="spot-rows" data-layout={layoutOn ? "on" : "off"}>
         {rows(top)}
       </ul>
+      {afterTop}
       <AnimatePresence initial={false}>
         {bottom.length > 0 ? (
           <motion.div

@@ -22,10 +22,53 @@ test.describe("地図のピンと「静かに下がる」", () => {
     for (const d of offsets) expect(d).toBeLessThan(2);
   });
 
+  test("重なったピンは内側だけが放射状にずれ、本当の位置に点と線が残り、ズームで離れたら戻る", async ({ page }) => {
+    // 釧路の駅前・幣舞橋の近くは、街の既定のズームでピンが重なる
+    await page.goto("/kushiro");
+    await expect(page.locator(".map-pin-hit-area").first()).toBeVisible();
+    await expect(page.locator(".map-pin-hit-area[inert]")).toHaveCount(0, { timeout: 10000 });
+    await page.waitForTimeout(800);
+    const measure = () =>
+      page.evaluate(() =>
+        Array.from(document.querySelectorAll<HTMLElement>(".map-pin-hit-area")).map((el) => {
+          const outer = el.getBoundingClientRect();
+          const stamp = el.querySelector(".pin-stamp")!.getBoundingClientRect();
+          const sx = Number.parseFloat(el.style.getPropertyValue("--sx") || "0");
+          const sy = Number.parseFloat(el.style.getPropertyValue("--sy") || "0");
+          return {
+            spread: el.dataset.spread === "true",
+            tether: el.querySelector(".pin-tether") !== null,
+            // 判子の中心 − 外側の中心 が、書いたずれと同じ（外側は MapLibre の位置のまま）
+            drift: Math.hypot(stamp.left + stamp.width / 2 - (outer.left + outer.width / 2) - sx, stamp.top + stamp.height / 2 - (outer.top + outer.height / 2) - sy),
+            x: stamp.left + stamp.width / 2,
+            y: stamp.top + stamp.height / 2,
+          };
+        }),
+      );
+    const before = await measure();
+    const spread = before.filter((p) => p.spread);
+    expect(spread.length).toBeGreaterThan(1);
+    expect(spread.every((p) => p.tether)).toBe(true);
+    for (const p of before) expect(p.drift).toBeLessThan(2);
+    for (let i = 0; i < before.length; i++)
+      for (let j = i + 1; j < before.length; j++) expect(Math.hypot(before[i].x - before[j].x, before[i].y - before[j].y)).toBeGreaterThan(32);
+
+    // 大きくズームすると重ならなくなり、ずらしが外れる
+    const map = page.locator(".maplibregl-canvas");
+    const box = (await map.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    for (let i = 0; i < 8; i++) {
+      await page.mouse.wheel(0, -400);
+      await page.waitForTimeout(150);
+    }
+    await page.waitForTimeout(1500);
+    const after = await measure();
+    expect(after.filter((p) => p.spread).length).toBeLessThan(spread.length);
+  });
+
   test("「まだ静か」を付け直すと、混みはじめた店の行が区切りの下へ滑って止まる", async ({ page }) => {
-    // さがすは上位3軒だけを出す（SPEC §4 S3）。デモの札幌は静かな店が3軒より多いので、何も入れないと3軒とも静かな店になり
-    // 区切りが出ない。「すすきの」で静かな店（札幌ザンギ本舗）と混みはじめた店（輝風）が並ぶ条件にして確かめる。
-    await page.goto(`/sapporo/search?q=${encodeURIComponent("すすきの")}`);
+    // 混みはじめた店は、静かな店の数に関係なく区切りの下に常に出る（SPEC §4 S3、2026-10-10）
+    await page.goto("/sapporo/search");
     const quiet = page.getByRole("button", { name: "まだ静か" });
     await expect(page.getByRole("heading", { level: 2, name: "混みはじめた店" })).toBeVisible();
     await quiet.click();

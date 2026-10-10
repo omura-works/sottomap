@@ -1562,18 +1562,57 @@ figcaption {
    relative にすると、マーカーが通常の流れに並んで N 番目のピンが N×30px 下へずれる）。
    見た目と動きは内側の .pin-stamp だけ。影は付けない（判子なので）。filter も付けない。 */
 .map-pin-hit-area {
+  /* 重なったピンのずらし（pin-halo.ts の setPinSpread が書く）。外側は動かさず、内側だけがこの分ずれる */
+  --sx: 0px;
+  --sy: 0px;
   width: 30px;
   height: 30px;
   border-radius: 999px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-/* SPEC §9.14-14: 見た目 30px のまま、当たり判定だけ透明な ::after で 44x44px 以上に広げる */
+/* SPEC §9.14-14: 見た目 30px のまま、当たり判定だけ透明な ::after で 44x44px 以上に広げる（ずらした判子に付いていく） */
 .map-pin-hit-area::after {
   content: "";
   position: absolute;
   inset: -7px;
   border-radius: 999px;
+  translate: var(--sx) var(--sy);
+}
+/* ずらした判子・当たり判定・リボン・輪は、ズームで重ならなくなったら元の位置へ戻る（すっ、と） */
+.pin-rb-box,
+.map-pin-halo,
+.map-pin-hit-area::after {
+  transition: translate var(--dur-settle) var(--spring-settle);
+}
+/* ずらしたときは、本当の位置に小さな点を残し、点と判子を細い線でつなぐ（どこの店か分かるように） */
+.map-pin-hit-area[data-spread="true"]::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 999px;
+  background: var(--color-neutral-800);
+  box-shadow: 0 0 0 1.5px var(--color-bg);
+  pointer-events: none;
+}
+.pin-tether {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  height: 1.5px;
+  margin-top: -0.75px;
+  background: var(--color-neutral-800);
+  transform-origin: 0 50%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-quick) var(--ease-out-soft);
+}
+.map-pin-hit-area[data-spread="true"] .pin-tether {
+  opacity: 0.7;
 }
 /* 重なったときは静かな店のピンを上に（押せるように）。選んだピンはさらに上 */
 .map-pin-hit-area[data-q="quiet"] {
@@ -1611,7 +1650,10 @@ figcaption {
     inset 0 0 0 2px color-mix(in srgb, var(--bgc) 55%, white),
     0 0 0 2px var(--color-neutral-800);
   rotate: var(--tilt, 0deg);
-  transition: scale var(--dur-stamp) var(--spring-stamp);
+  translate: var(--sx) var(--sy);
+  transition:
+    scale var(--dur-stamp) var(--spring-stamp),
+    translate var(--dur-settle) var(--spring-settle);
   user-select: none;
 }
 .pin-stamp[data-q="crowding"] {
@@ -1682,6 +1724,7 @@ figcaption {
   position: absolute;
   top: -5px;
   right: -3px;
+  translate: var(--sx) var(--sy);
   z-index: 1;
   width: 8px;
   height: 14px;
@@ -3031,6 +3074,13 @@ figcaption {
   background: var(--color-accent-400);
   box-shadow: var(--glow-sm);
   animation: v-breath var(--dur-breath) var(--ease-breath) 400ms 2;
+}
+/* 「もっと見る（あと N 軒）」: 静かな店の6軒目から下を出す（§4 S3・motion §5.3）。行と同じ幅で、指で押しやすい高さ */
+.search-more {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  margin-top: 10px;
 }
 .sort-note {
   padding-top: 24px;
@@ -4976,6 +5026,7 @@ main:has(.login-night) + .site-footer .site-footer-ridge {
 .map-pin-halo {
   position: absolute;
   inset: -3px;
+  translate: var(--sx, 0px) var(--sy, 0px);
   border-radius: 999px;
   border: 2px solid currentColor;
   pointer-events: none;
