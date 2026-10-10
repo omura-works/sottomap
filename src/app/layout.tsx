@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Mochiy_Pop_One, Zen_Maru_Gothic } from "next/font/google";
 import { AppShell } from "@/components/layout/AppShell";
 import { MotionRoot } from "@/components/motion/MotionRoot";
-import { isDemoMode } from "@/lib/supabase/env";
+import { isDemoMode, isPublicDemo } from "@/lib/supabase/env";
 import { getCurrentUserId } from "@/lib/auth";
 import { getUserProfile, listCities } from "@/lib/db/spots";
 import { getSiteOrigin } from "@/lib/auth/site-url";
@@ -46,6 +46,8 @@ const mochiyPopOne = Mochiy_Pop_One({
 
 export const metadata: Metadata = {
   ...(siteOrigin ? { metadataBase: new URL(siteOrigin) } : {}),
+  // 公開デモ（URASUPO_PUBLIC_DEMO=1）は検索エンジンに載せない（実在の店のデモが本物と混同されないように）
+  ...(isPublicDemo() ? { robots: { index: false, follow: false } } : {}),
   title: {
     default: "そっとマップ",
     template: "%s｜そっとマップ",

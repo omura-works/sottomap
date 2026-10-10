@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getSiteOrigin } from "@/lib/auth/site-url";
+import { isPublicDemo } from "@/lib/supabase/env";
 
 /**
  * `NEXT_PUBLIC_SITE_URL` から求めた origin。未設定・不正なときは例外を投げる関数だが、
@@ -22,6 +23,8 @@ function siteOrigin(): string {
  * 収集対象から外す。
  */
 export default function robots(): MetadataRoute.Robots {
+  // 公開デモ（URASUPO_PUBLIC_DEMO=1）は全部を収集の対象から外す（実在の店のデモが本物と混同されないように）
+  if (isPublicDemo()) return { rules: { userAgent: "*", disallow: "/" } };
   const origin = siteOrigin();
   return {
     rules: {

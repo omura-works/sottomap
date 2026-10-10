@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import robots from "./robots";
 
 describe("robots", () => {
@@ -24,5 +24,18 @@ describe("robots", () => {
     const result = robots();
     expect(result.sitemap).toMatch(/^https?:\/\/.+\/sitemap\.xml$/);
     expect(result.host).toMatch(/^https?:\/\//);
+  });
+
+  describe("公開デモ（URASUPO_PUBLIC_DEMO=1）", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("全部を disallow し、sitemap を載せない（本物と混同されないように）", () => {
+      vi.stubEnv("URASUPO_PUBLIC_DEMO", "1");
+      const result = robots();
+      expect(result.rules).toEqual({ userAgent: "*", disallow: "/" });
+      expect(result.sitemap).toBeUndefined();
+    });
   });
 });

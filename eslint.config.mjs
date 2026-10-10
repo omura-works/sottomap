@@ -12,6 +12,7 @@ const eslintConfig = defineConfig([
     // E2E 用に distDir を分けた dev サーバーの生成物（playwright.config.ts / playwright.realdb.config.ts）
     ".next-e2e/**",
     ".next-e2e-reduce/**",
+    ".next-demo/**",
     ".next-realdb/**",
     "out/**",
     "build/**",

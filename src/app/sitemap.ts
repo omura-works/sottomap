@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { getSiteOrigin } from "@/lib/auth/site-url";
 import { listCities } from "@/lib/db/spots";
+import { isPublicDemo } from "@/lib/supabase/env";
 
 function siteOrigin(): string {
   try {
@@ -17,6 +18,8 @@ function siteOrigin(): string {
  * （公開スポット詳細は街ごとに数が変わるため、街の一覧からの生成という指示の範囲では含めない）。
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // 公開デモは検索エンジンに知らせるページを持たない
+  if (isPublicDemo()) return [];
   const origin = siteOrigin();
   const entries: MetadataRoute.Sitemap = [
     { url: `${origin}/start`, changeFrequency: "weekly", priority: 1 },

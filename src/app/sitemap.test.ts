@@ -9,6 +9,16 @@ describe("sitemap", () => {
     expect(entries.some((entry) => /\/sapporo\/search$/.test(entry.url))).toBe(true);
   });
 
+  it("公開デモ（URASUPO_PUBLIC_DEMO=1）では空（検索エンジンに知らせない）", async () => {
+    vi.stubEnv("URASUPO_PUBLIC_DEMO", "1");
+    try {
+      const sitemap = (await import("./sitemap")).default;
+      expect(await sitemap()).toEqual([]);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("/terms・/privacy・/faq・/shops・/contact を含む", async () => {
     const sitemap = (await import("./sitemap")).default;
     const entries = await sitemap();

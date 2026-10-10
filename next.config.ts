@@ -10,11 +10,15 @@ const GSI_TILE_ORIGIN = "https://cyberjapandata.gsi.go.jp";
  * （R24 軽微）。版を上げるときは、0016 の表を作り直す migration を足してからこの値を変える。
  */
 const EXPECTED_UNICODE_VERSION = "17.0";
+/** 公開デモ（`URASUPO_PUBLIC_DEMO=1`）。src/lib/supabase/env.ts の isPublicDemo と同じ判定。 */
+const PUBLIC_DEMO = process.env.URASUPO_PUBLIC_DEMO === "1";
 if (process.env.NODE_ENV === "production" && process.versions.unicode !== EXPECTED_UNICODE_VERSION) {
-  throw new Error(
+  const message =
     `実行環境の Unicode の版（${process.versions.unicode}）が、表示名の検査の前提（${EXPECTED_UNICODE_VERSION}）と違います。` +
-      "package.json の engines（Node 24.x）を確認してください。",
-  );
+    "package.json の engines（Node 24.x）を確認してください。";
+  // 公開デモは DB を使わない（表示名は DB の表と照らし合わせない）ので、ずれても止めずに知らせるだけにする
+  if (PUBLIC_DEMO) console.warn(`[公開デモ] ${message}`);
+  else throw new Error(message);
 }
 
 /** NEXT_PUBLIC_SUPABASE_URL のオリジン。未設定・不正なら null（デモモード等）。 */
@@ -119,6 +123,10 @@ const nextConfig: NextConfig = {
     if (isProduction) {
       // HTTPS 環境（本番）でのみ有効。preload はドメイン管理側の登録が別途必要なため付けない。
       headers.push({ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" });
+    }
+    if (PUBLIC_DEMO) {
+      // 公開デモは検索エンジンに載せない（実在の店のデモが本物のサービスと混同されないように。robots・meta と重ねる）
+      headers.push({ key: "X-Robots-Tag", value: "noindex, nofollow" });
     }
     return [{ source: "/:path*", headers }];
   },

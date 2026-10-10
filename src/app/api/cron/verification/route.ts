@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { purgeExpiredAccountDeletionLog } from "@/lib/db/account-deletion";
 import { purgeExpiredContactData } from "@/lib/db/contact";
 import { runVerificationCron } from "@/lib/db/mutations";
+import { isPublicDemo } from "@/lib/supabase/env";
 import { isAuthorizedCronRequest } from "./authorize";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,8 @@ export const dynamic = "force-dynamic";
  * 削除に失敗したら console.error に記録し 500 を返す（ほかの処理は続け、その結果は返す。翌日の実行で取り戻せる）。
  */
 export async function GET(request: Request) {
+  // 公開デモでは定期処理を動かさない（データは起動ごとのフィクスチャで、消す・期限を進める物が無い）
+  if (isPublicDemo()) return NextResponse.json({ error: "not available in the public demo" }, { status: 404 });
   if (!isAuthorizedCronRequest(request.headers.get("authorization"), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }

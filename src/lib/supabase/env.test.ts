@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { EnvironmentConfigError, getSupabaseEnv, isDemoMode, isSupabaseConfigured, resolveDataMode } from "./env";
+import { EnvironmentConfigError, getSupabaseEnv, isDemoMode, isPublicDemo, isSupabaseConfigured, resolveDataMode } from "./env";
 
 // Spec §9.13.1: デモは明示したときだけ・本番では不可・Supabase の部分設定は fail-closed。
 function setEnv(values: {
@@ -8,8 +8,10 @@ function setEnv(values: {
   anonKey?: string;
   nodeEnv?: string;
   vercelEnv?: string;
+  publicDemo?: string;
 }): void {
   vi.stubEnv("URASUPO_DEMO_MODE", values.demo ?? "");
+  vi.stubEnv("URASUPO_PUBLIC_DEMO", values.publicDemo ?? "");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", values.url ?? "");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", values.anonKey ?? "");
   vi.stubEnv("NODE_ENV", values.nodeEnv ?? "test");
@@ -62,6 +64,21 @@ describe("resolveDataMode（Spec §9.13.1）", () => {
   it("デモ未指定で Supabase も未設定なら例外（黙ってデモにしない）", () => {
     setEnv({});
     expect(() => resolveDataMode()).toThrow("URASUPO_DEMO_MODE=1");
+  });
+
+  it("公開デモ（URASUPO_PUBLIC_DEMO=1）は本番でもデモ。Supabase の値があっても使わない", () => {
+    setEnv({ publicDemo: "1", nodeEnv: "production", vercelEnv: "production" });
+    expect(isPublicDemo()).toBe(true);
+    expect(resolveDataMode()).toEqual({ kind: "demo" });
+    setEnv({ publicDemo: "1", nodeEnv: "production", url: "https://example.supabase.co", anonKey: "anon-key" });
+    expect(resolveDataMode()).toEqual({ kind: "demo" });
+    expect(getSupabaseEnv()).toBeNull();
+  });
+
+  it("公開デモのフラグは 1 だけ（true などでは本番のデモの例外のまま）", () => {
+    setEnv({ demo: "1", publicDemo: "true", nodeEnv: "production" });
+    expect(isPublicDemo()).toBe(false);
+    expect(() => resolveDataMode()).toThrow("本番環境");
   });
 
   it("NODE_ENV=production でデモが指定されていたら例外", () => {

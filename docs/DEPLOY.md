@@ -722,6 +722,25 @@ select * from supabase_migrations.schema_migrations order by version;
 
 ---
 
+## 9. 公開デモの置き方（どこからでも開けるデモ。本番とは別のプロジェクトにする）
+
+依頼者に見せるための、保存しないデモを Vercel に置く手順。本番（1〜8節）とは**別の Vercel プロジェクト**にし、同じリポジトリをつなぐ。
+
+1. Vercel で新しいプロジェクトを作り、このリポジトリをつなぐ（Framework は Next.js、Node.js は 24.x のまま）。
+2. Environment Variables に **`URASUPO_PUBLIC_DEMO=1` だけ**を入れる（Production・Preview の両方）。
+   - Supabase の値（`NEXT_PUBLIC_SUPABASE_*`・`SUPABASE_SERVICE_ROLE_KEY`）、`CRON_SECRET`、`RESEND_API_KEY` などの**秘密の値は入れない**。入っていても公開デモでは使わない（`src/lib/supabase/env.ts` の `isPublicDemo`）。
+   - `URASUPO_DEMO_MODE` は入れない（フラグの無い本番でこれを入れると、今までどおり起動時に例外になる）。
+   - `NEXT_PUBLIC_SITE_URL` は無くてよい（OGP・robots の絶対 URL は Vercel の `VERCEL_PROJECT_PRODUCTION_URL` から作る）。独自ドメインを付けたときだけ、その https の URL を入れる。
+3. デプロイする。`vercel.json` の Cron は公開デモでも呼ばれるが、`/api/cron/verification` は公開デモでは何もせず 404 を返す。
+4. 確かめる: 画面の上に「デモモード（保存されません）」の帯が出る。`/robots.txt` が `Disallow: /`、各ページに `<meta name="robots" content="noindex, nofollow">` と `X-Robots-Tag: noindex, nofollow` が付く（実在の店のデモが本物と混同されないように検索エンジンに載せない）。
+
+公開デモの動き:
+- データは起動ごとのフィクスチャ（実在の店 82 軒と架空の確認の履歴）。栞・ピンを立てる・承認・確認・お問い合わせはその場では成功して見えるが、どこにも保存しない（サーバーのインスタンスが替わると元に戻る）。
+- 外へは何も送らない（ログインのメールは送らず「デモでは、ログイン用のメールは送りません」と案内する。お問い合わせの運営への通知メールも送らない）。地図タイル（国土地理院）を読むだけ。
+- 表示名の検査の Unicode の版（`next.config.ts` の確かめ）は、公開デモでは止めずに警告に留める（DB を使わないため。ローカルの Node 24.19.0 は 17.0 で一致）。
+
+確かめ方（ローカル）: `URASUPO_PUBLIC_DEMO=1 npx next build && URASUPO_PUBLIC_DEMO=1 npx next start` で全画面を開き、書き込み操作をしても地図タイル以外の外部への通信が無いこと。
+
 ## 付録: よくある事故の防止
 
 - `.env.local` や実際の値を書いたファイルは絶対にコミットしない（`.gitignore` の対象になっている

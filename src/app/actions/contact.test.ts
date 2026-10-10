@@ -181,6 +181,15 @@ describe("submitContactAction", () => {
     expect(body).toContain(FIXTURE_CONTACT_MESSAGES[0]?.id ?? "no-id");
   });
 
+  it("公開デモ（URASUPO_PUBLIC_DEMO=1）では、通知の設定があっても外へ何も送らず、成功として返す", async () => {
+    vi.stubEnv("URASUPO_PUBLIC_DEMO", "1");
+    vi.stubEnv("RESEND_API_KEY", "re_test_key");
+    vi.stubEnv("CONTACT_NOTIFY_TO", "ops@example.com");
+    const state = await submitContactAction({ status: "idle" }, form({ category: "other", message: MESSAGE }));
+    expect(state).toEqual({ status: "success", category: "other" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("通知の設定が無ければ通知しない", async () => {
     vi.stubEnv("RESEND_API_KEY", "");
     vi.stubEnv("CONTACT_NOTIFY_TO", "");

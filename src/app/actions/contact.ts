@@ -10,6 +10,7 @@ import { CONTACT_ERRORS, isContactCategory, type ContactCategory } from "@/app/c
 import { getCurrentUserId } from "@/lib/auth";
 import { submitContactMessage } from "@/lib/db/contact";
 import { notifyContactReceived } from "@/lib/notify/contact";
+import { isPublicDemo } from "@/lib/supabase/env";
 
 export type ContactField = "category" | "message" | "replyTo";
 
@@ -92,7 +93,8 @@ export async function submitContactAction(
       userAgent: truncateUserAgent(requestHeaders.get("user-agent")),
       sourceIp: readClientIp(requestHeaders),
     });
-    if (receipt) {
+    // 公開デモでは運営への通知メールを送らない（外へ何も送らない。RESEND_API_KEY などが入っていても）
+    if (receipt && !isPublicDemo()) {
       await notifyContactReceived(receipt);
     }
     // ここに来たなら用件は検査済み（submitContactMessage が不正な用件を拒否する）。

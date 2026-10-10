@@ -19,7 +19,7 @@ export async function sendLoginLink(
   if (!/^\S+@\S+\.\S+$/.test(email)) return { error: "メールアドレスを入力してください" };
 
   // デモモードは常にデモユーザーでログイン済みの扱いで、メールは送らない。
-  if (isDemoMode()) return { error: "デモモードではログイン用メールを送れません" };
+  if (isDemoMode()) return { error: "デモでは、ログイン用のメールは送りません（保存もされません）。デモの利用者として、もうログインしています。" };
 
   // Spec §9.13.7: 戻り先の origin はリクエストヘッダーではなく固定の環境変数から作る。
   const origin = getSiteOrigin();

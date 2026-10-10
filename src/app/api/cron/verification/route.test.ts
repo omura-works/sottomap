@@ -46,6 +46,15 @@ describe("GET /api/cron/verification", () => {
     expect(purgeOrder).toBeGreaterThan(cronOrder);
   });
 
+  it("公開デモ（URASUPO_PUBLIC_DEMO=1）では、認可があっても何もせず 404", async () => {
+    vi.stubEnv("URASUPO_PUBLIC_DEMO", "1");
+    const response = await GET(request(`Bearer ${SECRET}`));
+    expect(response.status).toBe(404);
+    expect(runVerificationCron).not.toHaveBeenCalled();
+    expect(purgeExpiredContactData).not.toHaveBeenCalled();
+    expect(purgeExpiredAccountDeletionLog).not.toHaveBeenCalled();
+  });
+
   it("認可が無ければ何もしない（削除もしない）", async () => {
     const response = await GET(request());
     expect(response.status).toBe(401);
